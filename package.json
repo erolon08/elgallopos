@@ -1,0 +1,17 @@
+{
+  "name": "el-gallo-pos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sistema POS para Cerrajería El Gallo",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/db/seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

@@ -1,0 +1,323 @@
+-- EL GALLO POS — Esquema de base de datos
+-- SQLite (modo WAL). Incluye campos reservados para facturación electrónica (AFIP)
+-- que se implementará más adelante, para no tener que rediseñar tablas después.
+
+PRAGMA foreign_keys = ON;
+
+-- ============================================================
+-- USUARIOS Y ROLES
+-- ============================================================
+CREATE TABLE IF NOT EXISTS usuarios (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre TEXT NOT NULL,
+  usuario TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  rol TEXT NOT NULL CHECK (rol IN ('ADMIN','CAJA','VENTA')),
+  activo INTEGER NOT NULL DEFAULT 1,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ============================================================
+-- FAMILIAS (reglas automáticas de precio y de rendición)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS familias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre TEXT NOT NULL UNIQUE,
+  descuento_debito REAL NOT NULL DEFAULT 20,   -- % que se resta del precio final
+  descuento_efectivo REAL NOT NULL DEFAULT 30, -- % que se resta del precio final
+  usa_precio_rendicion INTEGER NOT NULL DEFAULT 0, -- ej: DUPLICADOS
+  usa_mano_obra INTEGER NOT NULL DEFAULT 0,        -- ej: SERVICIOS
+  activo INTEGER NOT NULL DEFAULT 1,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ============================================================
+-- PROVEEDORES
+-- ============================================================
+CREATE TABLE IF NOT EXISTS proveedores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre TEXT NOT NULL UNIQUE,
+  telefono TEXT,
+  activo INTEGER NOT NULL DEFAULT 1,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ============================================================
+-- PRODUCTOS
+-- El usuario solo carga: codigo, descripcion, familia, proveedor, costo,
+-- precio_final, stock_minimo, iva. precio_debito/precio_efectivo se calculan
+-- automáticamente salvo que usar_regla_automatica = 0.
+-- precio_rendicion: solo aplica a familias con usa_precio_rendicion = 1
+-- (ej. duplicados de llaves), lo carga el ADMIN y cambia de vez en cuando.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS productos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo TEXT NOT NULL UNIQUE,
+  descripcion TEXT NOT NULL,
+  familia_id INTEGER NOT NULL REFERENCES familias(id),
+  proveedor_id INTEGER REFERENCES proveedores(id),
+  costo REAL NOT NULL DEFAULT 0,
+  precio_final REAL NOT NULL DEFAULT 0,
+  precio_debito REAL NOT NULL DEFAULT 0,
+  precio_efectivo REAL NOT NULL DEFAULT 0,
+  precio_rendicion REAL,
+  usar_regla_automatica INTEGER NOT NULL DEFAULT 1,
+  iva REAL NOT NULL DEFAULT 21,
+  stock_actual REAL NOT NULL DEFAULT 0,
+  stock_minimo REAL NOT NULL DEFAULT 0,
+  activo INTEGER NOT NULL DEFAULT 1,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+  actualizado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_productos_familia ON productos(familia_id);
+CREATE INDEX IF NOT EXISTS idx_productos_descripcion ON productos(descripcion);
+CREATE INDEX IF NOT EXISTS idx_productos_proveedor ON productos(proveedor_id);
+
+-- ============================================================
+-- STOCK — MOVIMIENTOS (núcleo del módulo de Control de Stock)
+-- tipo: venta (resta), nota_credito (devuelve/suma), ajuste (manual, +/-), compra (suma)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS stock_movimientos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  producto_id INTEGER NOT NULL REFERENCES productos(id),
+  tipo TEXT NOT NULL CHECK (tipo IN ('venta','nota_credito','ajuste','compra')),
+  cantidad REAL NOT NULL,          -- puede ser negativa (venta) o positiva (compra/devolución/ajuste+)
+  stock_resultante REAL NOT NULL,
+  motivo TEXT,
+  referencia_tipo TEXT,            -- 'venta' | 'compra' | null
+  referencia_id INTEGER,
+  usuario_id INTEGER REFERENCES usuarios(id),
+  terminal TEXT,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_stockmov_producto ON stock_movimientos(producto_id, creado_en);
+
+-- ============================================================
+-- COMPRAS (alimentan el stock con tipo 'compra')
+-- ============================================================
+CREATE TABLE IF NOT EXISTS compras (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  proveedor_id INTEGER REFERENCES proveedores(id),
+  numero TEXT,
+  estado TEXT NOT NULL DEFAULT 'recibida' CHECK (estado IN ('recibida','anulada')),
+  total REAL NOT NULL DEFAULT 0,
+  usuario_id INTEGER REFERENCES usuarios(id),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS compra_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  compra_id INTEGER NOT NULL REFERENCES compras(id),
+  producto_id INTEGER NOT NULL REFERENCES productos(id),
+  cantidad REAL NOT NULL,
+  costo_unitario REAL NOT NULL
+);
+
+-- ============================================================
+-- CLIENTES (base histórica ~17.879, se respeta estructura existente)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS clientes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo TEXT UNIQUE,
+  nombre TEXT NOT NULL,
+  telefono TEXT,
+  documento TEXT,
+  email TEXT,
+  direccion TEXT,
+  tipo_factura TEXT NOT NULL DEFAULT 'Consumidor final',
+  activo INTEGER NOT NULL DEFAULT 1,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_clientes_nombre ON clientes(nombre);
+CREATE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
+CREATE INDEX IF NOT EXISTS idx_clientes_documento ON clientes(documento);
+
+CREATE TABLE IF NOT EXISTS vehiculos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+  marca_modelo TEXT,
+  patente TEXT,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_vehiculos_patente ON vehiculos(patente);
+CREATE INDEX IF NOT EXISTS idx_vehiculos_cliente ON vehiculos(cliente_id);
+
+-- ============================================================
+-- CERRAJEROS
+-- porcentaje_rendicion: 30% fijo para todos (configurable por si cambia a futuro)
+-- aporte_fijo: descuento recurrente que se aplica automático en cada rendición
+-- ============================================================
+CREATE TABLE IF NOT EXISTS cerrajeros (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre TEXT NOT NULL,
+  porcentaje_rendicion REAL NOT NULL DEFAULT 30,
+  aporte_fijo REAL NOT NULL DEFAULT 0,
+  activo INTEGER NOT NULL DEFAULT 1,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ============================================================
+-- CAJA — TURNOS Y MOVIMIENTOS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS caja_turnos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero TEXT NOT NULL,
+  terminal TEXT NOT NULL,
+  usuario_id INTEGER REFERENCES usuarios(id),
+  fondo_inicial REAL NOT NULL DEFAULT 0,
+  efectivo_esperado REAL,
+  efectivo_contado REAL,
+  diferencia REAL,
+  observacion TEXT,
+  abierto_en TEXT NOT NULL DEFAULT (datetime('now')),
+  cerrado_en TEXT,
+  estado TEXT NOT NULL DEFAULT 'abierto' CHECK (estado IN ('abierto','cerrado'))
+);
+
+CREATE TABLE IF NOT EXISTS caja_movimientos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  caja_turno_id INTEGER NOT NULL REFERENCES caja_turnos(id),
+  tipo TEXT NOT NULL CHECK (tipo IN ('ingreso','egreso')),
+  categoria TEXT NOT NULL,        -- 'venta' | 'empleados' | 'gasto' | 'otro'
+  concepto TEXT,
+  monto REAL NOT NULL,
+  referencia_tipo TEXT,           -- 'venta' | 'rendicion' | null
+  referencia_id INTEGER,
+  usuario_id INTEGER REFERENCES usuarios(id),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_cajamov_turno ON caja_movimientos(caja_turno_id);
+
+-- ============================================================
+-- VENTAS
+-- Campos reservados para facturación electrónica AFIP: tipo_comprobante,
+-- numero_comprobante, cae, cae_vencimiento.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ventas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero TEXT UNIQUE,
+  cliente_id INTEGER REFERENCES clientes(id),
+  terminal_origen TEXT NOT NULL,
+  usuario_id INTEGER REFERENCES usuarios(id),
+  caja_turno_id INTEGER REFERENCES caja_turnos(id),
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','enviada_caja','cobrada','anulada')),
+  forma_pago TEXT,
+  subtotal REAL NOT NULL DEFAULT 0,
+  descuento_general REAL NOT NULL DEFAULT 0,
+  total REAL NOT NULL DEFAULT 0,
+  tipo_comprobante TEXT NOT NULL DEFAULT 'Eventual', -- Eventual | Factura A | Factura B (reservado AFIP)
+  numero_comprobante TEXT,
+  cae TEXT,
+  cae_vencimiento TEXT,
+  enviado_whatsapp INTEGER NOT NULL DEFAULT 0,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+  cobrado_en TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ventas_estado ON ventas(estado);
+CREATE INDEX IF NOT EXISTS idx_ventas_cliente ON ventas(cliente_id);
+
+-- venta_items.monto_mano_obra: solo se carga en líneas de productos de familias
+-- con usa_mano_obra = 1 (SERVICIOS). Es la base para calcular la rendición del
+-- cerrajero, independiente del precio_unitario cobrado al cliente.
+CREATE TABLE IF NOT EXISTS venta_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  venta_id INTEGER NOT NULL REFERENCES ventas(id),
+  producto_id INTEGER REFERENCES productos(id),
+  descripcion TEXT NOT NULL,
+  cantidad REAL NOT NULL DEFAULT 1,
+  precio_unitario REAL NOT NULL,
+  tipo_precio TEXT NOT NULL DEFAULT 'final', -- final | debito | efectivo | manual
+  descuento REAL NOT NULL DEFAULT 0,
+  monto_mano_obra REAL,
+  cerrajero_id INTEGER REFERENCES cerrajeros(id),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ventaitems_venta ON venta_items(venta_id);
+CREATE INDEX IF NOT EXISTS idx_ventaitems_cerrajero ON venta_items(cerrajero_id);
+
+-- ============================================================
+-- RENDICIÓN DE CERRAJEROS
+-- Período libre (desde/hasta), no solo diario.
+-- total_pagar = total_bruto - total_descuentos (aportes, repuestos, otros, adelantos)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rendiciones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cerrajero_id INTEGER NOT NULL REFERENCES cerrajeros(id),
+  fecha_desde TEXT NOT NULL,
+  fecha_hasta TEXT NOT NULL,
+  total_bruto REAL NOT NULL DEFAULT 0,
+  total_descuentos REAL NOT NULL DEFAULT 0,
+  total_pagar REAL NOT NULL DEFAULT 0,
+  caja_movimiento_id INTEGER REFERENCES caja_movimientos(id),
+  estado TEXT NOT NULL DEFAULT 'generada' CHECK (estado IN ('generada','pagada')),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_rendiciones_cerrajero ON rendiciones(cerrajero_id);
+
+-- tipo: 'servicio' (30% de monto_mano_obra) | 'duplicado' (30% de precio_rendicion)
+CREATE TABLE IF NOT EXISTS rendicion_detalle (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
+  venta_item_id INTEGER NOT NULL REFERENCES venta_items(id),
+  tipo TEXT NOT NULL CHECK (tipo IN ('servicio','duplicado')),
+  monto_base REAL NOT NULL,
+  porcentaje REAL NOT NULL,
+  monto_rendido REAL NOT NULL
+);
+
+-- tipo: 'aporte' (recurrente, precargado desde cerrajeros.aporte_fijo) |
+-- 'repuesto' | 'otro' | 'adelanto' (eventuales, cargados al generar la rendición)
+CREATE TABLE IF NOT EXISTS rendicion_descuentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
+  tipo TEXT NOT NULL CHECK (tipo IN ('aporte','repuesto','otro','adelanto')),
+  descripcion TEXT,
+  monto REAL NOT NULL
+);
+
+-- ============================================================
+-- PRESUPUESTOS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS presupuestos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero TEXT UNIQUE,
+  cliente_id INTEGER REFERENCES clientes(id),
+  vigencia_dias INTEGER NOT NULL DEFAULT 15,
+  estado TEXT NOT NULL DEFAULT 'vigente' CHECK (estado IN ('vigente','convertido','vencido','cerrado')),
+  total REAL NOT NULL DEFAULT 0,
+  venta_id INTEGER REFERENCES ventas(id),
+  usuario_id INTEGER REFERENCES usuarios(id),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS presupuesto_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  presupuesto_id INTEGER NOT NULL REFERENCES presupuestos(id),
+  producto_id INTEGER REFERENCES productos(id),
+  descripcion TEXT NOT NULL,
+  cantidad REAL NOT NULL DEFAULT 1,
+  precio_unitario REAL NOT NULL
+);
+
+-- ============================================================
+-- AGENDA Y NOTIFICACIONES (placeholder — alcance a definir más adelante)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS agenda_trabajos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER REFERENCES clientes(id),
+  cerrajero_id INTEGER REFERENCES cerrajeros(id),
+  descripcion TEXT NOT NULL,
+  direccion TEXT,
+  fecha_hora TEXT NOT NULL,
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','asignado','realizado','cancelado')),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS notificaciones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo TEXT NOT NULL,
+  titulo TEXT NOT NULL,
+  mensaje TEXT NOT NULL,
+  leida INTEGER NOT NULL DEFAULT 0,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
