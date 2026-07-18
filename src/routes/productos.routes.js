@@ -1,8 +1,12 @@
 const express = require('express');
+const multer = require('multer');
+const XLSX = require('xlsx');
 const db = require('../db');
 const productosService = require('../services/productos.service');
+const importacionService = require('../services/importacion.service');
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 router.get('/', (req, res) => {
   const { q, familia_id, proveedor_id, stock, incompletos } = req.query;
@@ -47,6 +51,27 @@ router.put('/:id', (req, res) => {
     if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Ya existe un producto con ese código' });
     }
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/importar', upload.single('archivo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+
+  let workbook;
+  try {
+    workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+  } catch (err) {
+    return res.status(400).json({ error: 'No se pudo leer el archivo. ¿Es un Excel válido (.xlsx)?' });
+  }
+
+  const hoja = workbook.Sheets[workbook.SheetNames[0]];
+  const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, range: 1, defval: null, blankrows: false });
+
+  try {
+    const resultado = importacionService.importarProductos(filas);
+    res.json(resultado);
+  } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });

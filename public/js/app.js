@@ -192,6 +192,47 @@ async function cargarProductos() {
   rows.forEach((p) => tbody.appendChild(filaProducto(p)));
 }
 
+async function importarExcel(event) {
+  const input = event.target;
+  const archivo = input.files[0];
+  if (!archivo) return;
+
+  if (!confirm(`¿Importar "${archivo.name}"? Los productos con código existente se actualizan, el resto se crea nuevo.`)) {
+    input.value = '';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+
+  const boton = document.querySelector('button[onclick*="prodImportarInput"]');
+  const textoOriginal = boton.textContent;
+  boton.textContent = 'Importando...';
+  boton.disabled = true;
+
+  try {
+    const res = await fetch('/api/productos/importar', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Error al importar: ' + data.error);
+      return;
+    }
+    let msg = `Importación completa.\nCreados: ${data.creados}\nActualizados: ${data.actualizados}`;
+    if (data.familiasNuevas.length) msg += `\nFamilias nuevas: ${data.familiasNuevas.join(', ')}`;
+    if (data.totalErrores) msg += `\nFilas con error: ${data.totalErrores} (revisá códigos/descripciones vacíos)`;
+    alert(msg);
+    await cargarFamiliasGlobal();
+    await cargarProveedoresGlobal();
+    cargarProductos();
+  } catch (err) {
+    alert('Error al importar: ' + err.message);
+  } finally {
+    boton.textContent = textoOriginal;
+    boton.disabled = false;
+    input.value = '';
+  }
+}
+
 function filaProducto(p) {
   const tr = document.createElement('tr');
   const incompletoMsg = p.usa_mano_obra ? 'Falta configurar los recargos de mano de obra' : 'Falta proveedor, costo o precio final';
