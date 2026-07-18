@@ -15,9 +15,9 @@
       <button data-screen="productos">📦 Productos</button>
       <button data-screen="familias">🗂️ Familias</button>
       <button data-screen="stock">🏷️ Stock</button>
+      <button data-screen="clientes">👥 Clientes</button>
       <button disabled>🛒 Venta <span class="tag">próximamente</span></button>
       <button disabled>💰 Caja <span class="tag">próximamente</span></button>
-      <button disabled>👥 Clientes <span class="tag">próximamente</span></button>
       <button disabled>🔧 Rendición cerrajeros <span class="tag">próximamente</span></button>
     </div>
   </aside>
@@ -31,7 +31,7 @@
       <section class="screen active" id="dashboard">
         <div class="card">
           <div class="section-title"><h3>EL GALLO POS</h3></div>
-          <p>Sistema en construcción. Los módulos <b>Productos</b>, <b>Familias</b> y <b>Stock</b> ya están funcionales — accedé desde el menú lateral.</p>
+          <p>Sistema en construcción. Los módulos <b>Productos</b>, <b>Familias</b>, <b>Stock</b> y <b>Clientes</b> ya están funcionales — accedé desde el menú lateral.</p>
         </div>
       </section>
 
@@ -94,6 +94,30 @@
               <tbody id="stockBody"></tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      <section class="screen" id="clientes">
+        <div class="card">
+          <div class="section-title">
+            <h3>Clientes</h3>
+            <div class="toolbar" style="margin:0">
+              <button class="btn outline" onclick="document.getElementById('cliImportarInput').click()">Importar Excel</button>
+              <input type="file" id="cliImportarInput" accept=".xlsx,.xls" style="display:none" onchange="importarClientesExcel(event)">
+              <button class="btn primary" onclick="openCliente()">+ Nuevo cliente</button>
+            </div>
+          </div>
+          <div class="toolbar">
+            <div class="field" style="flex:1"><label>Buscar</label><input id="cliSearch" placeholder="Nombre, código, teléfono, DNI/CUIT o patente..."></div>
+            <button class="btn primary" id="btnBuscarCli">Buscar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Código</th><th>Nombre</th><th>Documento</th><th>Teléfono</th><th>Condición IVA</th><th>Cta. Cte.</th><th>Vehículos</th><th></th></tr></thead>
+              <tbody id="cliBody"></tbody>
+            </table>
+          </div>
+          <div class="notice" style="margin-top:12px">El código de cliente lo asigna el sistema solo, no se puede editar. Buscá por nombre, código, teléfono, DNI/CUIT o patente en el mismo cuadro.</div>
         </div>
       </section>
 
@@ -181,6 +205,46 @@
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="guardarFamilia()">Guardar</button>
       <button class="btn outline" onclick="closeFamilia()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="clienteModal">
+  <div class="modal-box" style="max-width:700px">
+    <div class="section-title">
+      <h3 id="clienteTitulo">Nuevo cliente</h3>
+      <div><span class="small" id="clienteCodigoBadge"></span> <button class="btn light" onclick="closeCliente()">✕</button></div>
+    </div>
+    <div class="two-col-form">
+      <div class="field"><label>Nombre / Razón social</label><input id="cliNombre"></div>
+      <div class="field"><label>Condición IVA</label>
+        <select id="cliCondicionIva">
+          <option>Consumidor Final</option>
+          <option>Eventual</option>
+          <option>Responsable Inscripto</option>
+          <option>Monotributista</option>
+          <option>Exento</option>
+        </select>
+      </div>
+      <div class="field"><label>DNI</label><input id="cliDocumento"></div>
+      <div class="field"><label>CUIT</label><input id="cliCuit" placeholder="Si es empresa"></div>
+      <div class="field"><label>Teléfono (también WhatsApp)</label><input id="cliTelefono"></div>
+      <div class="field"><label>Email</label><input id="cliEmail"></div>
+      <div class="field"><label>Dirección</label><input id="cliDireccion"></div>
+      <div class="field"><label>Localidad</label><input id="cliLocalidad"></div>
+    </div>
+    <label style="display:block;margin:12px 0 4px"><input type="checkbox" id="cliVentaCredito" onchange="toggleLimiteCredito()"> Habilitado para Cuenta Corriente</label>
+    <div class="field" id="cliLimiteField" style="display:none;max-width:220px;margin-bottom:6px"><label>Límite de crédito</label><input id="cliLimiteCredito" type="number" step="any"></div>
+
+    <div class="section-title" style="margin-top:16px"><h3 style="font-size:15px">Vehículos</h3><button class="btn light" onclick="agregarVehiculoUI()">+ Agregar vehículo</button></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>Marca / Modelo</th><th>Patente</th><th></th></tr></thead><tbody id="cliVehiculosBody"></tbody></table>
+    </div>
+
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn primary" onclick="guardarCliente()">Guardar</button>
+      <button class="btn outline" onclick="closeCliente()">Cancelar</button>
+      <button class="btn light" id="btnEliminarCli" style="display:none" onclick="eliminarCliente()">Desactivar</button>
     </div>
   </div>
 </div>

@@ -116,6 +116,10 @@ CREATE TABLE IF NOT EXISTS compra_items (
 
 -- ============================================================
 -- CLIENTES (base histórica ~17.879, se respeta estructura existente)
+-- codigo: número de cliente único, autogenerado al crear (no lo tipea el
+-- usuario). condicion_iva: dato de ARCA/AFIP (Consumidor Final, Eventual,
+-- Responsable Inscripto, Exento, Monotributista) que además define el tipo
+-- de comprobante en la futura facturación electrónica.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS clientes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,9 +127,14 @@ CREATE TABLE IF NOT EXISTS clientes (
   nombre TEXT NOT NULL,
   telefono TEXT,
   documento TEXT,
+  cuit TEXT,
   email TEXT,
   direccion TEXT,
-  tipo_factura TEXT NOT NULL DEFAULT 'Consumidor final',
+  localidad TEXT,
+  condicion_iva TEXT NOT NULL DEFAULT 'Consumidor Final',
+  tipo_cliente TEXT NOT NULL DEFAULT 'GENERAL',
+  venta_a_credito INTEGER NOT NULL DEFAULT 0,
+  limite_credito REAL NOT NULL DEFAULT 0,
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -133,11 +142,12 @@ CREATE INDEX IF NOT EXISTS idx_clientes_nombre ON clientes(nombre);
 CREATE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
 CREATE INDEX IF NOT EXISTS idx_clientes_documento ON clientes(documento);
 
+-- patente: única por vehículo, se busca como identificador principal.
 CREATE TABLE IF NOT EXISTS vehiculos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   cliente_id INTEGER NOT NULL REFERENCES clientes(id),
   marca_modelo TEXT,
-  patente TEXT,
+  patente TEXT UNIQUE,
   creado_en TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_vehiculos_patente ON vehiculos(patente);

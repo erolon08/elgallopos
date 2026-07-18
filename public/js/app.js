@@ -1,4 +1,4 @@
-const titles = { dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock' };
+const titles = { dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', clientes: 'Clientes' };
 
 document.querySelectorAll('.nav button[data-screen]').forEach((b) =>
   b.addEventListener('click', () => showScreen(b.dataset.screen))
@@ -13,6 +13,7 @@ function showScreen(id) {
   document.getElementById('screenTitle').textContent = titles[id] || id;
   if (id === 'productos') cargarProductos();
   if (id === 'familias') cargarFamiliasTabla();
+  if (id === 'clientes') cargarClientes();
 }
 
 const money = new Intl.NumberFormat('es-AR');
@@ -561,11 +562,204 @@ async function eliminarFamilia(id) {
   cargarFamiliasGlobal();
 }
 
+// ============================================================
+// CLIENTES
+// ============================================================
+let clienteEditId = null;
+let vehiculosEnEdicion = [];
+
+async function cargarClientes() {
+  const q = document.getElementById('cliSearch').value.trim();
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  const res = await fetch('/api/clientes?' + params.toString());
+  const rows = await res.json();
+  const tbody = document.getElementById('cliBody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="small">Sin resultados.</td></tr>';
+    return;
+  }
+  rows.forEach((c) => tbody.appendChild(filaCliente(c)));
+}
+
+function filaCliente(c) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${c.codigo}</td>
+    <td>${c.nombre}</td>
+    <td>${c.documento || c.cuit || '—'}</td>
+    <td>${c.telefono || '—'}</td>
+    <td>${c.condicion_iva}</td>
+    <td>${c.venta_a_credito ? `<span class="status s-blue">$ ${money.format(c.limite_credito)}</span>` : '—'}</td>
+    <td>${c.patentes || '—'}</td>
+    <td><button class="btn light" onclick="openCliente(${c.id})">Ver / Editar</button></td>
+  `;
+  return tr;
+}
+
+document.getElementById('btnBuscarCli').addEventListener('click', cargarClientes);
+document.getElementById('cliSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') cargarClientes(); });
+
+function toggleLimiteCredito() {
+  document.getElementById('cliLimiteField').style.display = document.getElementById('cliVentaCredito').checked ? 'block' : 'none';
+}
+
+function filaVehiculoModal(v) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${v.marca_modelo || '—'}</td><td>${v.patente || '—'}</td><td><button class="btn light" onclick="quitarVehiculoUI(${v.id})">Quitar</button></td>`;
+  return tr;
+}
+function renderVehiculosModal() {
+  const tbody = document.getElementById('cliVehiculosBody');
+  tbody.innerHTML = '';
+  vehiculosEnEdicion.forEach((v) => tbody.appendChild(filaVehiculoModal(v)));
+}
+
+async function agregarVehiculoUI() {
+  if (!clienteEditId) {
+    alert('Guardá el cliente primero para poder cargarle vehículos.');
+    return;
+  }
+  const marca_modelo = prompt('Marca / Modelo del vehículo:');
+  if (marca_modelo == null) return;
+  const patente = prompt('Patente:');
+  if (patente == null) return;
+  const res = await fetch(`/api/clientes/${clienteEditId}/vehiculos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ marca_modelo, patente }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  vehiculosEnEdicion.push(data);
+  renderVehiculosModal();
+}
+
+async function quitarVehiculoUI(vehiculoId) {
+  if (!confirm('¿Quitar este vehículo del cliente?')) return;
+  await fetch(`/api/clientes/vehiculos/${vehiculoId}`, { method: 'DELETE' });
+  vehiculosEnEdicion = vehiculosEnEdicion.filter((v) => v.id !== vehiculoId);
+  renderVehiculosModal();
+}
+
+async function openCliente(id) {
+  clienteEditId = id || null;
+  document.getElementById('clienteTitulo').textContent = id ? 'Editar cliente' : 'Nuevo cliente';
+  document.getElementById('btnEliminarCli').style.display = id ? 'inline-block' : 'none';
+
+  const c = id ? await (await fetch(`/api/clientes/${id}`)).json() : null;
+  document.getElementById('clienteCodigoBadge').textContent = c ? `N° cliente: ${c.codigo}` : '';
+  document.getElementById('cliNombre').value = c ? c.nombre : '';
+  document.getElementById('cliCondicionIva').value = c ? c.condicion_iva : 'Consumidor Final';
+  document.getElementById('cliDocumento').value = c ? c.documento || '' : '';
+  document.getElementById('cliCuit').value = c ? c.cuit || '' : '';
+  document.getElementById('cliTelefono').value = c ? c.telefono || '' : '';
+  document.getElementById('cliEmail').value = c ? c.email || '' : '';
+  document.getElementById('cliDireccion').value = c ? c.direccion || '' : '';
+  document.getElementById('cliLocalidad').value = c ? c.localidad || '' : '';
+  document.getElementById('cliVentaCredito').checked = c ? !!c.venta_a_credito : false;
+  document.getElementById('cliLimiteCredito').value = c ? c.limite_credito : '';
+  toggleLimiteCredito();
+  vehiculosEnEdicion = c ? c.vehiculos : [];
+  renderVehiculosModal();
+  document.getElementById('clienteModal').classList.add('open');
+}
+
+function closeCliente() {
+  document.getElementById('clienteModal').classList.remove('open');
+  clienteEditId = null;
+  vehiculosEnEdicion = [];
+}
+
+async function guardarCliente() {
+  const payload = {
+    nombre: document.getElementById('cliNombre').value.trim(),
+    condicion_iva: document.getElementById('cliCondicionIva').value,
+    documento: document.getElementById('cliDocumento').value.trim() || null,
+    cuit: document.getElementById('cliCuit').value.trim() || null,
+    telefono: document.getElementById('cliTelefono').value.trim() || null,
+    email: document.getElementById('cliEmail').value.trim() || null,
+    direccion: document.getElementById('cliDireccion').value.trim() || null,
+    localidad: document.getElementById('cliLocalidad').value.trim() || null,
+    venta_a_credito: document.getElementById('cliVentaCredito').checked,
+    limite_credito: Number(document.getElementById('cliLimiteCredito').value) || 0,
+  };
+  if (!payload.nombre) {
+    alert('El nombre / razón social es obligatorio.');
+    return;
+  }
+  const url = clienteEditId ? `/api/clientes/${clienteEditId}` : '/api/clientes';
+  const method = clienteEditId ? 'PUT' : 'POST';
+  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  if (!clienteEditId) {
+    // Recién creado: quedamos en modo edición en el mismo modal para poder cargar vehículos sin reabrir.
+    clienteEditId = data.id;
+    document.getElementById('clienteTitulo').textContent = 'Editar cliente';
+    document.getElementById('clienteCodigoBadge').textContent = `N° cliente: ${data.codigo}`;
+    document.getElementById('btnEliminarCli').style.display = 'inline-block';
+    vehiculosEnEdicion = data.vehiculos;
+    renderVehiculosModal();
+  }
+  cargarClientes();
+}
+
+async function eliminarCliente() {
+  if (!clienteEditId) return;
+  if (!confirm('¿Desactivar este cliente?')) return;
+  await fetch(`/api/clientes/${clienteEditId}`, { method: 'DELETE' });
+  closeCliente();
+  cargarClientes();
+}
+
+async function importarClientesExcel(event) {
+  const input = event.target;
+  const archivo = input.files[0];
+  if (!archivo) return;
+  if (!confirm(`¿Importar "${archivo.name}"? Se agregan como clientes nuevos (no actualiza existentes).`)) {
+    input.value = '';
+    return;
+  }
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+  const boton = document.querySelector('button[onclick*="cliImportarInput"]');
+  const textoOriginal = boton.textContent;
+  boton.textContent = 'Importando...';
+  boton.disabled = true;
+  try {
+    const res = await fetch('/api/clientes/importar', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Error al importar: ' + data.error);
+      return;
+    }
+    let msg = `Importación completa.\nClientes creados: ${data.creados}\nCódigos renumerados por duplicado: ${data.recodificados}`;
+    if (data.totalErrores) msg += `\nFilas con error: ${data.totalErrores}`;
+    alert(msg);
+    cargarClientes();
+  } catch (err) {
+    alert('Error al importar: ' + err.message);
+  } finally {
+    boton.textContent = textoOriginal;
+    boton.disabled = false;
+    input.value = '';
+  }
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeAjuste();
     closeProducto();
     closeFamilia();
+    closeCliente();
   }
 });
 
