@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS productos (
   precio_debito REAL NOT NULL DEFAULT 0,
   precio_efectivo REAL NOT NULL DEFAULT 0,
   precio_rendicion REAL,
+  recargos_mano_obra TEXT,       -- solo familias con usa_mano_obra=1: % separados por coma, ej "11,21"
   usar_regla_automatica INTEGER NOT NULL DEFAULT 1,
   iva REAL NOT NULL DEFAULT 21,
   stock_actual REAL NOT NULL DEFAULT 0,

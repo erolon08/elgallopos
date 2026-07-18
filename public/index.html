@@ -119,19 +119,38 @@
       <div class="field"><label>Proveedor</label>
         <select id="prodProveedorSel"><option value="">Sin proveedor</option><option value="__nuevo__">+ Nuevo proveedor...</option></select>
       </div>
-      <div class="field"><label>Costo</label><input id="prodCosto" type="number" step="any"></div>
+      <div class="field" id="prodCostoField"><label>Costo</label><input id="prodCosto" type="number" step="any"></div>
       <div class="field"><label>Stock mínimo</label><input id="prodStockMinimo" type="number" step="any"></div>
       <div class="field"><label>IVA (%)</label><input id="prodIva" type="number" step="any" value="21"></div>
       <div class="field" id="prodRendicionField" style="display:none"><label>Precio de rendición (duplicados)</label><input id="prodPrecioRendicion" type="number" step="any"></div>
     </div>
-    <label style="display:block;margin:14px 0 6px">
-      <input type="checkbox" id="prodUsaRegla" checked onchange="toggleReglaAutomatica()"> Usar regla automática de precio
-    </label>
-    <div class="two-col-form">
-      <div class="field"><label>Precio final</label><input id="prodPrecioFinal" type="number" step="any" oninput="recalcularPreview()"></div>
-      <div class="field"><label>Débito / Transferencia</label><input id="prodPrecioDebito" type="number" step="any" readonly></div>
-      <div class="field"><label>Efectivo</label><input id="prodPrecioEfectivo" type="number" step="any" readonly></div>
+
+    <div id="prodCamposNormales">
+      <label style="display:block;margin:14px 0 6px">
+        <input type="checkbox" id="prodUsaRegla" checked onchange="toggleReglaAutomatica()"> Usar regla automática de precio
+      </label>
+      <div class="two-col-form">
+        <div class="field"><label>Precio final</label><input id="prodPrecioFinal" type="number" step="any" oninput="recalcularPreview()"></div>
+        <div class="field"><label>Débito / Transferencia</label><input id="prodPrecioDebito" type="number" step="any" readonly></div>
+        <div class="field"><label>Efectivo</label><input id="prodPrecioEfectivo" type="number" step="any" readonly></div>
+      </div>
     </div>
+
+    <div id="prodCamposServicio" style="display:none">
+      <div class="field">
+        <label>Recargos sobre la mano de obra (%, separados por coma, en el orden en que se aplican)</label>
+        <input id="prodRecargos" placeholder="ej: 11,21" oninput="recalcularPreviewServicio()">
+      </div>
+      <div class="notice" style="margin-top:10px">
+        Este servicio no tiene precio de catálogo: la mano de obra se carga en cada venta y el precio final
+        se calcula solo, aplicando estos recargos en cadena (no sumados) y redondeando hacia arriba a $100.
+      </div>
+      <div class="two-col-form" style="margin-top:10px">
+        <div class="field"><label>Probar con mano de obra de</label><input id="prodManoObraPrueba" type="number" step="any" placeholder="ej: 55000" oninput="recalcularPreviewServicio()"></div>
+        <div class="field"><label>Precio final estimado</label><input id="prodPrecioFinalPrueba" readonly></div>
+      </div>
+    </div>
+
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="guardarProducto()">Guardar</button>
       <button class="btn outline" onclick="closeProducto()">Cancelar</button>

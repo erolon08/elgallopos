@@ -29,9 +29,9 @@ const getProveedorId = (nombre) => db.prepare('SELECT id FROM proveedores WHERE 
 const insertProducto = db.prepare(`
   INSERT OR IGNORE INTO productos
     (codigo, descripcion, familia_id, proveedor_id, costo, precio_final, precio_debito, precio_efectivo,
-     precio_rendicion, iva, stock_actual, stock_minimo)
+     precio_rendicion, recargos_mano_obra, iva, stock_actual, stock_minimo)
   VALUES (@codigo, @descripcion, @familia_id, @proveedor_id, @costo, @precio_final, @precio_debito, @precio_efectivo,
-     @precio_rendicion, @iva, @stock_actual, @stock_minimo)
+     @precio_rendicion, @recargos_mano_obra, @iva, @stock_actual, @stock_minimo)
 `);
 
 const productosBase = [
@@ -42,22 +42,30 @@ const productosBase = [
   { codigo: 'LL1', descripcion: 'Duplicado llave común', familia: 'DUPLICADOS', proveedor: 'Genérico', costo: 900, precio_final: 3500, precio_rendicion: 1700, stock_actual: 500, stock_minimo: 50 },
   { codigo: 'LL2', descripcion: 'Duplicado llave doble paleta', familia: 'DUPLICADOS', proveedor: 'Genérico', costo: 1800, precio_final: 7000, precio_rendicion: 3350, stock_actual: 300, stock_minimo: 50 },
   { codigo: 'LLCOD', descripcion: 'Duplicado auto codificada', familia: 'CODIFICADOS', proveedor: 'Genérico', costo: 9000, precio_final: 25000, stock_actual: 40, stock_minimo: 10 },
-  { codigo: '1001', descripcion: 'Servicio / mano de obra', familia: 'SERVICIOS', proveedor: 'Genérico', costo: 0, precio_final: 0, stock_actual: 0, stock_minimo: 0 },
+  // Servicios: no tienen costo/precio de catálogo, precio final = mano de obra + recargos en cadena.
+  { codigo: '1001', descripcion: 'Destrabe de cerradura', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0 },
+  { codigo: '1002', descripcion: 'Cambio de combinación', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0 },
+  { codigo: '1003', descripcion: 'Servicio de codificados', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21,18', stock_actual: 0, stock_minimo: 0 },
 ];
 
 for (const p of productosBase) {
   const familia = db.prepare('SELECT * FROM familias WHERE id = ?').get(getFamiliaId(p.familia));
-  const { precio_debito, precio_efectivo } = calcularPrecios(p.precio_final, familia);
+  const esServicio = !!familia.usa_mano_obra;
+  const precioFinal = p.precio_final || 0;
+  const { precio_debito, precio_efectivo } = esServicio
+    ? { precio_debito: 0, precio_efectivo: 0 }
+    : calcularPrecios(precioFinal, familia);
   insertProducto.run({
     codigo: p.codigo,
     descripcion: p.descripcion,
     familia_id: familia.id,
     proveedor_id: getProveedorId(p.proveedor),
-    costo: p.costo,
-    precio_final: p.precio_final,
+    costo: esServicio ? 0 : p.costo || 0,
+    precio_final: esServicio ? 0 : precioFinal,
     precio_debito,
     precio_efectivo,
     precio_rendicion: p.precio_rendicion || null,
+    recargos_mano_obra: p.recargos_mano_obra || null,
     iva: 21,
     stock_actual: p.stock_actual,
     stock_minimo: p.stock_minimo,

@@ -1,5 +1,5 @@
 const db = require('../db');
-const { calcularPrecios } = require('./pricing.service');
+const { calcularPrecios, parsearRecargos } = require('./pricing.service');
 
 function estadoStock(p) {
   if (p.stock_actual <= 0) return 'sin_stock';
@@ -8,7 +8,7 @@ function estadoStock(p) {
 }
 
 function esIncompleto(p) {
-  if (p.usa_mano_obra) return false; // servicios: el precio se define por trabajo, no es un dato faltante
+  if (p.usa_mano_obra) return parsearRecargos(p.recargos_mano_obra).length === 0;
   return !p.proveedor_id || !p.costo || !p.precio_final;
 }
 
@@ -58,12 +58,31 @@ function obtener(id) {
 }
 
 function calcularCamposPrecio(datos, familia) {
+  // Servicios: no tienen precio de catálogo, el precio final se calcula en la
+  // venta a partir de la mano de obra del trabajo + los recargos del código.
+  if (familia.usa_mano_obra) {
+    return {
+      costo: 0,
+      precio_final: 0,
+      precio_debito: 0,
+      precio_efectivo: 0,
+      usar_regla_automatica: 0,
+      recargos_mano_obra: datos.recargos_mano_obra ? String(datos.recargos_mano_obra).trim() : null,
+    };
+  }
+
   const usarRegla = datos.usar_regla_automatica !== false && datos.usar_regla_automatica !== 0;
+  const base = {
+    costo: Number(datos.costo) || 0,
+    precio_final: Number(datos.precio_final) || 0,
+    recargos_mano_obra: null,
+  };
   if (usarRegla) {
-    const { precio_debito, precio_efectivo } = calcularPrecios(Number(datos.precio_final) || 0, familia);
-    return { precio_debito, precio_efectivo, usar_regla_automatica: 1 };
+    const { precio_debito, precio_efectivo } = calcularPrecios(base.precio_final, familia);
+    return { ...base, precio_debito, precio_efectivo, usar_regla_automatica: 1 };
   }
   return {
+    ...base,
     precio_debito: Number(datos.precio_debito) || 0,
     precio_efectivo: Number(datos.precio_efectivo) || 0,
     usar_regla_automatica: 0,
@@ -73,27 +92,23 @@ function calcularCamposPrecio(datos, familia) {
 function crear(datos) {
   const familia = db.prepare('SELECT * FROM familias WHERE id = ?').get(datos.familia_id);
   if (!familia) throw new Error('Familia inválida');
-  const { precio_debito, precio_efectivo, usar_regla_automatica } = calcularCamposPrecio(datos, familia);
+  const precioCalculado = calcularCamposPrecio(datos, familia);
 
   const info = db
     .prepare(
       `INSERT INTO productos
         (codigo, descripcion, familia_id, proveedor_id, costo, precio_final, precio_debito, precio_efectivo,
-         precio_rendicion, usar_regla_automatica, iva, stock_minimo)
+         precio_rendicion, recargos_mano_obra, usar_regla_automatica, iva, stock_minimo)
        VALUES (@codigo, @descripcion, @familia_id, @proveedor_id, @costo, @precio_final, @precio_debito, @precio_efectivo,
-         @precio_rendicion, @usar_regla_automatica, @iva, @stock_minimo)`
+         @precio_rendicion, @recargos_mano_obra, @usar_regla_automatica, @iva, @stock_minimo)`
     )
     .run({
       codigo: String(datos.codigo).trim(),
       descripcion: String(datos.descripcion).trim(),
       familia_id: familia.id,
       proveedor_id: datos.proveedor_id || null,
-      costo: Number(datos.costo) || 0,
-      precio_final: Number(datos.precio_final) || 0,
-      precio_debito,
-      precio_efectivo,
+      ...precioCalculado,
       precio_rendicion: datos.precio_rendicion != null && datos.precio_rendicion !== '' ? Number(datos.precio_rendicion) : null,
-      usar_regla_automatica,
       iva: Number(datos.iva) || 0,
       stock_minimo: Number(datos.stock_minimo) || 0,
     });
@@ -109,18 +124,21 @@ function actualizar(id, datos) {
   if (!familia) throw new Error('Familia inválida');
 
   const mergedParaPrecio = {
+    costo: datos.costo != null ? datos.costo : actual.costo,
     precio_final: datos.precio_final != null ? datos.precio_final : actual.precio_final,
     precio_debito: datos.precio_debito != null ? datos.precio_debito : actual.precio_debito,
     precio_efectivo: datos.precio_efectivo != null ? datos.precio_efectivo : actual.precio_efectivo,
     usar_regla_automatica: datos.usar_regla_automatica != null ? datos.usar_regla_automatica : !!actual.usar_regla_automatica,
+    recargos_mano_obra: datos.recargos_mano_obra !== undefined ? datos.recargos_mano_obra : actual.recargos_mano_obra,
   };
-  const { precio_debito, precio_efectivo, usar_regla_automatica } = calcularCamposPrecio(mergedParaPrecio, familia);
+  const precioCalculado = calcularCamposPrecio(mergedParaPrecio, familia);
 
   db.prepare(
     `UPDATE productos SET
        codigo = @codigo, descripcion = @descripcion, familia_id = @familia_id, proveedor_id = @proveedor_id,
        costo = @costo, precio_final = @precio_final, precio_debito = @precio_debito, precio_efectivo = @precio_efectivo,
-       precio_rendicion = @precio_rendicion, usar_regla_automatica = @usar_regla_automatica, iva = @iva,
+       precio_rendicion = @precio_rendicion, recargos_mano_obra = @recargos_mano_obra,
+       usar_regla_automatica = @usar_regla_automatica, iva = @iva,
        stock_minimo = @stock_minimo, actualizado_en = datetime('now')
      WHERE id = @id`
   ).run({
@@ -129,17 +147,13 @@ function actualizar(id, datos) {
     descripcion: datos.descripcion != null ? String(datos.descripcion).trim() : actual.descripcion,
     familia_id,
     proveedor_id: datos.proveedor_id !== undefined ? datos.proveedor_id || null : actual.proveedor_id,
-    costo: datos.costo != null ? Number(datos.costo) : actual.costo,
-    precio_final: mergedParaPrecio.precio_final,
-    precio_debito,
-    precio_efectivo,
+    ...precioCalculado,
     precio_rendicion:
       datos.precio_rendicion !== undefined
         ? datos.precio_rendicion !== '' && datos.precio_rendicion != null
           ? Number(datos.precio_rendicion)
           : null
         : actual.precio_rendicion,
-    usar_regla_automatica,
     iva: datos.iva != null ? Number(datos.iva) : actual.iva,
     stock_minimo: datos.stock_minimo != null ? Number(datos.stock_minimo) : actual.stock_minimo,
   });

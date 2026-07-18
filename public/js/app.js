@@ -194,16 +194,23 @@ async function cargarProductos() {
 
 function filaProducto(p) {
   const tr = document.createElement('tr');
-  const incompletoTag = p.incompleto ? ' <span class="status s-warn" title="Falta proveedor, costo o precio final">Incompleto</span>' : '';
+  const incompletoMsg = p.usa_mano_obra ? 'Falta configurar los recargos de mano de obra' : 'Falta proveedor, costo o precio final';
+  const incompletoTag = p.incompleto ? ` <span class="status s-warn" title="${incompletoMsg}">Incompleto</span>` : '';
+
+  const columnasPrecio = p.usa_mano_obra
+    ? `<td colspan="3">Fórmula: mano de obra ${formatearRecargos(p.recargos_mano_obra)}</td><td>—</td>`
+    : `
+    <td>$ ${money.format(p.precio_final)}</td>
+    <td>$ ${money.format(p.precio_debito)}</td>
+    <td>$ ${money.format(p.precio_efectivo)}</td>
+    <td>$ ${money.format(p.costo)}</td>`;
+
   tr.innerHTML = `
     <td>${p.codigo}</td>
     <td>${p.descripcion}${incompletoTag}</td>
     <td>${p.familia}</td>
     <td>${p.proveedor || '—'}</td>
-    <td>$ ${money.format(p.precio_final)}</td>
-    <td>$ ${money.format(p.precio_debito)}</td>
-    <td>$ ${money.format(p.precio_efectivo)}</td>
-    <td>$ ${money.format(p.costo)}</td>
+    ${columnasPrecio}
     <td>${money.format(p.stock_minimo)}</td>
     <td>${p.iva}%</td>
     <td><button class="btn light" onclick="openProducto(${p.id})">Editar</button></td>
@@ -211,9 +218,41 @@ function filaProducto(p) {
   return tr;
 }
 
+function formatearRecargos(recargosStr) {
+  const recargos = (recargosStr || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return recargos.length ? recargos.map((r) => `+${r}%`).join(' ') : '(sin configurar)';
+}
+
 function updateRendicionFieldVisibility() {
   const familia = familiasCache.find((f) => String(f.id) === String(document.getElementById('prodFamiliaSel').value));
   document.getElementById('prodRendicionField').style.display = familia && familia.usa_precio_rendicion ? 'block' : 'none';
+}
+
+function esFamiliaServicio() {
+  const familia = familiasCache.find((f) => String(f.id) === String(document.getElementById('prodFamiliaSel').value));
+  return !!(familia && familia.usa_mano_obra);
+}
+
+function toggleCamposPorFamilia() {
+  const esServicio = esFamiliaServicio();
+  document.getElementById('prodCamposNormales').style.display = esServicio ? 'none' : 'block';
+  document.getElementById('prodCamposServicio').style.display = esServicio ? 'block' : 'none';
+  document.getElementById('prodCostoField').style.display = esServicio ? 'none' : 'flex';
+  if (esServicio) recalcularPreviewServicio();
+}
+
+function recalcularPreviewServicio() {
+  const recargos = document
+    .getElementById('prodRecargos')
+    .value.split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n !== 0);
+  const manoObra = Number(document.getElementById('prodManoObraPrueba').value) || 0;
+  const factor = recargos.reduce((acc, pct) => acc * (1 + pct / 100), 1);
+  document.getElementById('prodPrecioFinalPrueba').value = manoObra ? '$ ' + money.format(roundUpTo100(manoObra * factor)) : '';
 }
 
 function toggleReglaAutomatica() {
@@ -234,6 +273,7 @@ function recalcularPreview() {
 
 document.getElementById('prodFamiliaSel').addEventListener('change', () => {
   updateRendicionFieldVisibility();
+  toggleCamposPorFamilia();
   recalcularPreview();
 });
 
@@ -277,7 +317,11 @@ async function openProducto(id) {
     document.getElementById('prodPrecioRendicion').value = p.precio_rendicion ?? '';
     document.getElementById('prodPrecioFinal').value = p.precio_final;
     document.getElementById('prodUsaRegla').checked = !!p.usar_regla_automatica;
+    document.getElementById('prodRecargos').value = p.recargos_mano_obra || '';
+    document.getElementById('prodManoObraPrueba').value = '';
+    document.getElementById('prodPrecioFinalPrueba').value = '';
     updateRendicionFieldVisibility();
+    toggleCamposPorFamilia();
     toggleReglaAutomatica();
     if (!p.usar_regla_automatica) {
       document.getElementById('prodPrecioDebito').value = p.precio_debito;
@@ -294,7 +338,11 @@ async function openProducto(id) {
     document.getElementById('prodPrecioRendicion').value = '';
     document.getElementById('prodPrecioFinal').value = '';
     document.getElementById('prodUsaRegla').checked = true;
+    document.getElementById('prodRecargos').value = '';
+    document.getElementById('prodManoObraPrueba').value = '';
+    document.getElementById('prodPrecioFinalPrueba').value = '';
     updateRendicionFieldVisibility();
+    toggleCamposPorFamilia();
     toggleReglaAutomatica();
   }
   document.getElementById('productoModal').classList.add('open');
@@ -306,23 +354,31 @@ function closeProducto() {
 }
 
 async function guardarProducto() {
+  const esServicio = esFamiliaServicio();
   const payload = {
     codigo: document.getElementById('prodCodigo').value.trim(),
     descripcion: document.getElementById('prodDescripcion').value.trim(),
     familia_id: Number(document.getElementById('prodFamiliaSel').value),
     proveedor_id: document.getElementById('prodProveedorSel').value || null,
-    costo: Number(document.getElementById('prodCosto').value) || 0,
     stock_minimo: Number(document.getElementById('prodStockMinimo').value) || 0,
     iva: Number(document.getElementById('prodIva').value) || 0,
     precio_rendicion: document.getElementById('prodPrecioRendicion').value || null,
-    precio_final: Number(document.getElementById('prodPrecioFinal').value) || 0,
-    usar_regla_automatica: document.getElementById('prodUsaRegla').checked,
-    precio_debito: Number(document.getElementById('prodPrecioDebito').value) || 0,
-    precio_efectivo: Number(document.getElementById('prodPrecioEfectivo').value) || 0,
   };
+  if (esServicio) {
+    payload.recargos_mano_obra = document.getElementById('prodRecargos').value.trim() || null;
+  } else {
+    payload.costo = Number(document.getElementById('prodCosto').value) || 0;
+    payload.precio_final = Number(document.getElementById('prodPrecioFinal').value) || 0;
+    payload.usar_regla_automatica = document.getElementById('prodUsaRegla').checked;
+    payload.precio_debito = Number(document.getElementById('prodPrecioDebito').value) || 0;
+    payload.precio_efectivo = Number(document.getElementById('prodPrecioEfectivo').value) || 0;
+  }
   if (!payload.codigo || !payload.descripcion || !payload.familia_id) {
     alert('Código, descripción y familia son obligatorios.');
     return;
+  }
+  if (esServicio && !payload.recargos_mano_obra) {
+    if (!confirm('No configuraste los recargos de mano de obra para este servicio. ¿Guardar de todas formas?')) return;
   }
   const url = productoEditId ? `/api/productos/${productoEditId}` : '/api/productos';
   const method = productoEditId ? 'PUT' : 'POST';
