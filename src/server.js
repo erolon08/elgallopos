@@ -10,6 +10,9 @@ const familiasRoutes = require('./routes/familias.routes');
 const proveedoresRoutes = require('./routes/proveedores.routes');
 const productosRoutes = require('./routes/productos.routes');
 const clientesRoutes = require('./routes/clientes.routes');
+const authRoutes = require('./routes/auth.routes');
+const ventasRoutes = require('./routes/ventas.routes');
+const cerrajerosRoutes = require('./routes/cerrajeros.routes');
 
 const app = express();
 app.use(express.json());
@@ -20,6 +23,9 @@ app.use('/api/familias', familiasRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
 app.use('/api/productos', productosRoutes);
 app.use('/api/clientes', clientesRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/ventas', ventasRoutes);
+app.use('/api/cerrajeros', cerrajerosRoutes);
 
 const server = http.createServer(app);
 sockets.init(server);

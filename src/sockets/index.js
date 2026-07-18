@@ -15,4 +15,8 @@ function emitStockUpdated(producto) {
   if (io) io.emit('stock:updated', producto);
 }
 
-module.exports = { init, emitStockUpdated };
+function emitVentaEvent(evento, venta) {
+  if (io) io.emit(evento, venta);
+}
+
+module.exports = { init, emitStockUpdated, emitVentaEvent };

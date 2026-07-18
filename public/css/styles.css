@@ -39,3 +39,57 @@ table{width:100%;border-collapse:collapse;min-width:640px} th,td{padding:10px 11
 .modal.open{display:flex} .modal-box{background:#fff;border-radius:14px;max-width:420px;width:100%;max-height:92vh;overflow:auto;padding:18px}
 .two-col-form{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .small{font-size:12px;color:var(--muted)}
+.grid{display:grid;gap:14px} .g2{grid-template-columns:repeat(2,minmax(0,1fr))} .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* Sesión / rol */
+.role-box{padding:12px 14px;border-bottom:1px solid #333}
+.role-box label{font-size:11px;color:#aaa;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.session-user{display:flex;align-items:center;justify-content:space-between;color:#fff}
+.logout-btn{border:0;background:#333;color:#fff;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12px}
+.logout-btn:hover{background:#444}
+
+/* Login */
+.login-screen{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#171717,#3a3a3a 55%,#8d0d12);padding:24px}
+.login-panel{width:min(760px,100%);background:#fff;border-radius:22px;padding:30px;box-shadow:0 28px 80px rgba(0,0,0,.5)}
+.login-head{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:24px}
+.login-head .mark{font-size:52px;line-height:1}
+.login-head h1{margin:0;font-size:30px} .login-head p{margin:4px 0 0;color:var(--muted)}
+.login-roles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.login-role{border:2px solid var(--line);border-radius:16px;padding:18px;text-align:center;cursor:pointer;background:#fafafa}
+.login-role:hover,.login-role.selected{border-color:var(--red);background:#fff4f4}
+.login-role .icon{font-size:36px} .login-role h3{margin:8px 0 4px} .login-role p{font-size:12px;color:var(--muted)}
+.login-password{display:flex;gap:10px;max-width:420px;margin:22px auto 0}
+.login-password input{flex:1;padding:13px;border:2px solid var(--line);border-radius:10px;font-size:16px}
+.login-error{text-align:center;color:#b10d14;font-weight:700;height:20px;margin-top:8px}
+@media(max-width:700px){.login-roles{grid-template-columns:1fr}.login-password{flex-direction:column}}
+
+/* Venta */
+.sale-layout{display:grid;grid-template-columns:1.5fr .8fr;gap:14px}
+.price-choice{display:flex;gap:6px;flex-wrap:wrap}
+.price-choice button{border:2px solid var(--line);background:#fff;border-radius:8px;padding:7px 11px;font-weight:700;cursor:pointer;font-size:13px}
+.price-choice button.active{border-color:var(--red);background:var(--red);color:#fff}
+.search-big{display:flex;gap:8px;margin-bottom:10px;position:relative}
+.search-big input{flex:1;font-size:16px;padding:12px;border:2px solid var(--red);border-radius:10px}
+.search-results{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.12);z-index:20;max-height:280px;overflow:auto}
+.search-results div{padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)}
+.search-results div:hover{background:#fff4f4}
+.total-box{background:#171717;color:#fff;border-radius:12px;padding:16px;margin-top:12px}
+.total-box .total{font-size:32px;font-weight:900;color:#fff}
+.key{border:1px solid #555;border-bottom-width:3px;padding:2px 6px;border-radius:5px;font-size:11px;background:#333;color:#fff}
+
+/* Cobro */
+.pay-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.pay{border:2px solid var(--line);border-radius:10px;padding:13px 16px;cursor:pointer;font-weight:800;display:flex;justify-content:space-between;align-items:center}
+.pay:hover,.pay.sel{border-color:var(--red);background:#fff4f4}
+.brand-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.brand-btn{border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center;font-weight:700;cursor:pointer;background:#fff}
+.brand-btn:hover{border-color:var(--red);background:#fff4f4}
+.qr-box{width:180px;height:180px;margin:14px auto;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;background:repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 0/16px 16px;background-color:#fff}
+.eventual-hint{border:2px dashed var(--amber);background:#fff8e8;border-radius:10px;padding:10px 12px;font-size:12px;margin-top:10px}
+.eventual-hint.active{background:var(--amber);color:#fff;border-style:solid}
+.combinado-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
+
+/* Ticket */
+.ticket{width:300px;margin:auto;background:#fff;border:1px dashed #999;padding:14px;font-family:'Courier New',monospace;color:#111;font-size:12.5px}
+.ticket h4{text-align:center;margin:2px} .ticket .center{text-align:center} .ticket hr{border:0;border-top:1px dashed #777}
+@media print{.sidebar,.topbar,.no-print{display:none!important}.app{display:block}.content{padding:0}.screen{display:none!important}#ticket-screen.screen{display:block!important}.ticket{border:0;width:80mm}}

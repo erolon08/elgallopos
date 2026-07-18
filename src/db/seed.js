@@ -1,8 +1,20 @@
 // Datos de prueba para desarrollo. La carga real de productos/clientes será
 // por importación de Excel (módulos siguientes); esto es solo para poder
 // probar el módulo de Stock con datos representativos.
+const bcrypt = require('bcryptjs');
 const db = require('./index');
 const { calcularPrecios } = require('../services/pricing.service');
+
+// Usuarios "de rol" para el login por terminal (ADMIN/CAJA/VENTA). Claves
+// demo, se cambian desde la base cuando el sistema entre en producción.
+const insertUsuario = db.prepare(`
+  INSERT OR IGNORE INTO usuarios (nombre, usuario, password_hash, rol) VALUES (?, ?, ?, ?)
+`);
+[
+  ['Administrador', 'admin', '1111', 'ADMIN'],
+  ['Caja', 'caja', '2222', 'CAJA'],
+  ['Venta', 'venta', '3333', 'VENTA'],
+].forEach(([nombre, usuario, clave, rol]) => insertUsuario.run(nombre, usuario, bcrypt.hashSync(clave, 8), rol));
 
 const insertFamilia = db.prepare(`
   INSERT OR IGNORE INTO familias (nombre, descuento_debito, descuento_efectivo, usa_precio_rendicion, usa_mano_obra)

@@ -7,18 +7,42 @@
 <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
+<div class="login-screen" id="loginScreen">
+  <div class="login-panel">
+    <div class="login-head"><div class="mark">🐓</div><div><h1>EL GALLO POS</h1><p>Seleccioná el puesto de trabajo e ingresá la clave.</p></div></div>
+    <div class="login-roles" id="loginRoles">
+      <div class="login-role selected" data-rol="ADMIN"><div class="icon">⚙️</div><h3>ADMIN</h3><p>Control total: productos, stock, reportes y configuración.</p></div>
+      <div class="login-role" data-rol="CAJA"><div class="icon">💰</div><h3>CAJA</h3><p>Vende, cobra, ve stock y clientes.</p></div>
+      <div class="login-role" data-rol="VENTA"><div class="icon">🛒</div><h3>VENTA</h3><p>Arma pedidos y los envía a Caja. No cobra.</p></div>
+    </div>
+    <div class="login-password">
+      <input id="loginPassword" type="password" placeholder="Clave de acceso">
+      <button class="btn primary" onclick="doLogin()">Ingresar</button>
+    </div>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><h1>EL GALLO POS</h1><small>Cerrajería El Gallo</small></div>
+    <div class="role-box">
+      <label>Sesión actual</label>
+      <div class="session-user"><b id="sessionRoleLabel">—</b><button class="logout-btn" onclick="logout()">Salir</button></div>
+    </div>
     <div class="nav" id="nav">
       <button data-screen="dashboard" class="active">📊 Dashboard</button>
+      <button data-screen="venta">🛒 Venta</button>
+      <button data-screen="pendientes">💾 Pendientes</button>
+      <button data-screen="ventas">🧾 Ventas</button>
+      <button data-screen="presupuestos">📄 Presupuestos</button>
+      <button data-screen="clientes">👥 Clientes</button>
       <button data-screen="productos">📦 Productos</button>
       <button data-screen="familias">🗂️ Familias</button>
       <button data-screen="stock">🏷️ Stock</button>
-      <button data-screen="clientes">👥 Clientes</button>
-      <button disabled>🛒 Venta <span class="tag">próximamente</span></button>
-      <button disabled>💰 Caja <span class="tag">próximamente</span></button>
       <button disabled>🔧 Rendición cerrajeros <span class="tag">próximamente</span></button>
+      <button disabled>🚚 Reposición <span class="tag">próximamente</span></button>
+      <button disabled>🏆 Ranking <span class="tag">próximamente</span></button>
     </div>
   </aside>
   <main class="main">
@@ -119,6 +143,109 @@
           </div>
           <div class="notice" style="margin-top:12px">El código de cliente lo asigna el sistema solo, no se puede editar. Buscá por nombre, código, teléfono, DNI/CUIT o patente en el mismo cuadro.</div>
         </div>
+      </section>
+
+      <section class="screen" id="venta">
+        <div class="sale-layout">
+          <div class="card">
+            <div class="section-title">
+              <h3 id="ventaClienteNombre">Consumidor Final</h3>
+              <button class="btn light" onclick="showScreen('clientes')">Cambiar cliente</button>
+            </div>
+            <div class="price-choice" style="margin-bottom:10px">
+              <button class="active" data-tipo="final" onclick="setTipoPrecioGlobal('final')">Precio final</button>
+              <button data-tipo="debito" onclick="setTipoPrecioGlobal('debito')">Débito / Transferencia</button>
+              <button data-tipo="efectivo" onclick="setTipoPrecioGlobal('efectivo')">Efectivo</button>
+            </div>
+            <div class="toolbar" style="margin-bottom:6px">
+              <div class="field"><label>Cerrajero para todo el renglón nuevo</label>
+                <select id="ventaCerrajeroDefault"><option value="">Sin asignar</option></select>
+              </div>
+            </div>
+            <div class="search-big">
+              <input id="ventaBuscar" placeholder="Buscar producto o servicio por código o descripción...">
+              <div class="search-results" id="ventaBuscarResultados" style="display:none"></div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Mano de obra</th><th>Subtotal</th><th></th></tr></thead>
+                <tbody id="ventaBody"></tbody>
+              </table>
+            </div>
+            <div class="total-box">
+              <div class="toolbar" style="margin:0 0 8px;justify-content:space-between">
+                <div class="field" style="max-width:180px"><label style="color:#bbb">Descuento general ($)</label><input id="ventaDescuentoGeneral" type="number" step="any" value="0" oninput="renderVenta()" style="background:#222;color:#fff;border-color:#444"></div>
+                <div><div class="small" style="color:#bbb">TOTAL</div><div class="total">$ <span id="ventaTotal">0</span></div></div>
+              </div>
+              <div class="toolbar" style="margin-top:8px">
+                <button class="btn dark" onclick="guardarPendiente()">💾 Guardar pendiente</button>
+                <button class="btn primary" onclick="cobrarOEnviar()">Cobrar / Enviar <span class="key">F10</span></button>
+                <button class="btn outline" onclick="cancelarVenta()">Cancelar venta</button>
+              </div>
+              <div class="notice" style="margin-top:10px" id="ventaHint">En esta terminal, F10 abre el cobro directamente.</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="section-title"><h3>Presupuesto</h3></div>
+            <p class="small">Convertí esta misma carga en presupuesto para imprimir o mandar por WhatsApp sin cobrar todavía.</p>
+            <button class="btn outline" style="width:100%" onclick="guardarComoPresupuesto()">📄 Guardar como presupuesto</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="pendientes">
+        <div class="card">
+          <div class="section-title"><h3>Bandeja única de pendientes</h3><button class="btn primary" onclick="cargarPendientes()">Actualizar</button></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>N°</th><th>Origen</th><th>Terminal</th><th>Hora</th><th>Cliente</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="pendientesBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="ventas">
+        <div class="card">
+          <div class="section-title"><h3>Ventas</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Desde</label><input id="ventasDesde" type="date"></div>
+            <div class="field"><label>Hasta</label><input id="ventasHasta" type="date"></div>
+            <div class="field"><label>N° de venta</label><input id="ventasNumero" placeholder="ej: 000184"></div>
+            <div class="field"><label>Cerrajero</label><select id="ventasCerrajero"><option value="">Todos</option></select></div>
+            <div class="field"><label>Patente</label><input id="ventasPatente" placeholder="AB123CD"></div>
+            <button class="btn primary" id="btnBuscarVentas">Buscar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>N°</th><th>Hora</th><th>Cliente</th><th>Comprobante</th><th>Pago</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="ventasBody"></tbody>
+            </table>
+          </div>
+          <div class="notice" style="margin-top:12px">Podés cambiar el cerrajero de una línea ya vendida o anular la venta (devuelve el stock) desde "Ver detalle".</div>
+        </div>
+      </section>
+
+      <section class="screen" id="presupuestos">
+        <div class="card">
+          <div class="section-title"><h3>Presupuestos</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>N°</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="presupuestosBody"></tbody>
+            </table>
+          </div>
+          <div class="notice" style="margin-top:12px">Los presupuestos se cargan desde la pantalla de Venta con el botón "Guardar como presupuesto".</div>
+        </div>
+      </section>
+
+      <section class="screen" id="ticket-screen">
+        <div class="no-print toolbar">
+          <button class="btn primary" onclick="window.print()">🖨️ Imprimir</button>
+          <button class="btn green" onclick="enviarTicketWhatsapp()">📱 Enviar por WhatsApp</button>
+          <button class="btn outline" onclick="showScreen(ultimaPantallaAntesDelTicket || 'venta')">Volver</button>
+        </div>
+        <div class="ticket" id="ticketContenido"></div>
       </section>
 
     </div>
@@ -245,6 +372,88 @@
       <button class="btn primary" onclick="guardarCliente()">Guardar</button>
       <button class="btn outline" onclick="closeCliente()">Cancelar</button>
       <button class="btn light" id="btnEliminarCli" style="display:none" onclick="eliminarCliente()">Desactivar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="cobroModal">
+  <div class="modal-box" style="max-width:640px">
+    <div class="section-title">
+      <h3>Cobro — Total $<span id="cobroTotal">0</span></h3>
+      <button class="btn light" onclick="closeCobro()">✕</button>
+    </div>
+    <div id="cobroPasoMetodos">
+      <div class="pay-grid">
+        <div class="pay" onclick="elegirFormaPago('Efectivo')"><span>F1 &nbsp; EFECTIVO</span><span>▸</span></div>
+        <div class="pay" onclick="elegirFormaPago('Débito')"><span>F2 &nbsp; DÉBITO</span><span>▸</span></div>
+        <div class="pay" onclick="elegirFormaPago('Transferencia')"><span>F3 &nbsp; TRANSFERENCIA</span><span>▸</span></div>
+        <div class="pay" onclick="elegirFormaPago('Crédito')"><span>F4 &nbsp; CRÉDITO</span><span>▸</span></div>
+        <div class="pay" onclick="elegirFormaPago('QR')"><span>F5 &nbsp; QR</span><span>▸</span></div>
+        <div class="pay" onclick="elegirFormaPago('Cuenta Corriente')"><span>F6 &nbsp; CUENTA CORRIENTE</span><span>▸</span></div>
+        <div class="pay" onclick="elegirFormaPago('Pago Combinado')"><span>F7 &nbsp; PAGO COMBINADO</span><span>▸</span></div>
+      </div>
+      <div class="eventual-hint" id="eventualHint">CTRL + F10 &nbsp;·&nbsp; VENTA EVENTUAL — no genera comprobante fiscal, no cambia los datos del cliente.</div>
+    </div>
+
+    <div id="cobroPasoEfectivo" style="display:none">
+      <div class="two-col-form">
+        <div class="field"><label>Importe recibido</label><input id="efectivoRecibido" type="number" step="any" oninput="calcularVuelto()"></div>
+        <div class="field"><label>Vuelto</label><input id="efectivoVuelto" readonly></div>
+      </div>
+      <div class="toolbar" style="margin-top:14px">
+        <button class="btn primary" onclick="confirmarPagoSimple('Efectivo')">Confirmar <span class="key">Enter</span></button>
+        <button class="btn outline" onclick="volverAMetodos()">Volver</button>
+      </div>
+    </div>
+
+    <div id="cobroPasoSimple" style="display:none">
+      <p id="cobroSimpleTexto"></p>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn primary" id="btnConfirmarSimple">Confirmar <span class="key">Enter</span></button>
+        <button class="btn outline" onclick="volverAMetodos()">Volver</button>
+      </div>
+    </div>
+
+    <div id="cobroPasoMarca" style="display:none">
+      <p class="small">Seleccioná la marca utilizada.</p>
+      <div class="brand-grid" id="marcasGrid"></div>
+      <div class="toolbar" style="margin-top:14px">
+        <button class="btn outline" onclick="volverAMetodos()">Volver</button>
+      </div>
+    </div>
+
+    <div id="cobroPasoQr" style="display:none">
+      <p class="small">Seleccioná la billetera.</p>
+      <div class="brand-grid" id="qrGrid"></div>
+      <div class="qr-box" id="qrBox" style="display:none"></div>
+      <div class="center small" id="qrMontoTexto" style="text-align:center"></div>
+      <div class="toolbar" style="margin-top:14px;justify-content:center">
+        <button class="btn primary" id="btnConfirmarQr" style="display:none" onclick="confirmarPagoSimple('QR', qrBilleteraElegida)">Confirmar pago recibido</button>
+        <button class="btn outline" onclick="volverAMetodos()">Volver</button>
+      </div>
+    </div>
+
+    <div id="cobroPasoCombinado" style="display:none">
+      <div id="combinadoFilas"></div>
+      <button class="btn light" onclick="agregarFilaCombinado()">+ Agregar forma de pago</button>
+      <div class="notice" style="margin-top:10px">Restante a asignar: $ <b id="combinadoRestante">0</b></div>
+      <div class="toolbar" style="margin-top:12px">
+        <button class="btn primary" onclick="confirmarPagoCombinado()">Confirmar cobro</button>
+        <button class="btn outline" onclick="volverAMetodos()">Volver</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="detalleVentaModal">
+  <div class="modal-box" style="max-width:700px">
+    <div class="section-title"><h3 id="detalleVentaTitulo">Venta</h3><button class="btn light" onclick="closeDetalleVenta()">✕</button></div>
+    <div id="detalleVentaContenido"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn dark" onclick="imprimirVentaDesdeDetalle()">🖨️ Ticket</button>
+      <button class="btn green" onclick="whatsappVentaDesdeDetalle()">📱 WhatsApp</button>
+      <button class="btn light" id="btnAnularVenta" onclick="anularVentaUI()">Anular venta</button>
+      <button class="btn outline" onclick="closeDetalleVenta()">Cerrar</button>
     </div>
   </div>
 </div>

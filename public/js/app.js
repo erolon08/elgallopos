@@ -1,10 +1,19 @@
-const titles = { dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', clientes: 'Clientes' };
+const titles = {
+  dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', clientes: 'Clientes',
+  venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
+};
 
 document.querySelectorAll('.nav button[data-screen]').forEach((b) =>
   b.addEventListener('click', () => showScreen(b.dataset.screen))
 );
 
+let ultimaPantallaAntesDelTicket = 'venta';
+
 function showScreen(id) {
+  const actualActiva = document.querySelector('.screen.active');
+  if (actualActiva && actualActiva.id !== 'ticket-screen' && id === 'ticket-screen') {
+    ultimaPantallaAntesDelTicket = actualActiva.id;
+  }
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.querySelectorAll('.nav button[data-screen]').forEach((b) =>
@@ -14,6 +23,9 @@ function showScreen(id) {
   if (id === 'productos') cargarProductos();
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
+  if (id === 'pendientes') cargarPendientes();
+  if (id === 'ventas') cargarVentasHistorial();
+  if (id === 'venta') actualizarHintVenta();
 }
 
 const money = new Intl.NumberFormat('es-AR');
@@ -593,7 +605,10 @@ function filaCliente(c) {
     <td>${c.condicion_iva}</td>
     <td>${c.venta_a_credito ? `<span class="status s-blue">$ ${money.format(c.limite_credito)}</span>` : '—'}</td>
     <td>${c.patentes || '—'}</td>
-    <td><button class="btn light" onclick="openCliente(${c.id})">Ver / Editar</button></td>
+    <td>
+      <button class="btn light" onclick="openCliente(${c.id})">Ver / Editar</button>
+      <button class="btn primary" onclick="elegirClienteParaVenta(${c.id})">Usar en venta</button>
+    </td>
   `;
   return tr;
 }
@@ -774,5 +789,762 @@ socket.on('stock:updated', (producto) => {
   setTimeout(() => (badge.textContent = 'Sincronizado'), 2000);
 });
 
+// ============================================================
+// SESIÓN / LOGIN POR ROL
+// ============================================================
+let session = null;
+const PANTALLAS_POR_ROL = {
+  ADMIN: null, // null = todas
+  CAJA: ['dashboard', 'venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'stock'],
+  VENTA: ['venta', 'pendientes', 'clientes'],
+};
+
+function cargarSesion() {
+  const raw = localStorage.getItem('gallo_session');
+  session = raw ? JSON.parse(raw) : null;
+}
+
+document.querySelectorAll('.login-role').forEach((el) =>
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.login-role').forEach((x) => x.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('loginPassword').focus();
+  })
+);
+document.getElementById('loginPassword').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doLogin();
+});
+
+async function doLogin() {
+  const rolEl = document.querySelector('.login-role.selected');
+  const rol = rolEl.dataset.rol;
+  const password = document.getElementById('loginPassword').value;
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rol, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById('loginError').textContent = data.error;
+    return;
+  }
+  session = data;
+  localStorage.setItem('gallo_session', JSON.stringify(session));
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').textContent = '';
+  aplicarSesion();
+}
+
+function logout() {
+  session = null;
+  localStorage.removeItem('gallo_session');
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+function aplicarSesion() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('sessionRoleLabel').textContent = session.rol;
+  const permitidas = PANTALLAS_POR_ROL[session.rol];
+  document.querySelectorAll('.nav button[data-screen]').forEach((b) => {
+    b.style.display = !permitidas || permitidas.includes(b.dataset.screen) ? 'block' : 'none';
+  });
+  const inicio = session.rol === 'VENTA' ? 'venta' : session.rol === 'CAJA' ? 'pendientes' : 'dashboard';
+  showScreen(inicio);
+}
+
+function actualizarHintVenta() {
+  const hint = document.getElementById('ventaHint');
+  if (!hint || !session) return;
+  hint.textContent =
+    session.rol === 'VENTA'
+      ? 'En esta terminal, F10 envía la venta a Caja por LAN. No se muestran formas de pago.'
+      : 'En esta terminal, F10 abre el cobro directamente.';
+}
+
+// ============================================================
+// CERRAJEROS (cache global para selects)
+// ============================================================
+let cerrajerosCache = [];
+async function cargarCerrajerosGlobal() {
+  const res = await fetch('/api/cerrajeros');
+  cerrajerosCache = await res.json();
+  const opts = (sel) => {
+    const previo = sel.value;
+    sel.innerHTML = '<option value="">Sin asignar</option>';
+    cerrajerosCache.forEach((c) => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre;
+      sel.appendChild(opt);
+    });
+    if ([...sel.options].some((o) => o.value === previo)) sel.value = previo;
+  };
+  opts(document.getElementById('ventaCerrajeroDefault'));
+  opts(document.getElementById('ventasCerrajero'));
+}
+
+// ============================================================
+// VENTA — carrito
+// ============================================================
+let carritoVenta = [];
+let tipoPrecioGlobal = 'final';
+let clienteVentaActual = null; // null = Consumidor Final
+let ventaPendienteIdEnCurso = null;
+
+function setTipoPrecioGlobal(tipo) {
+  tipoPrecioGlobal = tipo;
+  document.querySelectorAll('.price-choice button').forEach((b) => b.classList.toggle('active', b.dataset.tipo === tipo));
+  carritoVenta.forEach((it) => {
+    if (!it.es_servicio && it.tipo_precio !== 'manual') {
+      it.precio_unitario = it.precios[tipo];
+      it.tipo_precio = tipo;
+    }
+  });
+  renderVenta();
+}
+
+async function buscarProductoVenta() {
+  const q = document.getElementById('ventaBuscar').value.trim();
+  const cont = document.getElementById('ventaBuscarResultados');
+  if (!q) {
+    cont.style.display = 'none';
+    return;
+  }
+  const res = await fetch('/api/productos?q=' + encodeURIComponent(q));
+  const rows = (await res.json()).slice(0, 12);
+  if (!rows.length) {
+    cont.innerHTML = '<div class="small">Sin resultados.</div>';
+    cont.style.display = 'block';
+    return;
+  }
+  cont.innerHTML = '';
+  rows.forEach((p) => {
+    const div = document.createElement('div');
+    const precioTxt = p.usa_mano_obra ? 'mano de obra + recargos' : '$ ' + money.format(p.precio_final);
+    div.innerHTML = `<b>${p.codigo}</b> — ${p.descripcion} <span class="small">(${precioTxt})</span>`;
+    div.onclick = () => {
+      agregarProductoACarrito(p);
+      document.getElementById('ventaBuscar').value = '';
+      cont.style.display = 'none';
+    };
+    cont.appendChild(div);
+  });
+  cont.style.display = 'block';
+}
+document.getElementById('ventaBuscar').addEventListener('input', buscarProductoVenta);
+document.getElementById('ventaBuscar').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.getElementById('ventaBuscarResultados').style.display = 'none';
+});
+document.addEventListener('click', (e) => {
+  const cont = document.getElementById('ventaBuscarResultados');
+  if (cont && !e.target.closest('.search-big')) cont.style.display = 'none';
+});
+
+function agregarProductoACarrito(p) {
+  const cerrajeroDefault = document.getElementById('ventaCerrajeroDefault').value || null;
+  if (p.usa_mano_obra) {
+    carritoVenta.push({
+      producto_id: p.id,
+      descripcion: p.descripcion,
+      cantidad: 1,
+      es_servicio: true,
+      recargos_mano_obra: p.recargos_mano_obra || '',
+      monto_mano_obra: 0,
+      precio_unitario: 0,
+      tipo_precio: 'manual',
+      cerrajero_id: cerrajeroDefault,
+    });
+  } else {
+    carritoVenta.push({
+      producto_id: p.id,
+      descripcion: p.descripcion,
+      cantidad: 1,
+      es_servicio: false,
+      precios: { final: p.precio_final, debito: p.precio_debito, efectivo: p.precio_efectivo },
+      precio_unitario: p.precios ? p.precios[tipoPrecioGlobal] : p[`precio_${tipoPrecioGlobal === 'final' ? 'final' : tipoPrecioGlobal === 'debito' ? 'debito' : 'efectivo'}`],
+      tipo_precio: tipoPrecioGlobal,
+      cerrajero_id: cerrajeroDefault,
+    });
+  }
+  renderVenta();
+}
+
+function calcularPrecioServicio(item) {
+  const recargos = (item.recargos_mano_obra || '')
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n !== 0);
+  const factor = recargos.reduce((acc, pct) => acc * (1 + pct / 100), 1);
+  return roundUpTo100((Number(item.monto_mano_obra) || 0) * factor);
+}
+
+function renderVenta() {
+  const tbody = document.getElementById('ventaBody');
+  tbody.innerHTML = '';
+  let total = 0;
+  carritoVenta.forEach((it, i) => {
+    if (it.es_servicio) it.precio_unitario = calcularPrecioServicio(it);
+    const subtotal = it.precio_unitario * it.cantidad;
+    total += subtotal;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="number" min="1" value="${it.cantidad}" style="width:60px" oninput="cambiarCantidadLinea(${i}, this.value)"></td>
+      <td><b>${it.descripcion}</b>${it.es_servicio ? ' <span class="status s-blue">servicio</span>' : ''}</td>
+      <td><select onchange="cambiarCerrajeroLineaVenta(${i}, this.value)">${opcionesCerrajero(it.cerrajero_id)}</select></td>
+      <td data-col="precio">${
+        it.es_servicio
+          ? `<input value="$ ${money.format(it.precio_unitario)}" readonly style="width:110px;background:#f4f4f4">`
+          : `<input type="number" step="any" value="${it.precio_unitario}" style="width:110px" oninput="cambiarPrecioLinea(${i}, this.value)">`
+      }</td>
+      <td>${it.es_servicio ? `<input type="number" step="any" value="${it.monto_mano_obra}" style="width:110px" oninput="cambiarManoObraLinea(${i}, this.value)">` : '—'}</td>
+      <td data-col="subtotal"><b>$ ${money.format(subtotal)}</b></td>
+      <td><button class="btn light" onclick="quitarLineaVenta(${i})">🗑</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  actualizarTotalVenta();
+}
+function actualizarTotalVenta() {
+  const total = carritoVenta.reduce((acc, it) => acc + it.precio_unitario * it.cantidad, 0);
+  const descuentoGeneral = Number(document.getElementById('ventaDescuentoGeneral').value) || 0;
+  document.getElementById('ventaTotal').textContent = money.format(Math.max(0, total - descuentoGeneral));
+}
+function actualizarFilaEnVivoVenta(i) {
+  const it = carritoVenta[i];
+  if (it.es_servicio) it.precio_unitario = calcularPrecioServicio(it);
+  const tr = document.getElementById('ventaBody').children[i];
+  if (tr) {
+    if (it.es_servicio) tr.querySelector('[data-col="precio"] input').value = '$ ' + money.format(it.precio_unitario);
+    tr.querySelector('[data-col="subtotal"]').innerHTML = `<b>$ ${money.format(it.precio_unitario * it.cantidad)}</b>`;
+  }
+  actualizarTotalVenta();
+}
+function opcionesCerrajero(actualId) {
+  return (
+    '<option value="">Sin asignar</option>' +
+    cerrajerosCache.map((c) => `<option value="${c.id}" ${String(c.id) === String(actualId) ? 'selected' : ''}>${c.nombre}</option>`).join('')
+  );
+}
+function cambiarCantidadLinea(i, v) {
+  carritoVenta[i].cantidad = Math.max(1, Number(v) || 1);
+  actualizarFilaEnVivoVenta(i);
+}
+function cambiarPrecioLinea(i, v) {
+  carritoVenta[i].precio_unitario = Number(v) || 0;
+  carritoVenta[i].tipo_precio = 'manual';
+  actualizarFilaEnVivoVenta(i);
+}
+function cambiarManoObraLinea(i, v) {
+  carritoVenta[i].monto_mano_obra = Number(v) || 0;
+  actualizarFilaEnVivoVenta(i);
+}
+function cambiarCerrajeroLineaVenta(i, v) {
+  carritoVenta[i].cerrajero_id = v || null;
+}
+function quitarLineaVenta(i) {
+  carritoVenta.splice(i, 1);
+  renderVenta();
+}
+async function elegirClienteParaVenta(id) {
+  const cliente = await (await fetch(`/api/clientes/${id}`)).json();
+  clienteVentaActual = cliente;
+  document.getElementById('ventaClienteNombre').textContent = cliente.nombre;
+  showScreen('venta');
+}
+
+function limpiarCarrito() {
+  carritoVenta = [];
+  clienteVentaActual = null;
+  ventaPendienteIdEnCurso = null;
+  document.getElementById('ventaClienteNombre').textContent = 'Consumidor Final';
+  document.getElementById('ventaDescuentoGeneral').value = 0;
+  renderVenta();
+}
+function cancelarVenta() {
+  if (carritoVenta.length && !confirm('¿Cancelar esta venta? Se pierde lo cargado.')) return;
+  limpiarCarrito();
+}
+
+function itemsParaApi() {
+  return carritoVenta.map((it) => ({
+    producto_id: it.producto_id,
+    descripcion: it.descripcion,
+    cantidad: it.cantidad,
+    precio_unitario: it.precio_unitario,
+    tipo_precio: it.tipo_precio,
+    monto_mano_obra: it.es_servicio ? it.monto_mano_obra : null,
+    cerrajero_id: it.cerrajero_id || null,
+  }));
+}
+
+async function guardarPendiente() {
+  if (!carritoVenta.length) {
+    alert('Agregá al menos un producto.');
+    return;
+  }
+  const payload = {
+    cliente_id: clienteVentaActual ? clienteVentaActual.id : null,
+    terminal_origen: session.rol,
+    usuario_id: session.id,
+    estado: 'pendiente',
+    descuento_general: Number(document.getElementById('ventaDescuentoGeneral').value) || 0,
+    items: itemsParaApi(),
+  };
+  const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  alert('Venta guardada en Pendientes.');
+  limpiarCarrito();
+}
+
+async function cobrarOEnviar() {
+  if (!carritoVenta.length) {
+    alert('Agregá al menos un producto.');
+    return;
+  }
+  const payload = {
+    cliente_id: clienteVentaActual ? clienteVentaActual.id : null,
+    terminal_origen: session.rol,
+    usuario_id: session.id,
+    estado: session.rol === 'VENTA' ? 'enviada_caja' : 'pendiente',
+    descuento_general: Number(document.getElementById('ventaDescuentoGeneral').value) || 0,
+    items: itemsParaApi(),
+  };
+  const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  if (session.rol === 'VENTA') {
+    alert('Venta enviada a Caja por LAN.');
+    limpiarCarrito();
+    return;
+  }
+  abrirCobro(data.id, data.total);
+}
+
+// ============================================================
+// COBRO
+// ============================================================
+let ventaEnCobroId = null;
+let ventaEnCobroTotal = 0;
+let modoEventual = false;
+let qrBilleteraElegida = null;
+let filasCombinado = [];
+
+const MARCAS_DEBITO = ['Visa Débito', 'Mastercard Débito', 'Cabal Débito', 'Maestro', 'Naranja Débito', 'Otra'];
+const MARCAS_CREDITO = ['Visa Crédito', 'Mastercard Crédito', 'Cabal Crédito', 'American Express', 'Naranja', 'Otra'];
+const BILLETERAS_QR = ['Mercado Pago', 'MODO', 'Cuenta DNI', 'Naranja X', 'Personal Pay', 'Otro QR'];
+
+function abrirCobro(ventaId, total) {
+  ventaEnCobroId = ventaId;
+  ventaEnCobroTotal = total;
+  modoEventual = false;
+  document.getElementById('eventualHint').classList.remove('active');
+  document.getElementById('cobroTotal').textContent = money.format(total);
+  volverAMetodos();
+  document.getElementById('cobroModal').classList.add('open');
+}
+function closeCobro() {
+  document.getElementById('cobroModal').classList.remove('open');
+  ventaEnCobroId = null;
+}
+function volverAMetodos() {
+  ['cobroPasoMetodos', 'cobroPasoEfectivo', 'cobroPasoSimple', 'cobroPasoMarca', 'cobroPasoQr', 'cobroPasoCombinado'].forEach((id) => {
+    document.getElementById(id).style.display = id === 'cobroPasoMetodos' ? 'block' : 'none';
+  });
+}
+
+function elegirFormaPago(forma) {
+  if (forma === 'Efectivo') {
+    document.getElementById('cobroPasoMetodos').style.display = 'none';
+    document.getElementById('cobroPasoEfectivo').style.display = 'block';
+    document.getElementById('efectivoRecibido').value = ventaEnCobroTotal;
+    calcularVuelto();
+    document.getElementById('efectivoRecibido').focus();
+    document.getElementById('efectivoRecibido').select();
+  } else if (forma === 'Débito' || forma === 'Crédito') {
+    document.getElementById('cobroPasoMetodos').style.display = 'none';
+    document.getElementById('cobroPasoMarca').style.display = 'block';
+    const grid = document.getElementById('marcasGrid');
+    grid.innerHTML = '';
+    (forma === 'Débito' ? MARCAS_DEBITO : MARCAS_CREDITO).forEach((marca) => {
+      const btn = document.createElement('div');
+      btn.className = 'brand-btn';
+      btn.textContent = marca;
+      btn.onclick = () => confirmarPagoSimple(forma, marca);
+      grid.appendChild(btn);
+    });
+  } else if (forma === 'QR') {
+    document.getElementById('cobroPasoMetodos').style.display = 'none';
+    document.getElementById('cobroPasoQr').style.display = 'block';
+    qrBilleteraElegida = null;
+    document.getElementById('qrBox').style.display = 'none';
+    document.getElementById('qrMontoTexto').textContent = '';
+    document.getElementById('btnConfirmarQr').style.display = 'none';
+    const grid = document.getElementById('qrGrid');
+    grid.innerHTML = '';
+    BILLETERAS_QR.forEach((billetera) => {
+      const btn = document.createElement('div');
+      btn.className = 'brand-btn';
+      btn.textContent = billetera;
+      btn.onclick = () => {
+        qrBilleteraElegida = billetera;
+        document.getElementById('qrBox').style.display = 'flex';
+        document.getElementById('qrMontoTexto').innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>${billetera} <span class="small">(simulado, sin integración real)</span>`;
+        document.getElementById('btnConfirmarQr').style.display = 'inline-block';
+      };
+      grid.appendChild(btn);
+    });
+  } else if (forma === 'Pago Combinado') {
+    document.getElementById('cobroPasoMetodos').style.display = 'none';
+    document.getElementById('cobroPasoCombinado').style.display = 'block';
+    filasCombinado = [
+      { forma_pago: 'Efectivo', marca: '', monto: ventaEnCobroTotal },
+      { forma_pago: 'Débito', marca: '', monto: 0 },
+    ];
+    renderCombinado();
+  } else {
+    // Transferencia | Cuenta Corriente
+    document.getElementById('cobroPasoMetodos').style.display = 'none';
+    document.getElementById('cobroPasoSimple').style.display = 'block';
+    let texto = `Confirmar ${forma} por $ ${money.format(ventaEnCobroTotal)}.`;
+    if (forma === 'Cuenta Corriente') {
+      if (!clienteVentaActual) {
+        texto = 'No hay cliente seleccionado. La Cuenta Corriente requiere un cliente habilitado.';
+      } else if (!clienteVentaActual.venta_a_credito) {
+        texto = `⚠ ${clienteVentaActual.nombre} no está habilitado para Cuenta Corriente. Podés continuar de todas formas si lo autorizás.`;
+      } else if (ventaEnCobroTotal > clienteVentaActual.limite_credito) {
+        texto = `⚠ Esta venta ($ ${money.format(ventaEnCobroTotal)}) supera el límite de crédito de ${clienteVentaActual.nombre} ($ ${money.format(clienteVentaActual.limite_credito)}).`;
+      } else {
+        texto = `Cuenta Corriente de ${clienteVentaActual.nombre} — $ ${money.format(ventaEnCobroTotal)}. Límite: $ ${money.format(clienteVentaActual.limite_credito)}.`;
+      }
+    }
+    document.getElementById('cobroSimpleTexto').textContent = texto;
+    document.getElementById('btnConfirmarSimple').onclick = () => confirmarPagoSimple(forma);
+  }
+}
+
+function calcularVuelto() {
+  const recibido = Number(document.getElementById('efectivoRecibido').value) || 0;
+  document.getElementById('efectivoVuelto').value = Math.max(0, recibido - ventaEnCobroTotal);
+}
+document.getElementById('efectivoRecibido').addEventListener('input', calcularVuelto);
+
+async function confirmarPagoSimple(forma, marca) {
+  await finalizarCobro([{ forma_pago: forma, marca: marca || null, monto: ventaEnCobroTotal }]);
+}
+
+function renderCombinado() {
+  const cont = document.getElementById('combinadoFilas');
+  cont.innerHTML = '';
+  filasCombinado.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'combinado-row';
+    row.innerHTML = `
+      <div class="field"><label>Forma</label>
+        <select onchange="filasCombinado[${i}].forma_pago=this.value">
+          ${['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'QR', 'Cuenta Corriente']
+            .map((fp) => `<option value="${fp}" ${fp === f.forma_pago ? 'selected' : ''}>${fp}</option>`)
+            .join('')}
+        </select>
+      </div>
+      <div class="field"><label>Marca (opcional)</label><input value="${f.marca || ''}" onchange="filasCombinado[${i}].marca=this.value"></div>
+      <div class="field"><label>Monto</label><input type="number" step="any" value="${f.monto}" onchange="filasCombinado[${i}].monto=Number(this.value)||0;renderCombinadoRestante()"></div>
+      <button class="btn light" onclick="quitarFilaCombinado(${i})">🗑</button>
+    `;
+    cont.appendChild(row);
+  });
+  renderCombinadoRestante();
+}
+function renderCombinadoRestante() {
+  const asignado = filasCombinado.reduce((a, f) => a + (Number(f.monto) || 0), 0);
+  document.getElementById('combinadoRestante').textContent = money.format(ventaEnCobroTotal - asignado);
+}
+function agregarFilaCombinado() {
+  filasCombinado.push({ forma_pago: 'Efectivo', marca: '', monto: 0 });
+  renderCombinado();
+}
+function quitarFilaCombinado(i) {
+  filasCombinado.splice(i, 1);
+  renderCombinado();
+}
+async function confirmarPagoCombinado() {
+  const asignado = filasCombinado.reduce((a, f) => a + (Number(f.monto) || 0), 0);
+  if (Math.abs(asignado - ventaEnCobroTotal) > 1) {
+    alert('La suma de los pagos no coincide con el total.');
+    return;
+  }
+  await finalizarCobro(filasCombinado.map((f) => ({ forma_pago: f.forma_pago, marca: f.marca || null, monto: f.monto })));
+}
+
+async function finalizarCobro(pagos) {
+  const res = await fetch(`/api/ventas/${ventaEnCobroId}/cobrar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pagos, tipo_comprobante: modoEventual ? 'Eventual' : undefined, usuario_id: session.id, terminal: session.rol }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  closeCobro();
+  limpiarCarrito();
+  mostrarTicket(data);
+}
+
+document.addEventListener('keydown', (e) => {
+  const modalAbierto = document.getElementById('cobroModal').classList.contains('open');
+  if (modalAbierto) {
+    if (e.ctrlKey && e.key === 'F10') {
+      e.preventDefault();
+      modoEventual = !modoEventual;
+      document.getElementById('eventualHint').classList.toggle('active', modoEventual);
+      return;
+    }
+    if (document.getElementById('cobroPasoMetodos').style.display !== 'none') {
+      const teclas = { F1: 'Efectivo', F2: 'Débito', F3: 'Transferencia', F4: 'Crédito', F5: 'QR', F6: 'Cuenta Corriente', F7: 'Pago Combinado' };
+      if (teclas[e.key]) {
+        e.preventDefault();
+        elegirFormaPago(teclas[e.key]);
+        return;
+      }
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeCobro();
+      return;
+    }
+    if (e.key === 'Enter' && document.getElementById('cobroPasoEfectivo').style.display !== 'none') {
+      e.preventDefault();
+      confirmarPagoSimple('Efectivo');
+    }
+    return;
+  }
+  if (e.key === 'F10' && document.getElementById('venta').classList.contains('active')) {
+    e.preventDefault();
+    cobrarOEnviar();
+  }
+});
+
+// ============================================================
+// TICKET + WHATSAPP
+// ============================================================
+let ultimaVentaParaTicket = null;
+
+function formatearTextoTicket(venta) {
+  const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
+  const lineas = venta.items.map((it) => `${it.cantidad} x ${it.descripcion}  $${money.format(it.precio_unitario * it.cantidad)}`);
+  const pagos = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`);
+  return [
+    'CERRAJERÍA EL GALLO',
+    `Fecha: ${fecha}`,
+    `N°: ${venta.numero}  ·  ${venta.tipo_comprobante}`,
+    `Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}`,
+    '--------------------------',
+    ...lineas,
+    '--------------------------',
+    `TOTAL: $${money.format(venta.total)}`,
+    ...pagos,
+    '¡Gracias por su compra!',
+  ].join('\n');
+}
+
+function mostrarTicket(venta) {
+  ultimaVentaParaTicket = venta;
+  const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
+  const lineasHtml = venta.items
+    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad)}<br>`)
+    .join('');
+  const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
+  document.getElementById('ticketContenido').innerHTML = `
+    <h4>CERRAJERÍA EL GALLO</h4>
+    <div class="center">Corrientes Capital</div><hr>
+    Fecha: ${fecha}<br>N°: ${venta.numero} · ${venta.tipo_comprobante}<br>
+    Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}<hr>
+    ${lineasHtml}<hr>
+    TOTAL: <b>$${money.format(venta.total)}</b><br>${pagosHtml}<hr>
+    <div class="center">¡Gracias por su compra!</div>
+  `;
+  showScreen('ticket-screen');
+}
+
+function enviarTicketWhatsapp() {
+  if (!ultimaVentaParaTicket) return;
+  enviarPorWhatsapp(ultimaVentaParaTicket);
+}
+function enviarPorWhatsapp(venta) {
+  let telefono = venta.cliente ? venta.cliente.telefono : null;
+  if (!telefono) telefono = prompt('Número de WhatsApp del cliente (con característica, sin 0 ni 15):');
+  if (!telefono) return;
+  const soloNumeros = telefono.replace(/\D/g, '');
+  const telFull = soloNumeros.startsWith('54') ? soloNumeros : '549' + soloNumeros;
+  const texto = formatearTextoTicket(venta);
+  window.open(`https://wa.me/${telFull}?text=${encodeURIComponent(texto)}`, '_blank');
+}
+
+// ============================================================
+// PENDIENTES
+// ============================================================
+async function cargarPendientes() {
+  const [pendientes, enviadas] = await Promise.all([
+    fetch('/api/ventas?estado=pendiente').then((r) => r.json()),
+    fetch('/api/ventas?estado=enviada_caja').then((r) => r.json()),
+  ]);
+  const rows = [...enviadas, ...pendientes];
+  const tbody = document.getElementById('pendientesBody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="small">No hay ventas pendientes.</td></tr>';
+    return;
+  }
+  rows.forEach((v) => {
+    const tr = document.createElement('tr');
+    const hora = new Date(v.creado_en).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const estado =
+      v.estado === 'enviada_caja'
+        ? '<span class="status s-warn">Esperando caja</span>'
+        : '<span class="status s-blue">Guardada</span>';
+    tr.innerHTML = `
+      <td>${v.numero}</td>
+      <td>${v.estado === 'enviada_caja' ? 'Recibida por LAN' : 'Guardada local'}</td>
+      <td>${v.terminal_origen}</td>
+      <td>${hora}</td>
+      <td>${v.cliente_nombre || 'Consumidor Final'}</td>
+      <td>$ ${money.format(v.total)}</td>
+      <td>${estado}</td>
+      <td><button class="btn primary" onclick="retomarPendiente(${v.id})">${session.rol === 'VENTA' ? 'Ver' : 'Abrir'}</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+async function retomarPendiente(id) {
+  const venta = await (await fetch(`/api/ventas/${id}`)).json();
+  if (session.rol === 'VENTA') {
+    alert(`Venta N° ${venta.numero} — $ ${money.format(venta.total)} — ${venta.estado === 'enviada_caja' ? 'esperando que Caja la cobre.' : 'guardada.'}`);
+    return;
+  }
+  abrirCobro(venta.id, venta.total);
+}
+
+// ============================================================
+// VENTAS — historial
+// ============================================================
+async function cargarVentasHistorial() {
+  const params = new URLSearchParams();
+  const desde = document.getElementById('ventasDesde').value;
+  const hasta = document.getElementById('ventasHasta').value;
+  const numero = document.getElementById('ventasNumero').value.trim();
+  const cerrajero_id = document.getElementById('ventasCerrajero').value;
+  const patente = document.getElementById('ventasPatente').value.trim();
+  if (desde) params.set('fecha_desde', desde);
+  if (hasta) params.set('fecha_hasta', hasta);
+  if (numero) params.set('numero', numero);
+  if (cerrajero_id) params.set('cerrajero_id', cerrajero_id);
+  if (patente) params.set('patente', patente);
+
+  const res = await fetch('/api/ventas?' + params.toString());
+  const rows = await res.json();
+  const tbody = document.getElementById('ventasBody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="small">Sin resultados.</td></tr>';
+    return;
+  }
+  rows.forEach((v) => tbody.appendChild(filaVentaHistorial(v)));
+}
+function filaVentaHistorial(v) {
+  const tr = document.createElement('tr');
+  const hora = new Date(v.creado_en).toLocaleString('es-AR');
+  const estadoCls = v.estado === 'cobrada' ? 's-ok' : v.estado === 'anulada' ? 's-bad' : 's-warn';
+  tr.innerHTML = `
+    <td>${v.numero}</td><td>${hora}</td><td>${v.cliente_nombre || 'Consumidor Final'}</td>
+    <td>${v.tipo_comprobante}</td><td>${v.forma_pago || '—'}</td><td>$ ${money.format(v.total)}</td>
+    <td><span class="status ${estadoCls}">${v.estado}</span></td>
+    <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button></td>
+  `;
+  return tr;
+}
+document.getElementById('btnBuscarVentas').addEventListener('click', cargarVentasHistorial);
+
+let ventaDetalleActual = null;
+async function verDetalleVenta(id) {
+  const venta = await (await fetch(`/api/ventas/${id}`)).json();
+  ventaDetalleActual = venta;
+  document.getElementById('detalleVentaTitulo').textContent = `Venta N° ${venta.numero}`;
+  const filasItems = venta.items
+    .map(
+      (it) => `
+    <tr>
+      <td>${it.cantidad}</td><td>${it.descripcion}</td>
+      <td><select onchange="cambiarCerrajeroItemDetalle(${it.id}, this.value)">${opcionesCerrajero(it.cerrajero_id)}</select></td>
+      <td>$ ${money.format(it.precio_unitario)}</td><td>$ ${money.format(it.precio_unitario * it.cantidad)}</td>
+    </tr>`
+    )
+    .join('');
+  const pagosTxt = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $ ${money.format(p.monto)}`).join(', ') || '—';
+  document.getElementById('detalleVentaContenido').innerHTML = `
+    <p><b>Cliente:</b> ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'} &nbsp; <b>Estado:</b> ${venta.estado} &nbsp; <b>Comprobante:</b> ${venta.tipo_comprobante}</p>
+    <div class="table-wrap"><table><thead><tr><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${filasItems}</tbody></table></div>
+    <p style="margin-top:10px"><b>Pagos:</b> ${pagosTxt}</p>
+    <p><b>Total: $ ${money.format(venta.total)}</b></p>
+  `;
+  document.getElementById('btnAnularVenta').style.display = venta.estado === 'anulada' ? 'none' : 'inline-block';
+  document.getElementById('detalleVentaModal').classList.add('open');
+}
+function closeDetalleVenta() {
+  document.getElementById('detalleVentaModal').classList.remove('open');
+  cargarVentasHistorial();
+}
+async function cambiarCerrajeroItemDetalle(itemId, cerrajeroId) {
+  await fetch(`/api/ventas/items/${itemId}/cerrajero`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cerrajero_id: cerrajeroId || null }),
+  });
+}
+async function anularVentaUI() {
+  if (!ventaDetalleActual) return;
+  const motivo = prompt('Motivo de la anulación (opcional):') || '';
+  const res = await fetch(`/api/ventas/${ventaDetalleActual.id}/anular`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ motivo, usuario_id: session.id, terminal: session.rol }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  alert('Venta anulada. El stock se repuso automáticamente.');
+  closeDetalleVenta();
+}
+function imprimirVentaDesdeDetalle() {
+  if (ventaDetalleActual) mostrarTicket(ventaDetalleActual);
+}
+function whatsappVentaDesdeDetalle() {
+  if (ventaDetalleActual) enviarPorWhatsapp(ventaDetalleActual);
+}
+
+// ============================================================
+// PRESUPUESTOS (próximamente)
+// ============================================================
+function guardarComoPresupuesto() {
+  alert('Los presupuestos todavía no están conectados — próximo paso.');
+}
+
+// ============================================================
+// Arranque
+// ============================================================
+cargarSesion();
+if (session) aplicarSesion();
+
 cargarFamiliasGlobal().then(cargarStock);
 cargarProveedoresGlobal();
+cargarCerrajerosGlobal();

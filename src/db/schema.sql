@@ -246,6 +246,20 @@ CREATE TABLE IF NOT EXISTS venta_items (
 CREATE INDEX IF NOT EXISTS idx_ventaitems_venta ON venta_items(venta_id);
 CREATE INDEX IF NOT EXISTS idx_ventaitems_cerrajero ON venta_items(cerrajero_id);
 
+-- Detalle de cobro. Una venta con un solo medio de pago tiene una fila acá;
+-- "Pago Combinado" reparte el total en varias filas (ej. mitad efectivo,
+-- mitad débito). marca: Visa/Mastercard/etc para débito y crédito, billetera
+-- (Mercado Pago/MODO) para QR.
+CREATE TABLE IF NOT EXISTS venta_pagos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  venta_id INTEGER NOT NULL REFERENCES ventas(id),
+  forma_pago TEXT NOT NULL CHECK (forma_pago IN ('Efectivo','Débito','Crédito','Transferencia','QR','Cuenta Corriente')),
+  marca TEXT,
+  monto REAL NOT NULL,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ventapagos_venta ON venta_pagos(venta_id);
+
 -- ============================================================
 -- RENDICIÓN DE CERRAJEROS
 -- Período libre (desde/hasta), no solo diario.
