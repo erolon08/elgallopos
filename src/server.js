@@ -7,6 +7,8 @@ require('./db'); // asegura que el schema esté creado antes de levantar rutas
 const sockets = require('./sockets');
 const stockRoutes = require('./routes/stock.routes');
 const familiasRoutes = require('./routes/familias.routes');
+const proveedoresRoutes = require('./routes/proveedores.routes');
+const productosRoutes = require('./routes/productos.routes');
 
 const app = express();
 app.use(express.json());
@@ -14,6 +16,8 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use('/api/stock', stockRoutes);
 app.use('/api/familias', familiasRoutes);
+app.use('/api/proveedores', proveedoresRoutes);
+app.use('/api/productos', productosRoutes);
 
 const server = http.createServer(app);
 sockets.init(server);

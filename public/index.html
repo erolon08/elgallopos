@@ -12,11 +12,12 @@
     <div class="brand"><h1>EL GALLO POS</h1><small>Cerrajería El Gallo</small></div>
     <div class="nav" id="nav">
       <button data-screen="dashboard" class="active">📊 Dashboard</button>
+      <button data-screen="productos">📦 Productos</button>
+      <button data-screen="familias">🗂️ Familias</button>
       <button data-screen="stock">🏷️ Stock</button>
       <button disabled>🛒 Venta <span class="tag">próximamente</span></button>
       <button disabled>💰 Caja <span class="tag">próximamente</span></button>
       <button disabled>👥 Clientes <span class="tag">próximamente</span></button>
-      <button disabled>📦 Productos <span class="tag">próximamente</span></button>
       <button disabled>🔧 Rendición cerrajeros <span class="tag">próximamente</span></button>
     </div>
   </aside>
@@ -30,7 +31,42 @@
       <section class="screen active" id="dashboard">
         <div class="card">
           <div class="section-title"><h3>EL GALLO POS</h3></div>
-          <p>Sistema en construcción. El módulo <b>Stock</b> ya está funcional — accedé desde el menú lateral.</p>
+          <p>Sistema en construcción. Los módulos <b>Productos</b>, <b>Familias</b> y <b>Stock</b> ya están funcionales — accedé desde el menú lateral.</p>
+        </div>
+      </section>
+
+      <section class="screen" id="productos">
+        <div class="card">
+          <div class="section-title"><h3>Maestro de productos</h3><button class="btn primary" onclick="openProducto()">+ Nuevo producto</button></div>
+          <div class="toolbar">
+            <div class="field"><label>Buscar</label><input id="prodSearch" placeholder="Código o descripción..."></div>
+            <div class="field"><label>Familia</label><select id="prodFamilia"><option value="">Todas</option></select></div>
+            <div class="field"><label>Proveedor</label><select id="prodProveedor"><option value="">Todos</option></select></div>
+            <div class="field"><label>Stock</label><select id="prodStock"><option value="">Todos</option><option value="bajo_minimo">Bajo mínimo</option></select></div>
+            <label class="field" style="flex-direction:row;align-items:center;gap:6px;padding-bottom:9px">
+              <input type="checkbox" id="prodIncompletos" style="width:auto"> Datos incompletos
+            </label>
+            <button class="btn primary" id="btnBuscarProd">Buscar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Código</th><th>Descripción</th><th>Familia</th><th>Proveedor</th><th>Precio final</th><th>Débito/Transf.</th><th>Efectivo</th><th>Costo</th><th>Stock mín.</th><th>IVA</th><th></th></tr></thead>
+              <tbody id="prodBody"></tbody>
+            </table>
+          </div>
+          <div class="notice" style="margin-top:12px">Débito/Transferencia y Efectivo se calculan solos según la familia, salvo que desactives "Usar regla automática" en el producto. El stock actual se administra desde el módulo Stock.</div>
+        </div>
+      </section>
+
+      <section class="screen" id="familias">
+        <div class="card">
+          <div class="section-title"><h3>Familias</h3><button class="btn primary" onclick="openFamilia()">+ Nueva familia</button></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nombre</th><th>Desc. Débito</th><th>Desc. Efectivo</th><th>Precio rendición</th><th>Mano de obra</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="familiasBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -68,6 +104,57 @@
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="confirmarAjuste()">Guardar ajuste</button>
       <button class="btn outline" onclick="closeAjuste()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="productoModal">
+  <div class="modal-box" style="max-width:640px">
+    <div class="section-title"><h3 id="productoTitulo">Nuevo producto</h3><button class="btn light" onclick="closeProducto()">✕</button></div>
+    <input type="hidden" id="prodId">
+    <div class="two-col-form">
+      <div class="field"><label>Código</label><input id="prodCodigo"></div>
+      <div class="field"><label>Descripción</label><input id="prodDescripcion"></div>
+      <div class="field"><label>Familia</label><select id="prodFamiliaSel"></select></div>
+      <div class="field"><label>Proveedor</label>
+        <select id="prodProveedorSel"><option value="">Sin proveedor</option><option value="__nuevo__">+ Nuevo proveedor...</option></select>
+      </div>
+      <div class="field"><label>Costo</label><input id="prodCosto" type="number" step="any"></div>
+      <div class="field"><label>Stock mínimo</label><input id="prodStockMinimo" type="number" step="any"></div>
+      <div class="field"><label>IVA (%)</label><input id="prodIva" type="number" step="any" value="21"></div>
+      <div class="field" id="prodRendicionField" style="display:none"><label>Precio de rendición (duplicados)</label><input id="prodPrecioRendicion" type="number" step="any"></div>
+    </div>
+    <label style="display:block;margin:14px 0 6px">
+      <input type="checkbox" id="prodUsaRegla" checked onchange="toggleReglaAutomatica()"> Usar regla automática de precio
+    </label>
+    <div class="two-col-form">
+      <div class="field"><label>Precio final</label><input id="prodPrecioFinal" type="number" step="any" oninput="recalcularPreview()"></div>
+      <div class="field"><label>Débito / Transferencia</label><input id="prodPrecioDebito" type="number" step="any" readonly></div>
+      <div class="field"><label>Efectivo</label><input id="prodPrecioEfectivo" type="number" step="any" readonly></div>
+    </div>
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn primary" onclick="guardarProducto()">Guardar</button>
+      <button class="btn outline" onclick="closeProducto()">Cancelar</button>
+      <button class="btn light" id="btnEliminarProd" style="display:none" onclick="eliminarProducto()">Desactivar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="familiaModal">
+  <div class="modal-box">
+    <div class="section-title"><h3 id="familiaTitulo">Nueva familia</h3><button class="btn light" onclick="closeFamilia()">✕</button></div>
+    <input type="hidden" id="famId">
+    <div class="two-col-form">
+      <div class="field"><label>Nombre</label><input id="famNombre"></div>
+      <div class="field"><label>Descuento Débito (%)</label><input id="famDebito" type="number" step="any" value="20"></div>
+      <div class="field"><label>Descuento Efectivo (%)</label><input id="famEfectivo" type="number" step="any" value="30"></div>
+    </div>
+    <label style="display:block;margin:12px 0 4px"><input type="checkbox" id="famUsaRendicion"> Usa precio de rendición por producto (ej. duplicados de llaves)</label>
+    <label style="display:block;margin:4px 0"><input type="checkbox" id="famUsaManoObra"> Genera mano de obra para rendición de cerrajeros (ej. servicios)</label>
+    <label style="display:block;margin:12px 0 4px" id="famActivaWrap"><input type="checkbox" id="famActiva" checked> Activa</label>
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn primary" onclick="guardarFamilia()">Guardar</button>
+      <button class="btn outline" onclick="closeFamilia()">Cancelar</button>
     </div>
   </div>
 </div>
