@@ -16,7 +16,7 @@ function enriquecer(p) {
   return { ...p, estado_stock: estadoStock(p), incompleto: esIncompleto(p) ? 1 : 0 };
 }
 
-function listar({ q, familia_id, proveedor_id, stock, incompletos } = {}) {
+function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = {}) {
   let sql = `
     SELECT p.*, f.nombre AS familia, f.usa_mano_obra, pr.nombre AS proveedor
     FROM productos p
@@ -36,6 +36,9 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos } = {}) {
   if (proveedor_id) {
     sql += ' AND p.proveedor_id = @proveedor_id';
     params.proveedor_id = proveedor_id;
+  }
+  if (favorito === 'true') {
+    sql += ' AND p.favorito = 1';
   }
   sql += ' ORDER BY p.descripcion';
 
@@ -98,9 +101,9 @@ function crear(datos) {
     .prepare(
       `INSERT INTO productos
         (codigo, descripcion, familia_id, proveedor_id, costo, precio_final, precio_debito, precio_efectivo,
-         precio_rendicion, recargos_mano_obra, usar_regla_automatica, iva, stock_minimo)
+         precio_rendicion, recargos_mano_obra, usar_regla_automatica, iva, stock_minimo, favorito)
        VALUES (@codigo, @descripcion, @familia_id, @proveedor_id, @costo, @precio_final, @precio_debito, @precio_efectivo,
-         @precio_rendicion, @recargos_mano_obra, @usar_regla_automatica, @iva, @stock_minimo)`
+         @precio_rendicion, @recargos_mano_obra, @usar_regla_automatica, @iva, @stock_minimo, @favorito)`
     )
     .run({
       codigo: String(datos.codigo).trim(),
@@ -111,6 +114,7 @@ function crear(datos) {
       precio_rendicion: datos.precio_rendicion != null && datos.precio_rendicion !== '' ? Number(datos.precio_rendicion) : null,
       iva: Number(datos.iva) || 0,
       stock_minimo: Number(datos.stock_minimo) || 0,
+      favorito: datos.favorito ? 1 : 0,
     });
   return obtener(info.lastInsertRowid);
 }
@@ -139,7 +143,7 @@ function actualizar(id, datos) {
        costo = @costo, precio_final = @precio_final, precio_debito = @precio_debito, precio_efectivo = @precio_efectivo,
        precio_rendicion = @precio_rendicion, recargos_mano_obra = @recargos_mano_obra,
        usar_regla_automatica = @usar_regla_automatica, iva = @iva,
-       stock_minimo = @stock_minimo, actualizado_en = datetime('now')
+       stock_minimo = @stock_minimo, favorito = @favorito, actualizado_en = datetime('now')
      WHERE id = @id`
   ).run({
     id,
@@ -156,6 +160,7 @@ function actualizar(id, datos) {
         : actual.precio_rendicion,
     iva: datos.iva != null ? Number(datos.iva) : actual.iva,
     stock_minimo: datos.stock_minimo != null ? Number(datos.stock_minimo) : actual.stock_minimo,
+    favorito: datos.favorito !== undefined ? (datos.favorito ? 1 : 0) : actual.favorito,
   });
   return obtener(id);
 }
@@ -165,4 +170,11 @@ function desactivar(id) {
   return info.changes > 0;
 }
 
-module.exports = { listar, obtener, crear, actualizar, desactivar };
+function toggleFavorito(id) {
+  const actual = db.prepare('SELECT favorito FROM productos WHERE id = ?').get(id);
+  if (!actual) return null;
+  db.prepare('UPDATE productos SET favorito = ? WHERE id = ?').run(actual.favorito ? 0 : 1, id);
+  return obtener(id);
+}
+
+module.exports = { listar, obtener, crear, actualizar, desactivar, toggleFavorito };

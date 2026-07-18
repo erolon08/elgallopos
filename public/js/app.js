@@ -26,7 +26,7 @@ function showScreen(id) {
   if (id === 'pendientes') cargarPendientes();
   if (id === 'ventas') cargarVentasHistorial();
   if (id === 'presupuestos') cargarPresupuestos();
-  if (id === 'venta') actualizarHintVenta();
+  if (id === 'venta') { actualizarHintVenta(); cargarBotoneraVenta(); }
 }
 
 const money = new Intl.NumberFormat('es-AR');
@@ -268,9 +268,17 @@ function filaProducto(p) {
     ${columnasPrecio}
     <td>${money.format(p.stock_minimo)}</td>
     <td>${p.iva}%</td>
-    <td><button class="btn light" onclick="openProducto(${p.id})">Editar</button></td>
+    <td>
+      <button class="btn light" title="${p.favorito ? 'Quitar de la botonera' : 'Agregar a la botonera de Venta'}" onclick="toggleFavoritoProducto(${p.id})">${p.favorito ? '⭐' : '☆'}</button>
+      <button class="btn light" onclick="openProducto(${p.id})">Editar</button>
+    </td>
   `;
   return tr;
+}
+
+async function toggleFavoritoProducto(id) {
+  await fetch(`/api/productos/${id}/favorito`, { method: 'POST' });
+  cargarProductos();
 }
 
 function formatearRecargos(recargosStr) {
@@ -375,6 +383,7 @@ async function openProducto(id) {
     document.getElementById('prodRecargos').value = p.recargos_mano_obra || '';
     document.getElementById('prodManoObraPrueba').value = '';
     document.getElementById('prodPrecioFinalPrueba').value = '';
+    document.getElementById('prodFavorito').checked = !!p.favorito;
     updateRendicionFieldVisibility();
     toggleCamposPorFamilia();
     toggleReglaAutomatica();
@@ -396,6 +405,7 @@ async function openProducto(id) {
     document.getElementById('prodRecargos').value = '';
     document.getElementById('prodManoObraPrueba').value = '';
     document.getElementById('prodPrecioFinalPrueba').value = '';
+    document.getElementById('prodFavorito').checked = false;
     updateRendicionFieldVisibility();
     toggleCamposPorFamilia();
     toggleReglaAutomatica();
@@ -418,6 +428,7 @@ async function guardarProducto() {
     stock_minimo: Number(document.getElementById('prodStockMinimo').value) || 0,
     iva: Number(document.getElementById('prodIva').value) || 0,
     precio_rendicion: document.getElementById('prodPrecioRendicion').value || null,
+    favorito: document.getElementById('prodFavorito').checked,
   };
   if (esServicio) {
     payload.recargos_mano_obra = document.getElementById('prodRecargos').value.trim() || null;
@@ -920,15 +931,35 @@ async function buscarProductoVenta() {
     return;
   }
   cont.innerHTML = '';
+  const cerrar = () => {
+    document.getElementById('ventaBuscar').value = '';
+    cont.style.display = 'none';
+  };
   rows.forEach((p) => {
     const div = document.createElement('div');
-    const precioTxt = p.usa_mano_obra ? 'mano de obra + recargos' : '$ ' + money.format(p.precio_final);
-    div.innerHTML = `<b>${p.codigo}</b> — ${p.descripcion} <span class="small">(${precioTxt})</span>`;
-    div.onclick = () => {
-      agregarProductoACarrito(p);
-      document.getElementById('ventaBuscar').value = '';
-      cont.style.display = 'none';
-    };
+    div.className = 'search-result-item';
+    if (p.usa_mano_obra) {
+      div.innerHTML = `<div><b>${p.codigo}</b> — ${p.descripcion} <span class="small">(mano de obra + recargos)</span></div>`;
+      div.onclick = () => {
+        agregarProductoACarrito(p);
+        cerrar();
+      };
+    } else {
+      div.innerHTML = `
+        <div><b>${p.codigo}</b> — ${p.descripcion}</div>
+        <div class="sr-precios">
+          <button type="button" data-tipo="final">Final<br>$ ${money.format(p.precio_final)}</button>
+          <button type="button" data-tipo="debito">Déb/Transf<br>$ ${money.format(p.precio_debito)}</button>
+          <button type="button" data-tipo="efectivo">Efectivo<br>$ ${money.format(p.precio_efectivo)}</button>
+        </div>`;
+      div.querySelectorAll('.sr-precios button').forEach((btn) => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          agregarProductoACarrito(p, btn.dataset.tipo);
+          cerrar();
+        };
+      });
+    }
     cont.appendChild(div);
   });
   cont.style.display = 'block';
@@ -942,7 +973,26 @@ document.addEventListener('click', (e) => {
   if (cont && !e.target.closest('.search-big')) cont.style.display = 'none';
 });
 
-function agregarProductoACarrito(p) {
+async function cargarBotoneraVenta() {
+  const cont = document.getElementById('ventaBotonera');
+  if (!cont) return;
+  const rows = await (await fetch('/api/productos?favorito=true')).json();
+  cont.innerHTML = '';
+  if (!rows.length) {
+    cont.innerHTML = '<p class="small">Marcá productos como favoritos (⭐) desde Productos para que aparezcan acá.</p>';
+    return;
+  }
+  rows.forEach((p) => {
+    const btn = document.createElement('button');
+    btn.className = 'botonera-btn';
+    const precioTxt = p.usa_mano_obra ? 'Servicio' : '$ ' + money.format(p.precio_final);
+    btn.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>${precioTxt}</small>`;
+    btn.onclick = () => agregarProductoACarrito(p);
+    cont.appendChild(btn);
+  });
+}
+
+function agregarProductoACarrito(p, tipoElegido) {
   const cerrajeroDefault = document.getElementById('ventaCerrajeroDefault').value || null;
   if (p.usa_mano_obra) {
     carritoVenta.push({
@@ -953,18 +1003,20 @@ function agregarProductoACarrito(p) {
       recargos_mano_obra: p.recargos_mano_obra || '',
       monto_mano_obra: 0,
       precio_unitario: 0,
+      precio_manual: false,
       tipo_precio: 'manual',
       cerrajero_id: cerrajeroDefault,
     });
   } else {
+    const tipo = tipoElegido || tipoPrecioGlobal;
     carritoVenta.push({
       producto_id: p.id,
       descripcion: p.descripcion,
       cantidad: 1,
       es_servicio: false,
       precios: { final: p.precio_final, debito: p.precio_debito, efectivo: p.precio_efectivo },
-      precio_unitario: p.precios ? p.precios[tipoPrecioGlobal] : p[`precio_${tipoPrecioGlobal === 'final' ? 'final' : tipoPrecioGlobal === 'debito' ? 'debito' : 'efectivo'}`],
-      tipo_precio: tipoPrecioGlobal,
+      precio_unitario: p.precios ? p.precios[tipo] : p[`precio_${tipo}`],
+      tipo_precio: tipo,
       cerrajero_id: cerrajeroDefault,
     });
   }
@@ -985,20 +1037,28 @@ function renderVenta() {
   tbody.innerHTML = '';
   let total = 0;
   carritoVenta.forEach((it, i) => {
-    if (it.es_servicio) it.precio_unitario = calcularPrecioServicio(it);
+    if (it.es_servicio && !it.precio_manual) it.precio_unitario = calcularPrecioServicio(it);
     const subtotal = it.precio_unitario * it.cantidad;
     total += subtotal;
     const tr = document.createElement('tr');
+    const descripcionCell = it.es_servicio
+      ? `<input value="${it.descripcion}" style="width:170px" oninput="cambiarDescripcionLinea(${i}, this.value)">`
+      : `<b>${it.descripcion}</b>`;
+    const precioCell = it.es_servicio
+      ? `<input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioServicioLinea(${i}, this.value)">
+         ${it.precio_manual ? `<button class="btn light" style="padding:2px 5px;font-size:10px;margin-top:3px" title="Recalcular desde mano de obra" onclick="resetPrecioServicioLinea(${i})">↺ auto</button>` : ''}`
+      : `<div class="line-price-choice">
+           <button class="${it.tipo_precio === 'final' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'final')">F</button>
+           <button class="${it.tipo_precio === 'debito' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'debito')">D</button>
+           <button class="${it.tipo_precio === 'efectivo' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'efectivo')">E</button>
+         </div>
+         <input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioLinea(${i}, this.value)">`;
     tr.innerHTML = `
       <td><input type="number" min="1" value="${it.cantidad}" style="width:60px" oninput="cambiarCantidadLinea(${i}, this.value)"></td>
-      <td><b>${it.descripcion}</b>${it.es_servicio ? ' <span class="status s-blue">servicio</span>' : ''}</td>
+      <td data-col="descripcion">${descripcionCell}${it.es_servicio ? ' <span class="status s-blue">servicio</span>' : ''}</td>
       <td><select onchange="cambiarCerrajeroLineaVenta(${i}, this.value)">${opcionesCerrajero(it.cerrajero_id)}</select></td>
-      <td data-col="precio">${
-        it.es_servicio
-          ? `<input value="$ ${money.format(it.precio_unitario)}" readonly style="width:110px;background:#f4f4f4">`
-          : `<input type="number" step="any" value="${it.precio_unitario}" style="width:110px" oninput="cambiarPrecioLinea(${i}, this.value)">`
-      }</td>
-      <td>${it.es_servicio ? `<input type="number" step="any" value="${it.monto_mano_obra}" style="width:110px" oninput="cambiarManoObraLinea(${i}, this.value)">` : '—'}</td>
+      <td data-col="precio">${precioCell}</td>
+      <td>${it.es_servicio ? `<input type="number" step="any" value="${it.monto_mano_obra}" style="width:100px" oninput="cambiarManoObraLinea(${i}, this.value)">` : '—'}</td>
       <td data-col="subtotal"><b>$ ${money.format(subtotal)}</b></td>
       <td><button class="btn light" onclick="quitarLineaVenta(${i})">🗑</button></td>
     `;
@@ -1013,10 +1073,25 @@ function actualizarTotalVenta() {
 }
 function actualizarFilaEnVivoVenta(i) {
   const it = carritoVenta[i];
-  if (it.es_servicio) it.precio_unitario = calcularPrecioServicio(it);
+  if (it.es_servicio && !it.precio_manual) it.precio_unitario = calcularPrecioServicio(it);
   const tr = document.getElementById('ventaBody').children[i];
   if (tr) {
-    if (it.es_servicio) tr.querySelector('[data-col="precio"] input').value = '$ ' + money.format(it.precio_unitario);
+    if (it.es_servicio) {
+      const precioCell = tr.querySelector('[data-col="precio"]');
+      precioCell.querySelector('input').value = it.precio_unitario;
+      let resetBtn = precioCell.querySelector('button');
+      if (it.precio_manual && !resetBtn) {
+        resetBtn = document.createElement('button');
+        resetBtn.className = 'btn light';
+        resetBtn.style.cssText = 'padding:2px 5px;font-size:10px;margin-top:3px';
+        resetBtn.title = 'Recalcular desde mano de obra';
+        resetBtn.textContent = '↺ auto';
+        resetBtn.onclick = () => resetPrecioServicioLinea(i);
+        precioCell.appendChild(resetBtn);
+      } else if (!it.precio_manual && resetBtn) {
+        resetBtn.remove();
+      }
+    }
     tr.querySelector('[data-col="subtotal"]').innerHTML = `<b>$ ${money.format(it.precio_unitario * it.cantidad)}</b>`;
   }
   actualizarTotalVenta();
@@ -1035,6 +1110,24 @@ function cambiarPrecioLinea(i, v) {
   carritoVenta[i].precio_unitario = Number(v) || 0;
   carritoVenta[i].tipo_precio = 'manual';
   actualizarFilaEnVivoVenta(i);
+}
+function elegirPrecioLinea(i, tipo) {
+  const it = carritoVenta[i];
+  it.tipo_precio = tipo;
+  it.precio_unitario = it.precios[tipo];
+  renderVenta();
+}
+function cambiarDescripcionLinea(i, v) {
+  carritoVenta[i].descripcion = v;
+}
+function cambiarPrecioServicioLinea(i, v) {
+  carritoVenta[i].precio_unitario = Number(v) || 0;
+  carritoVenta[i].precio_manual = true;
+  actualizarFilaEnVivoVenta(i);
+}
+function resetPrecioServicioLinea(i) {
+  carritoVenta[i].precio_manual = false;
+  renderVenta();
 }
 function cambiarManoObraLinea(i, v) {
   carritoVenta[i].monto_mano_obra = Number(v) || 0;

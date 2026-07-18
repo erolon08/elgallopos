@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS productos (
   iva REAL NOT NULL DEFAULT 21,
   stock_actual REAL NOT NULL DEFAULT 0,
   stock_minimo REAL NOT NULL DEFAULT 0,
+  favorito INTEGER NOT NULL DEFAULT 0,  -- aparece en la botonera rápida de Venta
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now')),
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now'))

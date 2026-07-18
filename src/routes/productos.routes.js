@@ -9,7 +9,7 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 router.get('/', (req, res) => {
-  const { q, familia_id, proveedor_id, stock, incompletos } = req.query;
+  const { q, familia_id, proveedor_id, stock, incompletos, favorito } = req.query;
   res.json(
     productosService.listar({
       q,
@@ -17,6 +17,7 @@ router.get('/', (req, res) => {
       proveedor_id: proveedor_id ? Number(proveedor_id) : undefined,
       stock,
       incompletos,
+      favorito,
     })
   );
 });
@@ -74,6 +75,12 @@ router.post('/importar', upload.single('archivo'), (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+router.post('/:id/favorito', (req, res) => {
+  const producto = productosService.toggleFavorito(Number(req.params.id));
+  if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
+  res.json(producto);
 });
 
 router.delete('/:id', (req, res) => {

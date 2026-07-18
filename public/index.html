@@ -147,18 +147,18 @@
 
       <section class="screen" id="venta">
         <div class="sale-layout">
-          <div class="card">
+          <div class="card sale-card">
             <div class="section-title">
               <h3 id="ventaClienteNombre">Consumidor Final</h3>
               <button class="btn light" onclick="showScreen('clientes')">Cambiar cliente</button>
             </div>
-            <div class="price-choice" style="margin-bottom:10px">
-              <button class="active" data-tipo="final" onclick="setTipoPrecioGlobal('final')">Precio final</button>
-              <button data-tipo="debito" onclick="setTipoPrecioGlobal('debito')">Débito / Transferencia</button>
-              <button data-tipo="efectivo" onclick="setTipoPrecioGlobal('efectivo')">Efectivo</button>
-            </div>
             <div class="toolbar" style="margin-bottom:6px">
-              <div class="field"><label>Cerrajero para todo el renglón nuevo</label>
+              <div class="price-choice" style="margin:0">
+                <button class="active" data-tipo="final" onclick="setTipoPrecioGlobal('final')">Precio final</button>
+                <button data-tipo="debito" onclick="setTipoPrecioGlobal('debito')">Débito / Transferencia</button>
+                <button data-tipo="efectivo" onclick="setTipoPrecioGlobal('efectivo')">Efectivo</button>
+              </div>
+              <div class="field" style="max-width:220px;margin-left:auto"><label>Cerrajero para renglón nuevo</label>
                 <select id="ventaCerrajeroDefault"><option value="">Sin asignar</option></select>
               </div>
             </div>
@@ -166,7 +166,7 @@
               <input id="ventaBuscar" placeholder="Buscar producto o servicio por código o descripción...">
               <div class="search-results" id="ventaBuscarResultados" style="display:none"></div>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap sale-table-wrap">
               <table>
                 <thead><tr><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Mano de obra</th><th>Subtotal</th><th></th></tr></thead>
                 <tbody id="ventaBody"></tbody>
@@ -181,22 +181,24 @@
                 <button class="btn dark" onclick="guardarPendiente()">💾 Guardar pendiente</button>
                 <button class="btn primary" onclick="cobrarOEnviar()">Cobrar / Enviar <span class="key">F10</span></button>
                 <button class="btn green" onclick="guardarComoPresupuesto()">📄 Presupuesto</button>
+                <select id="presupuestoVigencia" title="Vigencia del presupuesto" style="border-radius:8px;border:0;padding:0 8px">
+                  <option value="7">7 días</option>
+                  <option value="15" selected>15 días</option>
+                  <option value="30">30 días</option>
+                </select>
                 <button class="btn outline" onclick="cancelarVenta()">Cancelar venta</button>
               </div>
               <div class="notice" style="margin-top:10px" id="ventaHint">En esta terminal, F10 abre el cobro directamente.</div>
+              <p class="small" style="margin:6px 0 0;color:#bbb" id="presupuestoOrigenAviso"></p>
             </div>
           </div>
-          <div class="card">
-            <div class="section-title"><h3>Presupuesto</h3></div>
-            <p class="small">El botón verde "Presupuesto" guarda esta misma carga como presupuesto (sin cobrar) y te deja imprimirlo o mandarlo por WhatsApp. Podés elegir la vigencia acá:</p>
-            <div class="field"><label>Vigencia</label>
-              <select id="presupuestoVigencia">
-                <option value="7">7 días</option>
-                <option value="15" selected>15 días</option>
-                <option value="30">30 días</option>
-              </select>
+          <div class="card sale-card">
+            <div class="section-title">
+              <h3>⭐ Botonera rápida</h3>
+              <button class="btn light" onclick="cargarBotoneraVenta()" title="Actualizar">↻</button>
             </div>
-            <p class="small" style="margin-top:10px" id="presupuestoOrigenAviso"></p>
+            <p class="small" style="margin-top:-6px">Un clic agrega el producto a la venta. Se edita marcando ⭐ desde Productos.</p>
+            <div class="botonera-grid" id="ventaBotonera"></div>
           </div>
         </div>
       </section>
@@ -290,6 +292,10 @@
       <div class="field"><label>IVA (%)</label><input id="prodIva" type="number" step="any" value="21"></div>
       <div class="field" id="prodRendicionField" style="display:none"><label>Precio de rendición (duplicados)</label><input id="prodPrecioRendicion" type="number" step="any"></div>
     </div>
+
+    <label style="display:block;margin:12px 0 4px">
+      <input type="checkbox" id="prodFavorito"> ⭐ Mostrar en la botonera rápida de Venta
+    </label>
 
     <div id="prodCamposNormales">
       <label style="display:block;margin:14px 0 6px">

@@ -41,23 +41,31 @@ const getProveedorId = (nombre) => db.prepare('SELECT id FROM proveedores WHERE 
 const insertProducto = db.prepare(`
   INSERT OR IGNORE INTO productos
     (codigo, descripcion, familia_id, proveedor_id, costo, precio_final, precio_debito, precio_efectivo,
-     precio_rendicion, recargos_mano_obra, iva, stock_actual, stock_minimo)
+     precio_rendicion, recargos_mano_obra, iva, stock_actual, stock_minimo, favorito)
   VALUES (@codigo, @descripcion, @familia_id, @proveedor_id, @costo, @precio_final, @precio_debito, @precio_efectivo,
-     @precio_rendicion, @recargos_mano_obra, @iva, @stock_actual, @stock_minimo)
+     @precio_rendicion, @recargos_mano_obra, @iva, @stock_actual, @stock_minimo, @favorito)
 `);
 
 const productosBase = [
-  { codigo: 'CRZ805', descripcion: 'Cerrojo Cruz Bronzen 805', familia: 'CERRADURAS', proveedor: 'Bronzen', costo: 8400, precio_final: 15000, stock_actual: 3, stock_minimo: 5 },
-  { codigo: 'CERRDP', descripcion: 'Cerradura doble paleta', familia: 'CERRADURAS', proveedor: 'Genérico', costo: 160000, precio_final: 286700, stock_actual: 18, stock_minimo: 6 },
+  { codigo: 'CRZ805', descripcion: 'Cerrojo Cruz Bronzen 805', familia: 'CERRADURAS', proveedor: 'Bronzen', costo: 8400, precio_final: 15000, stock_actual: 3, stock_minimo: 5, favorito: 1 },
+  { codigo: 'CERRDP', descripcion: 'Cerradura doble paleta', familia: 'CERRADURAS', proveedor: 'Genérico', costo: 160000, precio_final: 286700, stock_actual: 18, stock_minimo: 6, favorito: 1 },
   { codigo: 'PRIVE01', descripcion: 'Cerradura Prive', familia: 'CERRADURAS', proveedor: 'Genérico', costo: 9000, precio_final: 15600, stock_actual: 12, stock_minimo: 4 },
   { codigo: 'SEK40', descripcion: 'Candado Sekur 40', familia: 'CANDADOS', proveedor: 'Sekur', costo: 24000, precio_final: 44300, stock_actual: 9, stock_minimo: 3 },
-  { codigo: 'LL1', descripcion: 'Duplicado llave común', familia: 'DUPLICADOS', proveedor: 'Genérico', costo: 900, precio_final: 3500, precio_rendicion: 1700, stock_actual: 500, stock_minimo: 50 },
-  { codigo: 'LL2', descripcion: 'Duplicado llave doble paleta', familia: 'DUPLICADOS', proveedor: 'Genérico', costo: 1800, precio_final: 7000, precio_rendicion: 3350, stock_actual: 300, stock_minimo: 50 },
+  { codigo: 'LL1', descripcion: 'Duplicado llave común', familia: 'DUPLICADOS', proveedor: 'Genérico', costo: 900, precio_final: 3500, precio_rendicion: 1700, stock_actual: 500, stock_minimo: 50, favorito: 1 },
+  { codigo: 'LL2', descripcion: 'Duplicado llave doble paleta', familia: 'DUPLICADOS', proveedor: 'Genérico', costo: 1800, precio_final: 7000, precio_rendicion: 3350, stock_actual: 300, stock_minimo: 50, favorito: 1 },
   { codigo: 'LLCOD', descripcion: 'Duplicado auto codificada', familia: 'CODIFICADOS', proveedor: 'Genérico', costo: 9000, precio_final: 25000, stock_actual: 40, stock_minimo: 10 },
-  // Servicios: no tienen costo/precio de catálogo, precio final = mano de obra + recargos en cadena.
-  { codigo: '1001', descripcion: 'Destrabe de cerradura', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0 },
-  { codigo: '1002', descripcion: 'Cambio de combinación', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0 },
+  // Servicios 1001-1009: no tienen costo/precio de catálogo, precio final = mano de
+  // obra + recargos en cadena. Los 9 códigos funcionan todos igual (misma familia
+  // SERVICIOS), cada uno con su propia lista de recargos.
+  { codigo: '1001', descripcion: 'Destrabe de cerradura', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0, favorito: 1 },
+  { codigo: '1002', descripcion: 'Cambio de combinación', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0, favorito: 1 },
   { codigo: '1003', descripcion: 'Servicio de codificados', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21,18', stock_actual: 0, stock_minimo: 0 },
+  { codigo: '1004', descripcion: 'Apertura de domicilio', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0 },
+  { codigo: '1005', descripcion: 'Colocación de cerradura', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0 },
+  { codigo: '1006', descripcion: 'Reparación de mando', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0 },
+  { codigo: '1007', descripcion: 'Apertura de vehículo', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21,18', stock_actual: 0, stock_minimo: 0 },
+  { codigo: '1008', descripcion: 'Duplicado de mando', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21,18', stock_actual: 0, stock_minimo: 0 },
+  { codigo: '1009', descripcion: 'Servicio general', familia: 'SERVICIOS', proveedor: 'Genérico', recargos_mano_obra: '11,21', stock_actual: 0, stock_minimo: 0 },
 ];
 
 for (const p of productosBase) {
@@ -81,6 +89,7 @@ for (const p of productosBase) {
     iva: 21,
     stock_actual: p.stock_actual,
     stock_minimo: p.stock_minimo,
+    favorito: p.favorito ? 1 : 0,
   });
 }
 
