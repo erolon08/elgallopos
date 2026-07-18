@@ -321,7 +321,8 @@ CREATE TABLE IF NOT EXISTS presupuesto_items (
   producto_id INTEGER REFERENCES productos(id),
   descripcion TEXT NOT NULL,
   cantidad REAL NOT NULL DEFAULT 1,
-  precio_unitario REAL NOT NULL
+  precio_unitario REAL NOT NULL,
+  monto_mano_obra REAL
 );
 
 -- ============================================================

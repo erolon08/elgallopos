@@ -25,6 +25,7 @@ function showScreen(id) {
   if (id === 'clientes') cargarClientes();
   if (id === 'pendientes') cargarPendientes();
   if (id === 'ventas') cargarVentasHistorial();
+  if (id === 'presupuestos') cargarPresupuestos();
   if (id === 'venta') actualizarHintVenta();
 }
 
@@ -1057,8 +1058,10 @@ function limpiarCarrito() {
   carritoVenta = [];
   clienteVentaActual = null;
   ventaPendienteIdEnCurso = null;
+  presupuestoOrigenId = null;
   document.getElementById('ventaClienteNombre').textContent = 'Consumidor Final';
   document.getElementById('ventaDescuentoGeneral').value = 0;
+  document.getElementById('presupuestoOrigenAviso').textContent = '';
   renderVenta();
 }
 function cancelarVenta() {
@@ -1090,6 +1093,7 @@ async function guardarPendiente() {
     estado: 'pendiente',
     descuento_general: Number(document.getElementById('ventaDescuentoGeneral').value) || 0,
     items: itemsParaApi(),
+    presupuesto_id: presupuestoOrigenId,
   };
   const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const data = await res.json();
@@ -1113,6 +1117,7 @@ async function cobrarOEnviar() {
     estado: session.rol === 'VENTA' ? 'enviada_caja' : 'pendiente',
     descuento_general: Number(document.getElementById('ventaDescuentoGeneral').value) || 0,
     items: itemsParaApi(),
+    presupuesto_id: presupuestoOrigenId,
   };
   const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const data = await res.json();
@@ -1336,28 +1341,29 @@ document.addEventListener('keydown', (e) => {
 // ============================================================
 // TICKET + WHATSAPP
 // ============================================================
-let ultimaVentaParaTicket = null;
+let ultimoDocumentoParaTicket = null; // { tipo: 'venta'|'presupuesto', data }
 
-function formatearTextoTicket(venta) {
-  const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
-  const lineas = venta.items.map((it) => `${it.cantidad} x ${it.descripcion}  $${money.format(it.precio_unitario * it.cantidad)}`);
-  const pagos = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`);
+function formatearTextoTicket(tipo, doc) {
+  const esVenta = tipo === 'venta';
+  const fecha = new Date(doc.cobrado_en || doc.creado_en).toLocaleString('es-AR');
+  const lineas = doc.items.map((it) => `${it.cantidad} x ${it.descripcion}  $${money.format(it.precio_unitario * it.cantidad)}`);
+  const pagos = esVenta ? doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`) : [];
   return [
     'CERRAJERÍA EL GALLO',
-    `Fecha: ${fecha}`,
-    `N°: ${venta.numero}  ·  ${venta.tipo_comprobante}`,
-    `Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}`,
+    esVenta ? `Fecha: ${fecha}` : `Presupuesto — válido ${doc.vigencia_dias} días desde ${fecha}`,
+    esVenta ? `N°: ${doc.numero}  ·  ${doc.tipo_comprobante}` : `N°: ${doc.numero}`,
+    `Cliente: ${doc.cliente ? doc.cliente.nombre : 'Consumidor Final'}`,
     '--------------------------',
     ...lineas,
     '--------------------------',
-    `TOTAL: $${money.format(venta.total)}`,
+    `TOTAL: $${money.format(doc.total)}`,
     ...pagos,
-    '¡Gracias por su compra!',
+    esVenta ? '¡Gracias por su compra!' : 'Presupuesto sujeto a modificaciones.',
   ].join('\n');
 }
 
 function mostrarTicket(venta) {
-  ultimaVentaParaTicket = venta;
+  ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad)}<br>`)
@@ -1375,17 +1381,35 @@ function mostrarTicket(venta) {
   showScreen('ticket-screen');
 }
 
-function enviarTicketWhatsapp() {
-  if (!ultimaVentaParaTicket) return;
-  enviarPorWhatsapp(ultimaVentaParaTicket);
+function mostrarTicketPresupuesto(presupuesto) {
+  ultimoDocumentoParaTicket = { tipo: 'presupuesto', data: presupuesto };
+  const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
+  const lineasHtml = presupuesto.items
+    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad)}<br>`)
+    .join('');
+  document.getElementById('ticketContenido').innerHTML = `
+    <h4>CERRAJERÍA EL GALLO</h4>
+    <div class="center">PRESUPUESTO</div><hr>
+    Fecha: ${fecha}<br>N°: ${presupuesto.numero}<br>Válido por ${presupuesto.vigencia_dias} días<br>
+    Cliente: ${presupuesto.cliente ? presupuesto.cliente.nombre : 'Consumidor Final'}<hr>
+    ${lineasHtml}<hr>
+    TOTAL: <b>$${money.format(presupuesto.total)}</b><hr>
+    <div class="center">Presupuesto sujeto a modificaciones.</div>
+  `;
+  showScreen('ticket-screen');
 }
-function enviarPorWhatsapp(venta) {
-  let telefono = venta.cliente ? venta.cliente.telefono : null;
+
+function enviarTicketWhatsapp() {
+  if (!ultimoDocumentoParaTicket) return;
+  enviarPorWhatsapp(ultimoDocumentoParaTicket.tipo, ultimoDocumentoParaTicket.data);
+}
+function enviarPorWhatsapp(tipo, doc) {
+  let telefono = doc.cliente ? doc.cliente.telefono : null;
   if (!telefono) telefono = prompt('Número de WhatsApp del cliente (con característica, sin 0 ni 15):');
   if (!telefono) return;
   const soloNumeros = telefono.replace(/\D/g, '');
   const telFull = soloNumeros.startsWith('54') ? soloNumeros : '549' + soloNumeros;
-  const texto = formatearTextoTicket(venta);
+  const texto = formatearTextoTicket(tipo, doc);
   window.open(`https://wa.me/${telFull}?text=${encodeURIComponent(texto)}`, '_blank');
 }
 
@@ -1529,14 +1553,108 @@ function imprimirVentaDesdeDetalle() {
   if (ventaDetalleActual) mostrarTicket(ventaDetalleActual);
 }
 function whatsappVentaDesdeDetalle() {
-  if (ventaDetalleActual) enviarPorWhatsapp(ventaDetalleActual);
+  if (ventaDetalleActual) enviarPorWhatsapp('venta', ventaDetalleActual);
 }
 
 // ============================================================
-// PRESUPUESTOS (próximamente)
+// PRESUPUESTOS
 // ============================================================
-function guardarComoPresupuesto() {
-  alert('Los presupuestos todavía no están conectados — próximo paso.');
+async function guardarComoPresupuesto() {
+  if (!carritoVenta.length) {
+    alert('Agregá al menos un producto.');
+    return;
+  }
+  const payload = {
+    cliente_id: clienteVentaActual ? clienteVentaActual.id : null,
+    vigencia_dias: Number(document.getElementById('presupuestoVigencia').value) || 15,
+    usuario_id: session.id,
+    items: itemsParaApi(),
+  };
+  const res = await fetch('/api/presupuestos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  limpiarCarrito();
+  mostrarTicketPresupuesto(data);
+}
+
+async function cargarPresupuestos() {
+  const res = await fetch('/api/presupuestos');
+  const rows = await res.json();
+  const tbody = document.getElementById('presupuestosBody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="small">Todavía no hay presupuestos guardados.</td></tr>';
+    return;
+  }
+  rows.forEach((p) => tbody.appendChild(filaPresupuesto(p)));
+}
+function filaPresupuesto(p) {
+  const tr = document.createElement('tr');
+  const fecha = new Date(p.creado_en).toLocaleDateString('es-AR');
+  const estadoCls = p.estado === 'vigente' ? 's-warn' : p.estado === 'convertido' ? 's-ok' : 's-bad';
+  const accionesVigente =
+    p.estado === 'vigente'
+      ? `<button class="btn green" onclick="convertirPresupuestoEnVenta(${p.id})">Convertir en venta</button>
+         <button class="btn light" onclick="cerrarPresupuestoUI(${p.id})">Cerrar</button>`
+      : '';
+  tr.innerHTML = `
+    <td>${p.numero}</td><td>${p.cliente_nombre || 'Consumidor Final'}</td><td>${fecha}</td>
+    <td>$ ${money.format(p.total)}</td><td><span class="status ${estadoCls}">${p.estado}</span></td>
+    <td><button class="btn light" onclick="verPresupuesto(${p.id})">Ver</button> ${accionesVigente}</td>
+  `;
+  return tr;
+}
+async function verPresupuesto(id) {
+  const presupuesto = await (await fetch(`/api/presupuestos/${id}`)).json();
+  mostrarTicketPresupuesto(presupuesto);
+}
+
+async function cerrarPresupuestoUI(id) {
+  if (!confirm('¿Cerrar este presupuesto sin convertirlo en venta?')) return;
+  await fetch(`/api/presupuestos/${id}/cerrar`, { method: 'POST' });
+  cargarPresupuestos();
+}
+
+let presupuestoOrigenId = null;
+async function convertirPresupuestoEnVenta(id) {
+  const presupuesto = await (await fetch(`/api/presupuestos/${id}`)).json();
+  limpiarCarrito();
+  presupuestoOrigenId = id;
+  if (presupuesto.cliente) {
+    clienteVentaActual = presupuesto.cliente;
+    document.getElementById('ventaClienteNombre').textContent = presupuesto.cliente.nombre;
+  }
+  for (const it of presupuesto.items) {
+    if (it.producto_id) {
+      const producto = await (await fetch(`/api/productos/${it.producto_id}`)).json();
+      agregarProductoACarrito(producto);
+      const linea = carritoVenta[carritoVenta.length - 1];
+      linea.cantidad = it.cantidad;
+      if (linea.es_servicio) {
+        linea.monto_mano_obra = it.monto_mano_obra || 0;
+      } else {
+        linea.precio_unitario = it.precio_unitario;
+        linea.tipo_precio = 'manual';
+      }
+    } else {
+      carritoVenta.push({
+        producto_id: null,
+        descripcion: it.descripcion,
+        cantidad: it.cantidad,
+        es_servicio: false,
+        precios: { final: it.precio_unitario, debito: it.precio_unitario, efectivo: it.precio_unitario },
+        precio_unitario: it.precio_unitario,
+        tipo_precio: 'manual',
+        cerrajero_id: null,
+      });
+    }
+  }
+  renderVenta();
+  document.getElementById('presupuestoOrigenAviso').textContent = `Convirtiendo el presupuesto ${presupuesto.numero}. Revisá cerrajero y mano de obra antes de cobrar.`;
+  showScreen('venta');
 }
 
 // ============================================================

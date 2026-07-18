@@ -68,6 +68,10 @@ const crear = db.transaction((datos) => {
     });
   });
 
+  if (datos.presupuesto_id) {
+    db.prepare("UPDATE presupuestos SET estado = 'convertido', venta_id = ? WHERE id = ?").run(venta_id, datos.presupuesto_id);
+  }
+
   return obtener(venta_id);
 });
 

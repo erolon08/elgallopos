@@ -180,6 +180,7 @@
               <div class="toolbar" style="margin-top:8px">
                 <button class="btn dark" onclick="guardarPendiente()">💾 Guardar pendiente</button>
                 <button class="btn primary" onclick="cobrarOEnviar()">Cobrar / Enviar <span class="key">F10</span></button>
+                <button class="btn green" onclick="guardarComoPresupuesto()">📄 Presupuesto</button>
                 <button class="btn outline" onclick="cancelarVenta()">Cancelar venta</button>
               </div>
               <div class="notice" style="margin-top:10px" id="ventaHint">En esta terminal, F10 abre el cobro directamente.</div>
@@ -187,8 +188,15 @@
           </div>
           <div class="card">
             <div class="section-title"><h3>Presupuesto</h3></div>
-            <p class="small">Convertí esta misma carga en presupuesto para imprimir o mandar por WhatsApp sin cobrar todavía.</p>
-            <button class="btn outline" style="width:100%" onclick="guardarComoPresupuesto()">📄 Guardar como presupuesto</button>
+            <p class="small">El botón verde "Presupuesto" guarda esta misma carga como presupuesto (sin cobrar) y te deja imprimirlo o mandarlo por WhatsApp. Podés elegir la vigencia acá:</p>
+            <div class="field"><label>Vigencia</label>
+              <select id="presupuestoVigencia">
+                <option value="7">7 días</option>
+                <option value="15" selected>15 días</option>
+                <option value="30">30 días</option>
+              </select>
+            </div>
+            <p class="small" style="margin-top:10px" id="presupuestoOrigenAviso"></p>
           </div>
         </div>
       </section>
@@ -235,7 +243,7 @@
               <tbody id="presupuestosBody"></tbody>
             </table>
           </div>
-          <div class="notice" style="margin-top:12px">Los presupuestos se cargan desde la pantalla de Venta con el botón "Guardar como presupuesto".</div>
+          <div class="notice" style="margin-top:12px">Los presupuestos se cargan desde la pantalla de Venta con el botón verde "Presupuesto". "Convertir en venta" carga los mismos productos en una venta nueva para completar cerrajero y cobrar.</div>
         </div>
       </section>
 
