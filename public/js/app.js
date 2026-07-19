@@ -26,8 +26,18 @@ function showScreen(id) {
   if (id === 'pendientes') cargarPendientes();
   if (id === 'ventas') cargarVentasHistorial();
   if (id === 'presupuestos') cargarPresupuestos();
-  if (id === 'venta') { actualizarHintVenta(); cargarBotoneraVenta(); }
+  if (id === 'venta') { actualizarHintVenta(); cargarBotoneraVenta(); ajustarAltoVenta(); }
 }
+
+function ajustarAltoVenta() {
+  const shell = document.getElementById('ventaShell');
+  if (!shell) return;
+  const top = shell.getBoundingClientRect().top;
+  shell.style.height = Math.max(300, window.innerHeight - top - 20) + 'px';
+}
+window.addEventListener('resize', () => {
+  if (document.getElementById('venta').classList.contains('active')) ajustarAltoVenta();
+});
 
 const money = new Intl.NumberFormat('es-AR');
 function roundUpTo100(v) {
@@ -983,12 +993,27 @@ async function cargarBotoneraVenta() {
     return;
   }
   rows.forEach((p) => {
-    const btn = document.createElement('button');
-    btn.className = 'botonera-btn';
-    const precioTxt = p.usa_mano_obra ? 'Servicio' : '$ ' + money.format(p.precio_final);
-    btn.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>${precioTxt}</small>`;
-    btn.onclick = () => agregarProductoACarrito(p);
-    cont.appendChild(btn);
+    const div = document.createElement('div');
+    div.className = 'botonera-btn';
+    if (p.usa_mano_obra) {
+      div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>Servicio</small>`;
+      div.onclick = () => agregarProductoACarrito(p);
+    } else {
+      div.innerHTML = `
+        <b>${p.codigo}</b><span>${p.descripcion}</span>
+        <div class="botonera-precios">
+          <button type="button" data-tipo="final">Final<br>$ ${money.format(p.precio_final)}</button>
+          <button type="button" data-tipo="debito">Déb/Tr<br>$ ${money.format(p.precio_debito)}</button>
+          <button type="button" data-tipo="efectivo">Efec.<br>$ ${money.format(p.precio_efectivo)}</button>
+        </div>`;
+      div.querySelectorAll('.botonera-precios button').forEach((btn) => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          agregarProductoACarrito(p, btn.dataset.tipo);
+        };
+      });
+    }
+    cont.appendChild(div);
   });
 }
 

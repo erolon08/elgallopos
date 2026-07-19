@@ -146,59 +146,56 @@
       </section>
 
       <section class="screen" id="venta">
-        <div class="sale-layout">
-          <div class="card sale-card">
-            <div class="section-title">
-              <h3 id="ventaClienteNombre">Consumidor Final</h3>
-              <button class="btn light" onclick="showScreen('clientes')">Cambiar cliente</button>
-            </div>
-            <div class="toolbar" style="margin-bottom:6px">
-              <div class="price-choice" style="margin:0">
-                <button class="active" data-tipo="final" onclick="setTipoPrecioGlobal('final')">Precio final</button>
-                <button data-tipo="debito" onclick="setTipoPrecioGlobal('debito')">Débito / Transferencia</button>
-                <button data-tipo="efectivo" onclick="setTipoPrecioGlobal('efectivo')">Efectivo</button>
+        <div class="sale-shell" id="ventaShell">
+          <div class="sale-layout">
+            <div class="card sale-card">
+              <div class="section-title">
+                <h3 id="ventaClienteNombre">Consumidor Final</h3>
+                <button class="btn light" onclick="showScreen('clientes')">Cambiar cliente</button>
               </div>
-              <div class="field" style="max-width:220px;margin-left:auto"><label>Cerrajero para renglón nuevo</label>
-                <select id="ventaCerrajeroDefault"><option value="">Sin asignar</option></select>
+              <div class="toolbar" style="margin-bottom:6px">
+                <div class="price-choice" style="margin:0">
+                  <button class="active" data-tipo="final" onclick="setTipoPrecioGlobal('final')">Precio final</button>
+                  <button data-tipo="debito" onclick="setTipoPrecioGlobal('debito')">Débito / Transferencia</button>
+                  <button data-tipo="efectivo" onclick="setTipoPrecioGlobal('efectivo')">Efectivo</button>
+                </div>
+                <div class="field" style="max-width:220px;margin-left:auto"><label>Cerrajero para renglón nuevo</label>
+                  <select id="ventaCerrajeroDefault"><option value="">Sin asignar</option></select>
+                </div>
+              </div>
+              <div class="search-big">
+                <input id="ventaBuscar" placeholder="Buscar producto o servicio por código o descripción...">
+                <div class="search-results" id="ventaBuscarResultados" style="display:none"></div>
+              </div>
+              <div class="table-wrap sale-table-wrap">
+                <table>
+                  <thead><tr><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Mano de obra</th><th>Subtotal</th><th></th></tr></thead>
+                  <tbody id="ventaBody"></tbody>
+                </table>
               </div>
             </div>
-            <div class="search-big">
-              <input id="ventaBuscar" placeholder="Buscar producto o servicio por código o descripción...">
-              <div class="search-results" id="ventaBuscarResultados" style="display:none"></div>
-            </div>
-            <div class="table-wrap sale-table-wrap">
-              <table>
-                <thead><tr><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Mano de obra</th><th>Subtotal</th><th></th></tr></thead>
-                <tbody id="ventaBody"></tbody>
-              </table>
-            </div>
-            <div class="total-box">
-              <div class="toolbar" style="margin:0 0 8px;justify-content:space-between">
-                <div class="field" style="max-width:180px"><label style="color:#bbb">Descuento general ($)</label><input id="ventaDescuentoGeneral" type="number" step="any" value="0" oninput="renderVenta()" style="background:#222;color:#fff;border-color:#444"></div>
-                <div><div class="small" style="color:#bbb">TOTAL</div><div class="total">$ <span id="ventaTotal">0</span></div></div>
+            <div class="card sale-card">
+              <div class="section-title">
+                <h3>⭐ Botonera rápida</h3>
+                <button class="btn light" onclick="cargarBotoneraVenta()" title="Actualizar">↻</button>
               </div>
-              <div class="toolbar" style="margin-top:8px">
-                <button class="btn dark" onclick="guardarPendiente()">💾 Guardar pendiente</button>
-                <button class="btn primary" onclick="cobrarOEnviar()">Cobrar / Enviar <span class="key">F10</span></button>
-                <button class="btn green" onclick="guardarComoPresupuesto()">📄 Presupuesto</button>
-                <select id="presupuestoVigencia" title="Vigencia del presupuesto" style="border-radius:8px;border:0;padding:0 8px">
-                  <option value="7">7 días</option>
-                  <option value="15" selected>15 días</option>
-                  <option value="30">30 días</option>
-                </select>
-                <button class="btn outline" onclick="cancelarVenta()">Cancelar venta</button>
-              </div>
-              <div class="notice" style="margin-top:10px" id="ventaHint">En esta terminal, F10 abre el cobro directamente.</div>
-              <p class="small" style="margin:6px 0 0;color:#bbb" id="presupuestoOrigenAviso"></p>
+              <div class="botonera-grid" id="ventaBotonera"></div>
             </div>
           </div>
-          <div class="card sale-card">
-            <div class="section-title">
-              <h3>⭐ Botonera rápida</h3>
-              <button class="btn light" onclick="cargarBotoneraVenta()" title="Actualizar">↻</button>
-            </div>
-            <p class="small" style="margin-top:-6px">Un clic agrega el producto a la venta. Se edita marcando ⭐ desde Productos.</p>
-            <div class="botonera-grid" id="ventaBotonera"></div>
+          <div class="sale-footer">
+            <div class="field" style="max-width:140px"><label style="color:#bbb;font-size:11px">Descuento gral. ($)</label><input id="ventaDescuentoGeneral" type="number" step="any" value="0" oninput="renderVenta()" style="background:#222;color:#fff;border-color:#444"></div>
+            <div class="sale-footer-total"><div class="small" style="color:#bbb">TOTAL</div><div class="total">$ <span id="ventaTotal">0</span></div></div>
+            <button class="btn dark" onclick="guardarPendiente()">💾 Pendiente</button>
+            <button class="btn primary" onclick="cobrarOEnviar()">Cobrar / Enviar <span class="key">F10</span></button>
+            <button class="btn green" onclick="guardarComoPresupuesto()">📄 Presupuesto</button>
+            <select id="presupuestoVigencia" title="Vigencia del presupuesto" style="border-radius:8px;border:0;padding:0 8px">
+              <option value="7">7 días</option>
+              <option value="15" selected>15 días</option>
+              <option value="30">30 días</option>
+            </select>
+            <button class="btn outline" onclick="cancelarVenta()">Cancelar venta</button>
+            <div class="sale-footer-hint" id="ventaHint">En esta terminal, F10 abre el cobro directamente.</div>
+            <p class="small" id="presupuestoOrigenAviso" style="flex-basis:100%;margin:0;color:#bcdcff"></p>
           </div>
         </div>
       </section>
