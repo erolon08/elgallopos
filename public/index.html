@@ -154,8 +154,11 @@
                   <h3 id="ventaClienteNombre" style="margin-bottom:1px">Consumidor Final</h3>
                   <div class="small" id="ventaClienteDatos"></div>
                 </div>
-                <div class="field" style="max-width:160px"><label style="font-size:10px">Cerrajero renglón nuevo</label>
-                  <select id="ventaCerrajeroDefault"><option value="">Sin asignar</option></select>
+                <div class="field" style="max-width:200px"><label style="font-size:10px">Cerrajero</label>
+                  <div style="display:flex;gap:4px">
+                    <select id="ventaCerrajeroDefault" style="flex:1"><option value="">Sin asignar</option></select>
+                    <button class="btn light" style="white-space:nowrap" onclick="aplicarCerrajeroATodas()" title="Asigna el cerrajero elegido a todas las líneas ya cargadas en la venta">Aplicar</button>
+                  </div>
                 </div>
                 <button class="btn light" onclick="showScreen('clientes')">Cambiar cliente</button>
               </div>

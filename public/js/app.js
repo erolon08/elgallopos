@@ -1160,6 +1160,14 @@ function cambiarManoObraLinea(i, v) {
 function cambiarCerrajeroLineaVenta(i, v) {
   carritoVenta[i].cerrajero_id = v || null;
 }
+function aplicarCerrajeroATodas() {
+  if (!carritoVenta.length) return;
+  const cerrajeroId = document.getElementById('ventaCerrajeroDefault').value || null;
+  carritoVenta.forEach((it) => {
+    it.cerrajero_id = cerrajeroId;
+  });
+  renderVenta();
+}
 function quitarLineaVenta(i) {
   carritoVenta.splice(i, 1);
   renderVenta();
