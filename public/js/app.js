@@ -20,6 +20,7 @@ function showScreen(id) {
     b.classList.toggle('active', b.dataset.screen === id)
   );
   document.getElementById('screenTitle').textContent = titles[id] || id;
+  document.querySelector('.main').classList.toggle('venta-compacta', id === 'venta');
   if (id === 'productos') cargarProductos();
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
@@ -810,7 +811,7 @@ socket.on('stock:updated', (producto) => {
   badge.textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
   setTimeout(() => (badge.textContent = 'Sincronizado'), 2000);
 });
-['venta:nueva', 'venta:cobrada', 'venta:anulada'].forEach((evento) => {
+['venta:nueva', 'venta:cobrada', 'venta:anulada', 'venta:actualizada'].forEach((evento) => {
   socket.on(evento, () => {
     const activa = document.querySelector('.screen.active');
     if (!activa) return;
@@ -991,63 +992,24 @@ document.addEventListener('click', (e) => {
   if (cont && !e.target.closest('.search-big')) cont.style.display = 'none';
 });
 
-let botoneraCache = [];
-let botoneraExpandidoId = null;
-
 async function cargarBotoneraVenta() {
   const cont = document.getElementById('ventaBotonera');
   if (!cont) return;
-  botoneraCache = await (await fetch('/api/productos?favorito=true')).json();
-  botoneraExpandidoId = null;
-  renderBotoneraVenta();
-}
-
-function renderBotoneraVenta() {
-  const cont = document.getElementById('ventaBotonera');
-  if (!cont) return;
+  const rows = await (await fetch('/api/productos?favorito=true')).json();
   cont.innerHTML = '';
-  if (!botoneraCache.length) {
+  if (!rows.length) {
     cont.innerHTML = '<p class="small">Marcá productos como favoritos (⭐) desde Productos para que aparezcan acá.</p>';
     return;
   }
-  botoneraCache.forEach((p) => {
+  rows.forEach((p) => {
     const div = document.createElement('div');
     div.className = 'botonera-btn';
-    if (p.usa_mano_obra) {
-      div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>Servicio</small>`;
-      div.onclick = () => agregarProductoACarrito(p);
-    } else if (botoneraExpandidoId === p.id) {
-      div.innerHTML = `
-        <b>${p.codigo}</b><span>${p.descripcion}</span>
-        <div class="botonera-precios">
-          <button type="button" data-tipo="final">Final<br>$ ${money.format(p.precio_final)}</button>
-          <button type="button" data-tipo="debito">Déb/Tr<br>$ ${money.format(p.precio_debito)}</button>
-          <button type="button" data-tipo="efectivo">Efec.<br>$ ${money.format(p.precio_efectivo)}</button>
-        </div>`;
-      div.querySelectorAll('.botonera-precios button').forEach((btn) => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          agregarProductoACarrito(p, btn.dataset.tipo);
-          botoneraExpandidoId = null;
-          renderBotoneraVenta();
-        };
-      });
-    } else {
-      div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span>`;
-      div.onclick = () => {
-        botoneraExpandidoId = p.id;
-        renderBotoneraVenta();
-      };
-    }
+    const precioTxt = p.usa_mano_obra ? 'Servicio' : '$ ' + money.format(p.precio_final);
+    div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>${precioTxt}</small>`;
+    div.onclick = () => agregarProductoACarrito(p);
     cont.appendChild(div);
   });
 }
-document.addEventListener('click', (e) => {
-  if (botoneraExpandidoId !== null && !e.target.closest('.botonera-btn')) {
-    botoneraExpandidoId = null;
-    renderBotoneraVenta();
-  }
-});
 
 function agregarProductoACarrito(p, tipoElegido) {
   const cerrajeroDefault = document.getElementById('ventaCerrajeroDefault').value || null;
@@ -1110,7 +1072,12 @@ function renderVenta() {
     const precioCell = it.es_servicio
       ? `<input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioServicioLinea(${i}, this.value)">
          ${it.precio_manual ? `<button class="btn light" style="padding:2px 5px;font-size:10px;margin-top:3px" title="Recalcular desde mano de obra" onclick="resetPrecioServicioLinea(${i})">↺ auto</button>` : ''}`
-      : `<input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioLinea(${i}, this.value)">`;
+      : `<div class="line-price-choice">
+           <button class="${it.tipo_precio === 'final' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'final')">F</button>
+           <button class="${it.tipo_precio === 'debito' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'debito')">D</button>
+           <button class="${it.tipo_precio === 'efectivo' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'efectivo')">E</button>
+         </div>
+         <input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioLinea(${i}, this.value)">`;
     tr.innerHTML = `
       <td><input type="number" min="1" value="${it.cantidad}" style="width:60px" oninput="cambiarCantidadLinea(${i}, this.value)"></td>
       <td data-col="descripcion">${descripcionCell}${it.es_servicio ? ' <span class="status s-blue">servicio</span>' : ''}</td>
@@ -1179,6 +1146,12 @@ function cambiarPrecioLinea(i, v) {
 function cambiarDescuentoLineaPct(i, v) {
   carritoVenta[i].descuento_pct = Math.min(100, Math.max(0, Number(v) || 0));
   actualizarFilaEnVivoVenta(i);
+}
+function elegirPrecioLinea(i, tipo) {
+  const it = carritoVenta[i];
+  it.tipo_precio = tipo;
+  it.precio_unitario = it.precios[tipo];
+  renderVenta();
 }
 function cambiarDescripcionLinea(i, v) {
   carritoVenta[i].descripcion = v;
@@ -1260,14 +1233,23 @@ async function guardarPendiente() {
   }
   const payload = {
     cliente_id: clienteVentaActual ? clienteVentaActual.id : null,
-    terminal_origen: session.rol,
-    usuario_id: session.id,
-    estado: 'pendiente',
     descuento_general: calcularDescuentoGeneralMonto(),
     items: itemsParaApi(),
-    presupuesto_id: presupuestoOrigenId,
   };
-  const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  let res;
+  if (ventaPendienteIdEnCurso) {
+    res = await fetch(`/api/ventas/${ventaPendienteIdEnCurso}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } else {
+    payload.terminal_origen = session.rol;
+    payload.usuario_id = session.id;
+    payload.estado = 'pendiente';
+    payload.presupuesto_id = presupuestoOrigenId;
+    res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  }
   const data = await res.json();
   if (!res.ok) {
     alert('Error: ' + data.error);
@@ -1280,6 +1262,25 @@ async function guardarPendiente() {
 async function cobrarOEnviar() {
   if (!carritoVenta.length) {
     alert('Agregá al menos un producto.');
+    return;
+  }
+  if (ventaPendienteIdEnCurso) {
+    const payload = {
+      cliente_id: clienteVentaActual ? clienteVentaActual.id : null,
+      descuento_general: calcularDescuentoGeneralMonto(),
+      items: itemsParaApi(),
+    };
+    const res = await fetch(`/api/ventas/${ventaPendienteIdEnCurso}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Error: ' + data.error);
+      return;
+    }
+    abrirCobro(data.id, data.total);
     return;
   }
   const payload = {
@@ -1607,6 +1608,11 @@ async function cargarPendientes() {
       v.estado === 'enviada_caja'
         ? '<span class="status s-warn">Esperando caja</span>'
         : '<span class="status s-blue">Guardada</span>';
+    const acciones =
+      session.rol === 'VENTA'
+        ? `<button class="btn primary" onclick="verPendiente(${v.id})">Ver</button>`
+        : `<button class="btn light" onclick="abrirPendienteParaEditar(${v.id})">Abrir</button>
+           <button class="btn primary" onclick="facturarPendiente(${v.id})">Facturar</button>`;
     tr.innerHTML = `
       <td>${v.numero}</td>
       <td>${v.estado === 'enviada_caja' ? 'Recibida por LAN' : 'Guardada local'}</td>
@@ -1615,18 +1621,66 @@ async function cargarPendientes() {
       <td>${v.cliente_nombre || 'Consumidor Final'}</td>
       <td>$ ${money.format(v.total)}</td>
       <td>${estado}</td>
-      <td><button class="btn primary" onclick="retomarPendiente(${v.id})">${session.rol === 'VENTA' ? 'Ver' : 'Abrir'}</button></td>
+      <td>${acciones}</td>
     `;
     tbody.appendChild(tr);
   });
 }
-async function retomarPendiente(id) {
+async function verPendiente(id) {
   const venta = await (await fetch(`/api/ventas/${id}`)).json();
-  if (session.rol === 'VENTA') {
-    alert(`Venta N° ${venta.numero} — $ ${money.format(venta.total)} — ${venta.estado === 'enviada_caja' ? 'esperando que Caja la cobre.' : 'guardada.'}`);
-    return;
-  }
+  alert(`Venta N° ${venta.numero} — $ ${money.format(venta.total)} — ${venta.estado === 'enviada_caja' ? 'esperando que Caja la cobre.' : 'guardada.'}`);
+}
+async function facturarPendiente(id) {
+  const venta = await (await fetch(`/api/ventas/${id}`)).json();
   abrirCobro(venta.id, venta.total);
+}
+async function abrirPendienteParaEditar(id) {
+  const venta = await (await fetch(`/api/ventas/${id}`)).json();
+  limpiarCarrito();
+  ventaPendienteIdEnCurso = id;
+  if (venta.cliente) {
+    clienteVentaActual = venta.cliente;
+    document.getElementById('ventaClienteNombre').textContent = venta.cliente.nombre;
+  }
+  actualizarDatosClienteVenta();
+  for (const it of venta.items) {
+    if (it.producto_id) {
+      const producto = await (await fetch(`/api/productos/${it.producto_id}`)).json();
+      agregarProductoACarrito(producto);
+      const linea = carritoVenta[carritoVenta.length - 1];
+      linea.cantidad = it.cantidad;
+      linea.cerrajero_id = it.cerrajero_id || null;
+      const bruto = it.precio_unitario * it.cantidad;
+      linea.descuento_pct = bruto > 0 && it.descuento ? (Number(it.descuento) / bruto) * 100 : 0;
+      if (linea.es_servicio) {
+        linea.monto_mano_obra = it.monto_mano_obra || 0;
+        const autoCalc = calcularPrecioServicio(linea);
+        linea.precio_manual = Math.abs(autoCalc - it.precio_unitario) > 0.01;
+        linea.precio_unitario = it.precio_unitario;
+      } else {
+        linea.precio_unitario = it.precio_unitario;
+        linea.tipo_precio = it.tipo_precio || 'manual';
+      }
+    } else {
+      carritoVenta.push({
+        producto_id: null,
+        descripcion: it.descripcion,
+        cantidad: it.cantidad,
+        es_servicio: false,
+        precios: { final: it.precio_unitario, debito: it.precio_unitario, efectivo: it.precio_unitario },
+        precio_unitario: it.precio_unitario,
+        tipo_precio: 'manual',
+        descuento_pct: 0,
+        cerrajero_id: it.cerrajero_id || null,
+      });
+    }
+  }
+  const pctGeneral = venta.subtotal > 0 ? (Number(venta.descuento_general) / venta.subtotal) * 100 : 0;
+  document.getElementById('ventaDescuentoGeneral').value = Math.round(pctGeneral * 100) / 100;
+  renderVenta();
+  document.getElementById('presupuestoOrigenAviso').textContent =
+    `Editando la venta N° ${venta.numero}${venta.estado === 'enviada_caja' ? ' (enviada por LAN)' : ''}. Los cambios se guardan sobre la misma venta.`;
+  showScreen('venta');
 }
 
 // ============================================================

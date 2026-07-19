@@ -187,6 +187,49 @@ const cobrar = db.transaction((id, datos) => {
   return obtener(id);
 });
 
+const actualizar = db.transaction((id, datos) => {
+  const actual = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
+  if (!actual) throw new Error('Venta no encontrada');
+  if (actual.estado !== 'pendiente' && actual.estado !== 'enviada_caja') {
+    throw new Error('Solo se pueden modificar ventas pendientes o enviadas a Caja');
+  }
+  if (!datos.items || !datos.items.length) throw new Error('La venta no tiene productos');
+  const { subtotal, total } = calcularTotales(datos.items, datos.descuento_general);
+
+  db.prepare(
+    `UPDATE ventas SET cliente_id = @cliente_id, subtotal = @subtotal, descuento_general = @descuento_general, total = @total
+     WHERE id = @id`
+  ).run({
+    id,
+    cliente_id: datos.cliente_id || null,
+    subtotal,
+    descuento_general: Number(datos.descuento_general) || 0,
+    total,
+  });
+
+  db.prepare('DELETE FROM venta_items WHERE venta_id = ?').run(id);
+  const insertItem = db.prepare(`
+    INSERT INTO venta_items
+      (venta_id, producto_id, descripcion, cantidad, precio_unitario, tipo_precio, descuento, monto_mano_obra, cerrajero_id)
+    VALUES (@venta_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @tipo_precio, @descuento, @monto_mano_obra, @cerrajero_id)
+  `);
+  datos.items.forEach((it) => {
+    insertItem.run({
+      venta_id: id,
+      producto_id: it.producto_id || null,
+      descripcion: it.descripcion,
+      cantidad: Number(it.cantidad) || 1,
+      precio_unitario: Number(it.precio_unitario) || 0,
+      tipo_precio: it.tipo_precio || 'final',
+      descuento: Number(it.descuento) || 0,
+      monto_mano_obra: it.monto_mano_obra != null && it.monto_mano_obra !== '' ? Number(it.monto_mano_obra) : null,
+      cerrajero_id: it.cerrajero_id || null,
+    });
+  });
+
+  return obtener(id);
+});
+
 function enviarACaja(id) {
   const info = db.prepare("UPDATE ventas SET estado = 'enviada_caja' WHERE id = ? AND estado = 'pendiente'").run(id);
   if (info.changes === 0) throw new Error('La venta no está disponible para enviar a Caja');
@@ -230,4 +273,4 @@ function actualizarCerrajeroLinea(venta_item_id, cerrajero_id) {
   return info.changes > 0;
 }
 
-module.exports = { crear, obtener, listar, cobrar, enviarACaja, anular, actualizarCerrajeroLinea, generarNumero };
+module.exports = { crear, obtener, listar, cobrar, enviarACaja, anular, actualizar, actualizarCerrajeroLinea, generarNumero };
