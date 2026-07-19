@@ -53,14 +53,21 @@ function obtener(id) {
   return { ...presupuesto, items, cliente };
 }
 
-function listar() {
-  return db
-    .prepare(
-      `SELECT p.*, c.nombre AS cliente_nombre
-       FROM presupuestos p LEFT JOIN clientes c ON c.id = p.cliente_id
-       ORDER BY p.id DESC LIMIT 300`
-    )
-    .all();
+function listar({ estado } = {}) {
+  let sql = `
+    SELECT p.*, c.nombre AS cliente_nombre
+    FROM presupuestos p LEFT JOIN clientes c ON c.id = p.cliente_id
+    WHERE 1 = 1
+  `;
+  const params = {};
+  if (estado === 'historial') {
+    sql += " AND p.estado != 'vigente'";
+  } else if (estado) {
+    sql += ' AND p.estado = @estado';
+    params.estado = estado;
+  }
+  sql += ' ORDER BY p.id DESC LIMIT 300';
+  return db.prepare(sql).all(params);
 }
 
 function cerrar(id) {

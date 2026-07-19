@@ -817,6 +817,7 @@ socket.on('stock:updated', (producto) => {
     if (!activa) return;
     if (activa.id === 'pendientes') cargarPendientes();
     if (activa.id === 'ventas') cargarVentasHistorial();
+    if (activa.id === 'presupuestos') cargarPresupuestos();
   });
 });
 
@@ -1803,12 +1804,13 @@ async function guardarComoPresupuesto() {
 }
 
 async function cargarPresupuestos() {
-  const res = await fetch('/api/presupuestos');
+  const estado = document.getElementById('presupuestosEstado').value;
+  const res = await fetch('/api/presupuestos' + (estado ? '?estado=' + encodeURIComponent(estado) : ''));
   const rows = await res.json();
   const tbody = document.getElementById('presupuestosBody');
   tbody.innerHTML = '';
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="small">Todavía no hay presupuestos guardados.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="small">No hay presupuestos para mostrar.</td></tr>';
     return;
   }
   rows.forEach((p) => tbody.appendChild(filaPresupuesto(p)));
