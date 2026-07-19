@@ -923,18 +923,6 @@ let tipoPrecioGlobal = 'final';
 let clienteVentaActual = null; // null = Consumidor Final
 let ventaPendienteIdEnCurso = null;
 
-function setTipoPrecioGlobal(tipo) {
-  tipoPrecioGlobal = tipo;
-  document.querySelectorAll('.price-choice button').forEach((b) => b.classList.toggle('active', b.dataset.tipo === tipo));
-  carritoVenta.forEach((it) => {
-    if (!it.es_servicio && it.tipo_precio !== 'manual') {
-      it.precio_unitario = it.precios[tipo];
-      it.tipo_precio = tipo;
-    }
-  });
-  renderVenta();
-}
-
 async function buscarProductoVenta() {
   const q = document.getElementById('ventaBuscar').value.trim();
   const cont = document.getElementById('ventaBuscarResultados');

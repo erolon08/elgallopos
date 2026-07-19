@@ -149,22 +149,15 @@
         <div class="sale-shell" id="ventaShell">
           <div class="sale-layout">
             <div class="card sale-card">
-              <div class="section-title" style="align-items:flex-start">
-                <div>
-                  <h3 id="ventaClienteNombre" style="margin-bottom:2px">Consumidor Final</h3>
+              <div class="section-title" style="align-items:flex-start;gap:8px">
+                <div style="flex:1;min-width:0">
+                  <h3 id="ventaClienteNombre" style="margin-bottom:1px">Consumidor Final</h3>
                   <div class="small" id="ventaClienteDatos"></div>
                 </div>
-                <button class="btn light" onclick="showScreen('clientes')">Cambiar cliente</button>
-              </div>
-              <div class="toolbar" style="margin-bottom:6px">
-                <div class="price-choice" style="margin:0">
-                  <button class="active" data-tipo="final" onclick="setTipoPrecioGlobal('final')">Precio final</button>
-                  <button data-tipo="debito" onclick="setTipoPrecioGlobal('debito')">Débito / Transferencia</button>
-                  <button data-tipo="efectivo" onclick="setTipoPrecioGlobal('efectivo')">Efectivo</button>
-                </div>
-                <div class="field" style="max-width:220px;margin-left:auto"><label>Cerrajero para renglón nuevo</label>
+                <div class="field" style="max-width:160px"><label style="font-size:10px">Cerrajero renglón nuevo</label>
                   <select id="ventaCerrajeroDefault"><option value="">Sin asignar</option></select>
                 </div>
+                <button class="btn light" onclick="showScreen('clientes')">Cambiar cliente</button>
               </div>
               <div class="search-big">
                 <input id="ventaBuscar" placeholder="Buscar producto o servicio por código o descripción...">
