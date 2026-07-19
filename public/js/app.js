@@ -810,6 +810,14 @@ socket.on('stock:updated', (producto) => {
   badge.textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-AR');
   setTimeout(() => (badge.textContent = 'Sincronizado'), 2000);
 });
+['venta:nueva', 'venta:cobrada', 'venta:anulada'].forEach((evento) => {
+  socket.on(evento, () => {
+    const activa = document.querySelector('.screen.active');
+    if (!activa) return;
+    if (activa.id === 'pendientes') cargarPendientes();
+    if (activa.id === 'ventas') cargarVentasHistorial();
+  });
+});
 
 // ============================================================
 // SESIÓN / LOGIN POR ROL
@@ -983,22 +991,32 @@ document.addEventListener('click', (e) => {
   if (cont && !e.target.closest('.search-big')) cont.style.display = 'none';
 });
 
+let botoneraCache = [];
+let botoneraExpandidoId = null;
+
 async function cargarBotoneraVenta() {
   const cont = document.getElementById('ventaBotonera');
   if (!cont) return;
-  const rows = await (await fetch('/api/productos?favorito=true')).json();
+  botoneraCache = await (await fetch('/api/productos?favorito=true')).json();
+  botoneraExpandidoId = null;
+  renderBotoneraVenta();
+}
+
+function renderBotoneraVenta() {
+  const cont = document.getElementById('ventaBotonera');
+  if (!cont) return;
   cont.innerHTML = '';
-  if (!rows.length) {
+  if (!botoneraCache.length) {
     cont.innerHTML = '<p class="small">Marcá productos como favoritos (⭐) desde Productos para que aparezcan acá.</p>';
     return;
   }
-  rows.forEach((p) => {
+  botoneraCache.forEach((p) => {
     const div = document.createElement('div');
     div.className = 'botonera-btn';
     if (p.usa_mano_obra) {
       div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>Servicio</small>`;
       div.onclick = () => agregarProductoACarrito(p);
-    } else {
+    } else if (botoneraExpandidoId === p.id) {
       div.innerHTML = `
         <b>${p.codigo}</b><span>${p.descripcion}</span>
         <div class="botonera-precios">
@@ -1010,12 +1028,26 @@ async function cargarBotoneraVenta() {
         btn.onclick = (e) => {
           e.stopPropagation();
           agregarProductoACarrito(p, btn.dataset.tipo);
+          botoneraExpandidoId = null;
+          renderBotoneraVenta();
         };
       });
+    } else {
+      div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span>`;
+      div.onclick = () => {
+        botoneraExpandidoId = p.id;
+        renderBotoneraVenta();
+      };
     }
     cont.appendChild(div);
   });
 }
+document.addEventListener('click', (e) => {
+  if (botoneraExpandidoId !== null && !e.target.closest('.botonera-btn')) {
+    botoneraExpandidoId = null;
+    renderBotoneraVenta();
+  }
+});
 
 function agregarProductoACarrito(p, tipoElegido) {
   const cerrajeroDefault = document.getElementById('ventaCerrajeroDefault').value || null;
@@ -1029,6 +1061,7 @@ function agregarProductoACarrito(p, tipoElegido) {
       monto_mano_obra: 0,
       precio_unitario: 0,
       precio_manual: false,
+      descuento_pct: 0,
       tipo_precio: 'manual',
       cerrajero_id: cerrajeroDefault,
     });
@@ -1042,6 +1075,7 @@ function agregarProductoACarrito(p, tipoElegido) {
       precios: { final: p.precio_final, debito: p.precio_debito, efectivo: p.precio_efectivo },
       precio_unitario: p.precios ? p.precios[tipo] : p[`precio_${tipo}`],
       tipo_precio: tipo,
+      descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
     });
   }
@@ -1057,14 +1091,18 @@ function calcularPrecioServicio(item) {
   return roundUpTo100((Number(item.monto_mano_obra) || 0) * factor);
 }
 
+function calcularSubtotalLinea(it) {
+  const bruto = it.precio_unitario * it.cantidad;
+  const descPct = Math.min(100, Math.max(0, Number(it.descuento_pct) || 0));
+  return bruto - bruto * (descPct / 100);
+}
+
 function renderVenta() {
   const tbody = document.getElementById('ventaBody');
   tbody.innerHTML = '';
-  let total = 0;
   carritoVenta.forEach((it, i) => {
     if (it.es_servicio && !it.precio_manual) it.precio_unitario = calcularPrecioServicio(it);
-    const subtotal = it.precio_unitario * it.cantidad;
-    total += subtotal;
+    const subtotal = calcularSubtotalLinea(it);
     const tr = document.createElement('tr');
     const descripcionCell = it.es_servicio
       ? `<input value="${it.descripcion}" style="width:170px" oninput="cambiarDescripcionLinea(${i}, this.value)">`
@@ -1072,17 +1110,13 @@ function renderVenta() {
     const precioCell = it.es_servicio
       ? `<input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioServicioLinea(${i}, this.value)">
          ${it.precio_manual ? `<button class="btn light" style="padding:2px 5px;font-size:10px;margin-top:3px" title="Recalcular desde mano de obra" onclick="resetPrecioServicioLinea(${i})">↺ auto</button>` : ''}`
-      : `<div class="line-price-choice">
-           <button class="${it.tipo_precio === 'final' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'final')">F</button>
-           <button class="${it.tipo_precio === 'debito' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'debito')">D</button>
-           <button class="${it.tipo_precio === 'efectivo' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'efectivo')">E</button>
-         </div>
-         <input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioLinea(${i}, this.value)">`;
+      : `<input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioLinea(${i}, this.value)">`;
     tr.innerHTML = `
       <td><input type="number" min="1" value="${it.cantidad}" style="width:60px" oninput="cambiarCantidadLinea(${i}, this.value)"></td>
       <td data-col="descripcion">${descripcionCell}${it.es_servicio ? ' <span class="status s-blue">servicio</span>' : ''}</td>
       <td><select onchange="cambiarCerrajeroLineaVenta(${i}, this.value)">${opcionesCerrajero(it.cerrajero_id)}</select></td>
       <td data-col="precio">${precioCell}</td>
+      <td><input type="number" min="0" max="100" step="any" value="${it.descuento_pct || 0}" style="width:60px" title="Descuento sobre esta línea" oninput="cambiarDescuentoLineaPct(${i}, this.value)"></td>
       <td>${it.es_servicio ? `<input type="number" step="any" value="${it.monto_mano_obra}" style="width:100px" oninput="cambiarManoObraLinea(${i}, this.value)">` : '—'}</td>
       <td data-col="subtotal"><b>$ ${money.format(subtotal)}</b></td>
       <td><button class="btn light" onclick="quitarLineaVenta(${i})">🗑</button></td>
@@ -1092,9 +1126,15 @@ function renderVenta() {
   actualizarTotalVenta();
 }
 function actualizarTotalVenta() {
-  const total = carritoVenta.reduce((acc, it) => acc + it.precio_unitario * it.cantidad, 0);
-  const descuentoGeneral = Number(document.getElementById('ventaDescuentoGeneral').value) || 0;
-  document.getElementById('ventaTotal').textContent = money.format(Math.max(0, total - descuentoGeneral));
+  const subtotal = carritoVenta.reduce((acc, it) => acc + calcularSubtotalLinea(it), 0);
+  const descGeneralPct = Math.min(100, Math.max(0, Number(document.getElementById('ventaDescuentoGeneral').value) || 0));
+  const total = subtotal - subtotal * (descGeneralPct / 100);
+  document.getElementById('ventaTotal').textContent = money.format(Math.max(0, total));
+}
+function calcularDescuentoGeneralMonto() {
+  const subtotal = carritoVenta.reduce((acc, it) => acc + calcularSubtotalLinea(it), 0);
+  const descGeneralPct = Math.min(100, Math.max(0, Number(document.getElementById('ventaDescuentoGeneral').value) || 0));
+  return subtotal * (descGeneralPct / 100);
 }
 function actualizarFilaEnVivoVenta(i) {
   const it = carritoVenta[i];
@@ -1117,7 +1157,7 @@ function actualizarFilaEnVivoVenta(i) {
         resetBtn.remove();
       }
     }
-    tr.querySelector('[data-col="subtotal"]').innerHTML = `<b>$ ${money.format(it.precio_unitario * it.cantidad)}</b>`;
+    tr.querySelector('[data-col="subtotal"]').innerHTML = `<b>$ ${money.format(calcularSubtotalLinea(it))}</b>`;
   }
   actualizarTotalVenta();
 }
@@ -1136,11 +1176,9 @@ function cambiarPrecioLinea(i, v) {
   carritoVenta[i].tipo_precio = 'manual';
   actualizarFilaEnVivoVenta(i);
 }
-function elegirPrecioLinea(i, tipo) {
-  const it = carritoVenta[i];
-  it.tipo_precio = tipo;
-  it.precio_unitario = it.precios[tipo];
-  renderVenta();
+function cambiarDescuentoLineaPct(i, v) {
+  carritoVenta[i].descuento_pct = Math.min(100, Math.max(0, Number(v) || 0));
+  actualizarFilaEnVivoVenta(i);
 }
 function cambiarDescripcionLinea(i, v) {
   carritoVenta[i].descripcion = v;
@@ -1165,10 +1203,20 @@ function quitarLineaVenta(i) {
   carritoVenta.splice(i, 1);
   renderVenta();
 }
+function datosClienteVentaTexto(c) {
+  if (!c) return '';
+  const doc = c.cuit ? `CUIT ${c.cuit}` : c.documento ? `DNI ${c.documento}` : null;
+  return [doc, c.direccion, c.condicion_iva].filter(Boolean).join(' · ');
+}
+function actualizarDatosClienteVenta() {
+  const el = document.getElementById('ventaClienteDatos');
+  if (el) el.textContent = datosClienteVentaTexto(clienteVentaActual);
+}
 async function elegirClienteParaVenta(id) {
   const cliente = await (await fetch(`/api/clientes/${id}`)).json();
   clienteVentaActual = cliente;
   document.getElementById('ventaClienteNombre').textContent = cliente.nombre;
+  actualizarDatosClienteVenta();
   showScreen('venta');
 }
 
@@ -1180,6 +1228,7 @@ function limpiarCarrito() {
   document.getElementById('ventaClienteNombre').textContent = 'Consumidor Final';
   document.getElementById('ventaDescuentoGeneral').value = 0;
   document.getElementById('presupuestoOrigenAviso').textContent = '';
+  actualizarDatosClienteVenta();
   renderVenta();
 }
 function cancelarVenta() {
@@ -1188,15 +1237,20 @@ function cancelarVenta() {
 }
 
 function itemsParaApi() {
-  return carritoVenta.map((it) => ({
-    producto_id: it.producto_id,
-    descripcion: it.descripcion,
-    cantidad: it.cantidad,
-    precio_unitario: it.precio_unitario,
-    tipo_precio: it.tipo_precio,
-    monto_mano_obra: it.es_servicio ? it.monto_mano_obra : null,
-    cerrajero_id: it.cerrajero_id || null,
-  }));
+  return carritoVenta.map((it) => {
+    const bruto = it.precio_unitario * it.cantidad;
+    const descPct = Math.min(100, Math.max(0, Number(it.descuento_pct) || 0));
+    return {
+      producto_id: it.producto_id,
+      descripcion: it.descripcion,
+      cantidad: it.cantidad,
+      precio_unitario: it.precio_unitario,
+      tipo_precio: it.tipo_precio,
+      descuento: bruto * (descPct / 100),
+      monto_mano_obra: it.es_servicio ? it.monto_mano_obra : null,
+      cerrajero_id: it.cerrajero_id || null,
+    };
+  });
 }
 
 async function guardarPendiente() {
@@ -1209,7 +1263,7 @@ async function guardarPendiente() {
     terminal_origen: session.rol,
     usuario_id: session.id,
     estado: 'pendiente',
-    descuento_general: Number(document.getElementById('ventaDescuentoGeneral').value) || 0,
+    descuento_general: calcularDescuentoGeneralMonto(),
     items: itemsParaApi(),
     presupuesto_id: presupuestoOrigenId,
   };
@@ -1233,7 +1287,7 @@ async function cobrarOEnviar() {
     terminal_origen: session.rol,
     usuario_id: session.id,
     estado: session.rol === 'VENTA' ? 'enviada_caja' : 'pendiente',
-    descuento_general: Number(document.getElementById('ventaDescuentoGeneral').value) || 0,
+    descuento_general: calcularDescuentoGeneralMonto(),
     items: itemsParaApi(),
     presupuesto_id: presupuestoOrigenId,
   };
@@ -1464,7 +1518,7 @@ let ultimoDocumentoParaTicket = null; // { tipo: 'venta'|'presupuesto', data }
 function formatearTextoTicket(tipo, doc) {
   const esVenta = tipo === 'venta';
   const fecha = new Date(doc.cobrado_en || doc.creado_en).toLocaleString('es-AR');
-  const lineas = doc.items.map((it) => `${it.cantidad} x ${it.descripcion}  $${money.format(it.precio_unitario * it.cantidad)}`);
+  const lineas = doc.items.map((it) => `${it.cantidad} x ${it.descripcion}  $${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}`);
   const pagos = esVenta ? doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`) : [];
   return [
     'CERRAJERÍA EL GALLO',
@@ -1484,7 +1538,7 @@ function mostrarTicket(venta) {
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
-    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad)}<br>`)
+    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}<br>`)
     .join('');
   const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
   document.getElementById('ticketContenido').innerHTML = `
@@ -1503,7 +1557,7 @@ function mostrarTicketPresupuesto(presupuesto) {
   ultimoDocumentoParaTicket = { tipo: 'presupuesto', data: presupuesto };
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
   const lineasHtml = presupuesto.items
-    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad)}<br>`)
+    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}<br>`)
     .join('');
   document.getElementById('ticketContenido').innerHTML = `
     <h4>CERRAJERÍA EL GALLO</h4>
@@ -1626,7 +1680,7 @@ async function verDetalleVenta(id) {
     <tr>
       <td>${it.cantidad}</td><td>${it.descripcion}</td>
       <td><select onchange="cambiarCerrajeroItemDetalle(${it.id}, this.value)">${opcionesCerrajero(it.cerrajero_id)}</select></td>
-      <td>$ ${money.format(it.precio_unitario)}</td><td>$ ${money.format(it.precio_unitario * it.cantidad)}</td>
+      <td>$ ${money.format(it.precio_unitario)}</td><td>$ ${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}</td>
     </tr>`
     )
     .join('');
@@ -1745,12 +1799,16 @@ async function convertirPresupuestoEnVenta(id) {
     clienteVentaActual = presupuesto.cliente;
     document.getElementById('ventaClienteNombre').textContent = presupuesto.cliente.nombre;
   }
+  actualizarDatosClienteVenta();
   for (const it of presupuesto.items) {
+    const bruto = it.precio_unitario * it.cantidad;
+    const descuentoPctGuardado = bruto > 0 && it.descuento ? (Number(it.descuento) / bruto) * 100 : 0;
     if (it.producto_id) {
       const producto = await (await fetch(`/api/productos/${it.producto_id}`)).json();
       agregarProductoACarrito(producto);
       const linea = carritoVenta[carritoVenta.length - 1];
       linea.cantidad = it.cantidad;
+      linea.descuento_pct = descuentoPctGuardado;
       if (linea.es_servicio) {
         linea.monto_mano_obra = it.monto_mano_obra || 0;
       } else {
@@ -1766,6 +1824,7 @@ async function convertirPresupuestoEnVenta(id) {
         precios: { final: it.precio_unitario, debito: it.precio_unitario, efectivo: it.precio_unitario },
         precio_unitario: it.precio_unitario,
         tipo_precio: 'manual',
+        descuento_pct: descuentoPctGuardado,
         cerrajero_id: null,
       });
     }

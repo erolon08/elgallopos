@@ -7,7 +7,10 @@ function generarNumero() {
 
 const crear = db.transaction((datos) => {
   if (!datos.items || !datos.items.length) throw new Error('El presupuesto no tiene productos');
-  const total = datos.items.reduce((acc, it) => acc + Number(it.precio_unitario) * Number(it.cantidad || 1), 0);
+  const total = datos.items.reduce(
+    (acc, it) => acc + Number(it.precio_unitario) * Number(it.cantidad || 1) - (Number(it.descuento) || 0),
+    0
+  );
 
   const info = db
     .prepare(
@@ -24,8 +27,8 @@ const crear = db.transaction((datos) => {
   const presupuesto_id = info.lastInsertRowid;
 
   const insertItem = db.prepare(`
-    INSERT INTO presupuesto_items (presupuesto_id, producto_id, descripcion, cantidad, precio_unitario, monto_mano_obra)
-    VALUES (@presupuesto_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @monto_mano_obra)
+    INSERT INTO presupuesto_items (presupuesto_id, producto_id, descripcion, cantidad, precio_unitario, descuento, monto_mano_obra)
+    VALUES (@presupuesto_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @descuento, @monto_mano_obra)
   `);
   datos.items.forEach((it) => {
     insertItem.run({
@@ -34,6 +37,7 @@ const crear = db.transaction((datos) => {
       descripcion: it.descripcion,
       cantidad: Number(it.cantidad) || 1,
       precio_unitario: Number(it.precio_unitario) || 0,
+      descuento: Number(it.descuento) || 0,
       monto_mano_obra: it.monto_mano_obra != null && it.monto_mano_obra !== '' ? Number(it.monto_mano_obra) : null,
     });
   });

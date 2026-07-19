@@ -323,6 +323,7 @@ CREATE TABLE IF NOT EXISTS presupuesto_items (
   descripcion TEXT NOT NULL,
   cantidad REAL NOT NULL DEFAULT 1,
   precio_unitario REAL NOT NULL,
+  descuento REAL NOT NULL DEFAULT 0,
   monto_mano_obra REAL
 );
 
