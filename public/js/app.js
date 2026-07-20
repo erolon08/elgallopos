@@ -638,6 +638,7 @@ function filaCliente(c) {
 
 document.getElementById('btnBuscarCli').addEventListener('click', cargarClientes);
 document.getElementById('cliSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') cargarClientes(); });
+document.getElementById('cliSearch').addEventListener('input', cargarClientes);
 
 function toggleLimiteCredito() {
   document.getElementById('cliLimiteField').style.display = document.getElementById('cliVentaCredito').checked ? 'block' : 'none';
@@ -654,15 +655,19 @@ function renderVehiculosModal() {
   vehiculosEnEdicion.forEach((v) => tbody.appendChild(filaVehiculoModal(v)));
 }
 
+let vehiculoTempId = -1;
+
 async function agregarVehiculoUI() {
-  if (!clienteEditId) {
-    alert('Guardá el cliente primero para poder cargarle vehículos.');
-    return;
-  }
   const marca_modelo = prompt('Marca / Modelo del vehículo:');
   if (marca_modelo == null) return;
   const patente = prompt('Patente:');
   if (patente == null) return;
+  if (!clienteEditId) {
+    // Cliente todavía no guardado: se acumula localmente y se sube recién al guardar.
+    vehiculosEnEdicion.push({ id: vehiculoTempId--, marca_modelo, patente });
+    renderVehiculosModal();
+    return;
+  }
   const res = await fetch(`/api/clientes/${clienteEditId}/vehiculos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -679,7 +684,9 @@ async function agregarVehiculoUI() {
 
 async function quitarVehiculoUI(vehiculoId) {
   if (!confirm('¿Quitar este vehículo del cliente?')) return;
-  await fetch(`/api/clientes/vehiculos/${vehiculoId}`, { method: 'DELETE' });
+  if (vehiculoId > 0) {
+    await fetch(`/api/clientes/vehiculos/${vehiculoId}`, { method: 'DELETE' });
+  }
   vehiculosEnEdicion = vehiculosEnEdicion.filter((v) => v.id !== vehiculoId);
   renderVehiculosModal();
 }
@@ -739,12 +746,25 @@ async function guardarCliente() {
     return;
   }
   if (!clienteEditId) {
-    // Recién creado: quedamos en modo edición en el mismo modal para poder cargar vehículos sin reabrir.
+    // Recién creado: subimos los vehículos que se habían cargado localmente antes de guardar.
+    const pendientes = vehiculosEnEdicion.filter((v) => v.id < 0);
+    for (const v of pendientes) {
+      const vres = await fetch(`/api/clientes/${data.id}/vehiculos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marca_modelo: v.marca_modelo, patente: v.patente }),
+      });
+      if (!vres.ok) {
+        const verr = await vres.json();
+        alert(`Cliente guardado, pero no se pudo agregar el vehículo ${v.patente}: ${verr.error}`);
+      }
+    }
     clienteEditId = data.id;
     document.getElementById('clienteTitulo').textContent = 'Editar cliente';
     document.getElementById('clienteCodigoBadge').textContent = `N° cliente: ${data.codigo}`;
     document.getElementById('btnEliminarCli').style.display = 'inline-block';
-    vehiculosEnEdicion = data.vehiculos;
+    const actualizado = await (await fetch(`/api/clientes/${data.id}`)).json();
+    vehiculosEnEdicion = actualizado.vehiculos;
     renderVehiculosModal();
   }
   cargarClientes();
@@ -981,10 +1001,45 @@ document.addEventListener('click', (e) => {
   if (cont && !e.target.closest('.search-big')) cont.style.display = 'none';
 });
 
+let botoneraCache = [];
+let botoneraFamiliaActiva = 'todas';
+
 async function cargarBotoneraVenta() {
+  botoneraCache = await (await fetch('/api/productos?favorito=true')).json();
+  const familias = [...new Set(botoneraCache.map((p) => p.familia))];
+  if (botoneraFamiliaActiva !== 'todas' && !familias.includes(botoneraFamiliaActiva)) {
+    botoneraFamiliaActiva = 'todas';
+  }
+  renderBotoneraTabs(familias);
+  renderBotoneraVenta();
+}
+
+function renderBotoneraTabs(familias) {
+  const cont = document.getElementById('ventaBotoneraTabs');
+  if (!cont) return;
+  if (familias.length <= 1) {
+    cont.innerHTML = '';
+    return;
+  }
+  const tabs = ['todas', ...familias];
+  cont.innerHTML = tabs
+    .map(
+      (f) =>
+        `<button class="${botoneraFamiliaActiva === f ? 'active' : ''}" onclick="cambiarBotoneraFamilia(this.dataset.f)" data-f="${f.replace(/"/g, '&quot;')}">${f === 'todas' ? 'Todas' : f}</button>`
+    )
+    .join('');
+}
+
+function cambiarBotoneraFamilia(f) {
+  botoneraFamiliaActiva = f;
+  renderBotoneraTabs([...new Set(botoneraCache.map((p) => p.familia))]);
+  renderBotoneraVenta();
+}
+
+function renderBotoneraVenta() {
   const cont = document.getElementById('ventaBotonera');
   if (!cont) return;
-  const rows = await (await fetch('/api/productos?favorito=true')).json();
+  const rows = botoneraFamiliaActiva === 'todas' ? botoneraCache : botoneraCache.filter((p) => p.familia === botoneraFamiliaActiva);
   cont.innerHTML = '';
   if (!rows.length) {
     cont.innerHTML = '<p class="small">Marcá productos como favoritos (⭐) desde Productos para que aparezcan acá.</p>';
