@@ -1605,7 +1605,7 @@ let ultimoDocumentoParaTicket = null; // { tipo: 'venta'|'presupuesto', data }
 function formatearTextoTicket(tipo, doc) {
   const esVenta = tipo === 'venta';
   const fecha = new Date(doc.cobrado_en || doc.creado_en).toLocaleString('es-AR');
-  const lineas = doc.items.map((it) => `${it.cantidad} x ${it.descripcion}  $${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}`);
+  const lineas = doc.items.map((it) => `${it.cantidad} x ${it.descripcion}${it.cerrajero_nombre ? ' (Cerrajero: ' + it.cerrajero_nombre + ')' : ''}  $${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}`);
   const pagos = esVenta ? doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`) : [];
   return [
     'CERRAJERÍA EL GALLO',
@@ -1625,7 +1625,7 @@ function mostrarTicket(venta) {
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
-    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}<br>`)
+    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}${it.cerrajero_nombre ? '<br><span style="font-size:11px">&nbsp;&nbsp;Cerrajero: ' + it.cerrajero_nombre + '</span>' : ''}<br>`)
     .join('');
   const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
   document.getElementById('ticketContenido').innerHTML = `
