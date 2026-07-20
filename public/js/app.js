@@ -1169,7 +1169,7 @@ async function generarRendicion() {
   document.getElementById('rendPreviewWrap').style.display = 'none';
   document.getElementById('rendPreviewVacio').style.display = 'none';
   cargarRendiciones();
-  alert('Rendición generada.');
+  mostrarTicketRendicion(data.id);
 }
 
 async function cargarRendiciones() {
