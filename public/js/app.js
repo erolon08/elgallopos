@@ -1139,7 +1139,7 @@ function actualizarTotalesRendicionPreview() {
   const total_bruto = rendicionPreviewActual.total_bruto;
   const aporte = rendicionPreviewActual.cerrajero.aporte_fijo || 0;
   const total_descuentos = aporte + rendicionDescuentosExtra.reduce((s, d) => s + (Number(d.monto) || 0), 0);
-  const total_pagar = total_bruto - total_descuentos;
+  const total_pagar = roundUpTo100(total_bruto - total_descuentos);
   document.getElementById('rendTotalBruto').textContent = '$ ' + money.format(total_bruto);
   document.getElementById('rendTotalDescuentos').textContent = '$ ' + money.format(total_descuentos);
   document.getElementById('rendTotalPagar').textContent = '$ ' + money.format(total_pagar);
@@ -1327,10 +1327,18 @@ async function imprimirRendicionActual() {
   closeRendicionDetalle();
 }
 
+function editarRendicionDesdeTicket() {
+  if (!ultimoDocumentoParaTicket || ultimoDocumentoParaTicket.tipo !== 'rendicion') return;
+  const id = ultimoDocumentoParaTicket.data.id;
+  showScreen('rendicion');
+  verDetalleRendicion(id);
+}
+
 async function mostrarTicketRendicion(id) {
   const r = await (await fetch(`/api/rendiciones/${id}`)).json();
   ultimoDocumentoParaTicket = { tipo: 'rendicion', data: r };
   document.querySelector('#ticket-screen .btn.green').style.display = 'none';
+  document.getElementById('btnEditarTicketRendicion').style.display = r.estado === 'generada' ? '' : 'none';
 
   const duplicados = r.detalle.filter((d) => d.tipo === 'duplicado');
   const servicios = r.detalle.filter((d) => d.tipo === 'servicio');
@@ -2072,6 +2080,7 @@ function formatearTextoTicket(tipo, doc) {
 function mostrarTicket(venta) {
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
   document.querySelector('#ticket-screen .btn.green').style.display = '';
+  document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}${it.cerrajero_nombre ? '<br><span style="font-size:11px">&nbsp;&nbsp;Cerrajero: ' + it.cerrajero_nombre + '</span>' : ''}<br>`)
@@ -2092,6 +2101,7 @@ function mostrarTicket(venta) {
 function mostrarTicketPresupuesto(presupuesto) {
   ultimoDocumentoParaTicket = { tipo: 'presupuesto', data: presupuesto };
   document.querySelector('#ticket-screen .btn.green').style.display = '';
+  document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
   const lineasHtml = presupuesto.items
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}<br>`)

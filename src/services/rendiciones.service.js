@@ -1,5 +1,9 @@
 const db = require('../db');
 
+function roundUpTo100(v) {
+  return Math.ceil(v / 100) * 100;
+}
+
 // venta_items del cerrajero, de ventas cobradas dentro del período, que generan
 // rendición (familia con usa_mano_obra=1 -> servicio sobre monto_mano_obra, o
 // usa_precio_rendicion=1 -> duplicado sobre precio_rendicion) y que todavía no
@@ -78,7 +82,7 @@ function generar({ cerrajero_id, fecha_desde, fecha_hasta, descuentos_extra = []
     descuentos.push({ tipo: d.tipo, descripcion: d.descripcion || '', monto });
   }
   const total_descuentos = descuentos.reduce((s, d) => s + d.monto, 0);
-  const total_pagar = total_bruto - total_descuentos;
+  const total_pagar = roundUpTo100(total_bruto - total_descuentos);
 
   const tx = db.transaction(() => {
     const info = db
@@ -134,7 +138,7 @@ function obtener(id) {
 function recalcularTotales(rendicion_id) {
   const total_bruto = db.prepare('SELECT COALESCE(SUM(monto_rendido),0) AS s FROM rendicion_detalle WHERE rendicion_id = ?').get(rendicion_id).s;
   const rendicion = db.prepare('SELECT total_descuentos FROM rendiciones WHERE id = ?').get(rendicion_id);
-  const total_pagar = total_bruto - rendicion.total_descuentos;
+  const total_pagar = roundUpTo100(total_bruto - rendicion.total_descuentos);
   db.prepare('UPDATE rendiciones SET total_bruto = ?, total_pagar = ? WHERE id = ?').run(total_bruto, total_pagar, rendicion_id);
 }
 
