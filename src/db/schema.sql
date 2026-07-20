@@ -158,12 +158,17 @@ CREATE INDEX IF NOT EXISTS idx_vehiculos_cliente ON vehiculos(cliente_id);
 -- CERRAJEROS
 -- porcentaje_rendicion: 30% fijo para todos (configurable por si cambia a futuro)
 -- aporte_fijo: descuento recurrente que se aplica automático en cada rendición
+-- descuento_tarjeta_credito: cuando la venta se cobró (total o parcialmente) con
+-- tarjeta de crédito, este % (7.5%-15% según el cerrajero) reduce la mano de obra
+-- ANTES de calcular el % de rendición, en la proporción que representó el crédito
+-- sobre el total cobrado (ver rendiciones.service.js).
 -- ============================================================
 CREATE TABLE IF NOT EXISTS cerrajeros (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   nombre TEXT NOT NULL,
   porcentaje_rendicion REAL NOT NULL DEFAULT 30,
   aporte_fijo REAL NOT NULL DEFAULT 0,
+  descuento_tarjeta_credito REAL NOT NULL DEFAULT 0,
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now'))
 );

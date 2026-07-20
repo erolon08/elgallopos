@@ -15,7 +15,7 @@ function elegibles(cerrajero_id, fecha_desde, fecha_hasta) {
   return db
     .prepare(
       `SELECT vi.id AS venta_item_id, vi.descripcion, vi.cantidad, vi.monto_mano_obra,
-              v.numero AS venta_numero, v.cobrado_en,
+              v.id AS venta_id, v.numero AS venta_numero, v.cobrado_en,
               p.codigo, f.usa_mano_obra, f.usa_precio_rendicion, p.precio_rendicion
        FROM venta_items vi
        JOIN ventas v ON v.id = vi.venta_id
@@ -31,11 +31,34 @@ function elegibles(cerrajero_id, fecha_desde, fecha_hasta) {
     .all({ cerrajero_id, fecha_desde, fecha_hasta });
 }
 
-function calcularDetalle(rows, porcentaje) {
+// Proporción del total cobrado que se pagó con tarjeta de crédito (0 a 1).
+// Una venta puede tener varios venta_pagos (pago combinado); solo la porción
+// paga con "Crédito" activa el descuento de mano de obra del cerrajero.
+function fraccionCredito(venta_id) {
+  const pagos = db.prepare('SELECT forma_pago, monto FROM venta_pagos WHERE venta_id = ?').all(venta_id);
+  const total = pagos.reduce((s, p) => s + p.monto, 0);
+  if (total <= 0) return 0;
+  const credito = pagos.filter((p) => p.forma_pago === 'Crédito').reduce((s, p) => s + p.monto, 0);
+  return credito / total;
+}
+
+// Descuento por tarjeta de crédito: reduce la mano de obra ANTES de aplicar el
+// % de rendición del cerrajero, en la proporción del total que se pagó con
+// crédito. Solo afecta líneas de servicio (usa "mano de obra"); los duplicados
+// de llave no la usan.
+function calcularDetalle(rows, cerrajero) {
+  const fraccionCache = new Map();
   return rows.map((r) => {
     const tipo = r.usa_mano_obra ? 'servicio' : 'duplicado';
-    const monto_base = tipo === 'servicio' ? Number(r.monto_mano_obra) || 0 : (Number(r.precio_rendicion) || 0) * r.cantidad;
-    const monto_rendido = Math.round(monto_base * (porcentaje / 100));
+    let monto_base = tipo === 'servicio' ? Number(r.monto_mano_obra) || 0 : (Number(r.precio_rendicion) || 0) * r.cantidad;
+    if (tipo === 'servicio' && cerrajero.descuento_tarjeta_credito > 0) {
+      if (!fraccionCache.has(r.venta_id)) fraccionCache.set(r.venta_id, fraccionCredito(r.venta_id));
+      const fraccion = fraccionCache.get(r.venta_id);
+      if (fraccion > 0) {
+        monto_base = Math.round(monto_base * (1 - fraccion * (cerrajero.descuento_tarjeta_credito / 100)));
+      }
+    }
+    const monto_rendido = Math.round(monto_base * (cerrajero.porcentaje_rendicion / 100));
     return {
       venta_item_id: r.venta_item_id,
       codigo: r.codigo || null,
@@ -45,7 +68,7 @@ function calcularDetalle(rows, porcentaje) {
       cantidad: r.cantidad,
       tipo,
       monto_base,
-      porcentaje,
+      porcentaje: cerrajero.porcentaje_rendicion,
       monto_rendido,
     };
   });
@@ -55,7 +78,7 @@ function previsualizar({ cerrajero_id, fecha_desde, fecha_hasta }) {
   const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(cerrajero_id);
   if (!cerrajero) throw new Error('Cerrajero no encontrado');
   const rows = elegibles(cerrajero_id, fecha_desde, fecha_hasta);
-  const detalle = calcularDetalle(rows, cerrajero.porcentaje_rendicion);
+  const detalle = calcularDetalle(rows, cerrajero);
   const total_bruto = detalle.reduce((s, d) => s + d.monto_rendido, 0);
   return { cerrajero, detalle, total_bruto };
 }
@@ -67,7 +90,7 @@ function generar({ cerrajero_id, fecha_desde, fecha_hasta, descuentos_extra = []
   if (!cerrajero) throw new Error('Cerrajero no encontrado');
 
   const rows = elegibles(cerrajero_id, fecha_desde, fecha_hasta);
-  const detalle = calcularDetalle(rows, cerrajero.porcentaje_rendicion);
+  const detalle = calcularDetalle(rows, cerrajero);
   if (!detalle.length) throw new Error('No hay trabajos pendientes de rendir en el período elegido');
   const total_bruto = detalle.reduce((s, d) => s + d.monto_rendido, 0);
 

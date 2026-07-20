@@ -10,19 +10,20 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { nombre, porcentaje_rendicion, aporte_fijo } = req.body;
+  const { nombre, porcentaje_rendicion, aporte_fijo, descuento_tarjeta_credito } = req.body;
   if (!nombre || !nombre.trim()) {
     return res.status(400).json({ error: 'El nombre es obligatorio' });
   }
   const info = db
     .prepare(
-      `INSERT INTO cerrajeros (nombre, porcentaje_rendicion, aporte_fijo)
-       VALUES (@nombre, @porcentaje_rendicion, @aporte_fijo)`
+      `INSERT INTO cerrajeros (nombre, porcentaje_rendicion, aporte_fijo, descuento_tarjeta_credito)
+       VALUES (@nombre, @porcentaje_rendicion, @aporte_fijo, @descuento_tarjeta_credito)`
     )
     .run({
       nombre: nombre.trim(),
       porcentaje_rendicion: porcentaje_rendicion != null ? Number(porcentaje_rendicion) : 30,
       aporte_fijo: Number(aporte_fijo) || 0,
+      descuento_tarjeta_credito: Number(descuento_tarjeta_credito) || 0,
     });
   res.status(201).json(db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(info.lastInsertRowid));
 });
@@ -32,17 +33,19 @@ router.put('/:id', (req, res) => {
   const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(id);
   if (!cerrajero) return res.status(404).json({ error: 'Cerrajero no encontrado' });
 
-  const { nombre, porcentaje_rendicion, aporte_fijo, activo } = req.body;
+  const { nombre, porcentaje_rendicion, aporte_fijo, descuento_tarjeta_credito, activo } = req.body;
   db.prepare(
     `UPDATE cerrajeros SET
        nombre = @nombre, porcentaje_rendicion = @porcentaje_rendicion,
-       aporte_fijo = @aporte_fijo, activo = @activo
+       aporte_fijo = @aporte_fijo, descuento_tarjeta_credito = @descuento_tarjeta_credito, activo = @activo
      WHERE id = @id`
   ).run({
     id,
     nombre: (nombre ?? cerrajero.nombre).trim(),
     porcentaje_rendicion: porcentaje_rendicion != null ? Number(porcentaje_rendicion) : cerrajero.porcentaje_rendicion,
     aporte_fijo: aporte_fijo != null ? Number(aporte_fijo) : cerrajero.aporte_fijo,
+    descuento_tarjeta_credito:
+      descuento_tarjeta_credito != null ? Number(descuento_tarjeta_credito) : cerrajero.descuento_tarjeta_credito,
     activo: activo != null ? (activo ? 1 : 0) : cerrajero.activo,
   });
   res.json(db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(id));
