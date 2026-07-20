@@ -56,4 +56,20 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+router.post('/:id/detalle', (req, res) => {
+  try {
+    res.status(201).json(rendicionesService.agregarLinea(Number(req.params.id), req.body));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/:id/detalle/:detalleId', (req, res) => {
+  try {
+    res.json(rendicionesService.quitarLinea(Number(req.params.id), Number(req.params.detalleId)));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;

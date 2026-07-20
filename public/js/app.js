@@ -1088,6 +1088,7 @@ async function calcularRendicionPreview() {
     tr.innerHTML = `
       <td>${d.venta_numero}</td>
       <td>${new Date(d.cobrado_en).toLocaleDateString('es-AR')}</td>
+      <td>${d.codigo || '—'}</td>
       <td>${d.descripcion}</td>
       <td>${TIPO_MOVIMIENTO_LABEL[d.tipo]}</td>
       <td>$ ${money.format(d.monto_base)}</td>
@@ -1204,11 +1205,23 @@ function filaRendicion(r) {
   return tr;
 }
 
+let rendicionDetalleActualId = null;
+let rendicionDetalleActualCerrajeroId = null;
+
 async function verDetalleRendicion(id) {
   const r = await (await fetch(`/api/rendiciones/${id}`)).json();
+  rendicionDetalleActualId = id;
+  rendicionDetalleActualCerrajeroId = r.cerrajero_id;
   document.getElementById('rendDetalleTitulo').textContent = `${r.cerrajero_nombre} — ${r.fecha_desde} a ${r.fecha_hasta}`;
+  const editable = r.estado === 'generada';
   const filasDetalle = r.detalle
-    .map((d) => `<tr><td>${d.venta_numero}</td><td>${d.descripcion}</td><td>${TIPO_MOVIMIENTO_LABEL[d.tipo]}</td><td>$ ${money.format(d.monto_base)}</td><td>${d.porcentaje}%</td><td>$ ${money.format(d.monto_rendido)}</td></tr>`)
+    .map(
+      (d) => `<tr>
+        <td>${d.venta_numero || '—'}</td><td>${d.codigo || '—'}</td><td>${d.descripcion}</td><td>${TIPO_MOVIMIENTO_LABEL[d.tipo]}</td>
+        <td>$ ${money.format(d.monto_base)}</td><td>${d.porcentaje}%</td><td>$ ${money.format(d.monto_rendido)}</td>
+        <td>${editable ? `<button class="btn light" onclick="quitarLineaRendicion(${id}, ${d.id})">✕</button>` : ''}</td>
+      </tr>`
+    )
     .join('');
   const filasDescuentos = r.descuentos
     .map((d) => `<tr><td>${TIPO_DESCUENTO_LABEL[d.tipo]}</td><td>${d.descripcion || '—'}</td><td>$ ${money.format(d.monto)}</td></tr>`)
@@ -1216,10 +1229,16 @@ async function verDetalleRendicion(id) {
   document.getElementById('rendDetalleContenido').innerHTML = `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Venta</th><th>Descripción</th><th>Tipo</th><th>Base</th><th>%</th><th>Rinde</th></tr></thead>
+        <thead><tr><th>Venta</th><th>Código</th><th>Descripción</th><th>Tipo</th><th>Base</th><th>%</th><th>Rinde</th><th></th></tr></thead>
         <tbody>${filasDetalle}</tbody>
       </table>
     </div>
+    ${
+      editable
+        ? `<div class="toolbar" style="margin-top:8px"><button class="btn light" onclick="mostrarFormAgregarLineaRendicion()">+ Agregar línea</button></div>
+           <div id="rendAgregarLineaForm" style="display:none;margin-top:8px"></div>`
+        : ''
+    }
     <div class="table-wrap" style="margin-top:10px">
       <table>
         <thead><tr><th>Descuento</th><th>Descripción</th><th>Monto</th></tr></thead>
@@ -1237,6 +1256,121 @@ async function verDetalleRendicion(id) {
 
 function closeRendicionDetalle() {
   document.getElementById('rendicionDetalleModal').classList.remove('open');
+  rendicionDetalleActualId = null;
+  rendicionDetalleActualCerrajeroId = null;
+}
+
+function mostrarFormAgregarLineaRendicion() {
+  const cerrajero = cerrajerosCache.find((c) => c.id === rendicionDetalleActualCerrajeroId);
+  const cont = document.getElementById('rendAgregarLineaForm');
+  cont.style.display = 'block';
+  cont.innerHTML = `
+    <div class="two-col-form">
+      <div class="field"><label>Tipo</label>
+        <select id="rlTipo"><option value="servicio">Servicio</option><option value="duplicado">Duplicado</option></select>
+      </div>
+      <div class="field"><label>Código (opcional)</label><input id="rlCodigo" placeholder="Ej: 1001"></div>
+      <div class="field"><label>Descripción</label><input id="rlDescripcion"></div>
+      <div class="field"><label>Cantidad</label><input id="rlCantidad" type="number" step="any" value="1"></div>
+      <div class="field"><label>Precio unitario (base)</label><input id="rlPrecioUnitario" type="number" step="any" value="0"></div>
+      <div class="field"><label>% Rendición</label><input id="rlPorcentaje" type="number" step="any" value="${cerrajero ? cerrajero.porcentaje_rendicion : 30}"></div>
+    </div>
+    <div class="toolbar" style="margin-top:8px">
+      <button class="btn primary" onclick="confirmarAgregarLineaRendicion()">Agregar</button>
+      <button class="btn outline" onclick="document.getElementById('rendAgregarLineaForm').style.display='none'">Cancelar</button>
+    </div>
+  `;
+}
+
+async function confirmarAgregarLineaRendicion() {
+  const payload = {
+    tipo: document.getElementById('rlTipo').value,
+    codigo: document.getElementById('rlCodigo').value.trim(),
+    descripcion: document.getElementById('rlDescripcion').value.trim(),
+    cantidad: Number(document.getElementById('rlCantidad').value) || 1,
+    precio_unitario: Number(document.getElementById('rlPrecioUnitario').value) || 0,
+    porcentaje: Number(document.getElementById('rlPorcentaje').value) || 0,
+  };
+  if (!payload.descripcion) {
+    alert('La descripción es obligatoria.');
+    return;
+  }
+  const res = await fetch(`/api/rendiciones/${rendicionDetalleActualId}/detalle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  verDetalleRendicion(rendicionDetalleActualId);
+  cargarRendiciones();
+}
+
+async function quitarLineaRendicion(rendicionId, detalleId) {
+  if (!confirm('¿Quitar esta línea de la rendición?')) return;
+  const res = await fetch(`/api/rendiciones/${rendicionId}/detalle/${detalleId}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  verDetalleRendicion(rendicionId);
+  cargarRendiciones();
+}
+
+async function imprimirRendicionActual() {
+  if (!rendicionDetalleActualId) return;
+  await mostrarTicketRendicion(rendicionDetalleActualId);
+  closeRendicionDetalle();
+}
+
+async function mostrarTicketRendicion(id) {
+  const r = await (await fetch(`/api/rendiciones/${id}`)).json();
+  ultimoDocumentoParaTicket = { tipo: 'rendicion', data: r };
+  document.querySelector('#ticket-screen .btn.green').style.display = 'none';
+
+  const duplicados = r.detalle.filter((d) => d.tipo === 'duplicado');
+  const servicios = r.detalle.filter((d) => d.tipo === 'servicio');
+
+  const grupos = {};
+  duplicados.forEach((d) => {
+    if (!grupos[d.descripcion]) grupos[d.descripcion] = { descripcion: d.descripcion, cantidad: 0, monto_rendido: 0 };
+    grupos[d.descripcion].cantidad += Number(d.cantidad) || 0;
+    grupos[d.descripcion].monto_rendido += d.monto_rendido;
+  });
+  const duplicadosHtml = Object.values(grupos)
+    .map((g) => {
+      const base = g.cantidad ? Math.round(g.monto_rendido / g.cantidad) : g.monto_rendido;
+      return `${g.cantidad} x ${g.descripcion}&nbsp;&nbsp;base $${money.format(base)}&nbsp;&nbsp;total $${money.format(g.monto_rendido)}<br>`;
+    })
+    .join('');
+
+  const serviciosHtml = servicios
+    .map(
+      (d) =>
+        `${d.codigo ? d.codigo + ' — ' : ''}${d.descripcion}&nbsp;&nbsp;$${money.format(d.monto_base)}&nbsp;&nbsp;${d.porcentaje}%&nbsp;&nbsp;$${money.format(d.monto_rendido)}<br>`
+    )
+    .join('');
+
+  const descuentosHtml = r.descuentos
+    .map((d) => `${TIPO_DESCUENTO_LABEL[d.tipo]}${d.descripcion ? ' (' + d.descripcion + ')' : ''}: $${money.format(d.monto)}<br>`)
+    .join('');
+
+  document.getElementById('ticketContenido').innerHTML = `
+    <h4>CERRAJERÍA EL GALLO</h4>
+    <div class="center">RENDICIÓN DE CERRAJERO</div><hr>
+    Cerrajero: <b>${r.cerrajero_nombre}</b><br>
+    Período: ${r.fecha_desde} a ${r.fecha_hasta}<hr>
+    ${duplicadosHtml ? '<b>DUPLICADOS</b><br>' + duplicadosHtml + '<hr>' : ''}
+    ${serviciosHtml ? '<b>SERVICIOS</b><br>' + serviciosHtml + '<hr>' : ''}
+    Total bruto: $${money.format(r.total_bruto)}<br>
+    ${descuentosHtml}
+    <div style="font-size:14px;margin-top:4px">TOTAL A PAGAR: <b>$${money.format(r.total_pagar)}</b></div>
+  `;
+  showScreen('ticket-screen');
 }
 
 async function marcarRendicionPagada(id) {
@@ -1937,6 +2071,7 @@ function formatearTextoTicket(tipo, doc) {
 
 function mostrarTicket(venta) {
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
+  document.querySelector('#ticket-screen .btn.green').style.display = '';
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}${it.cerrajero_nombre ? '<br><span style="font-size:11px">&nbsp;&nbsp;Cerrajero: ' + it.cerrajero_nombre + '</span>' : ''}<br>`)
@@ -1956,6 +2091,7 @@ function mostrarTicket(venta) {
 
 function mostrarTicketPresupuesto(presupuesto) {
   ultimoDocumentoParaTicket = { tipo: 'presupuesto', data: presupuesto };
+  document.querySelector('#ticket-screen .btn.green').style.display = '';
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
   const lineasHtml = presupuesto.items
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}<br>`)

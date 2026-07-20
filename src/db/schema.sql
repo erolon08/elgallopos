@@ -282,14 +282,22 @@ CREATE TABLE IF NOT EXISTS rendiciones (
 CREATE INDEX IF NOT EXISTS idx_rendiciones_cerrajero ON rendiciones(cerrajero_id);
 
 -- tipo: 'servicio' (30% de monto_mano_obra) | 'duplicado' (30% de precio_rendicion)
+-- venta_item_id: NULL si la línea se agregó a mano (no proviene de una venta cobrada).
+-- codigo/descripcion/venta_numero/cantidad quedan "fotografiados" al generar o agregar
+-- la línea, para que la rendición no dependa de que la venta original siga intacta.
 CREATE TABLE IF NOT EXISTS rendicion_detalle (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
-  venta_item_id INTEGER NOT NULL REFERENCES venta_items(id),
+  venta_item_id INTEGER REFERENCES venta_items(id),
   tipo TEXT NOT NULL CHECK (tipo IN ('servicio','duplicado')),
+  codigo TEXT,
+  descripcion TEXT NOT NULL,
+  venta_numero TEXT,
+  cantidad REAL NOT NULL DEFAULT 1,
   monto_base REAL NOT NULL,
   porcentaje REAL NOT NULL,
-  monto_rendido REAL NOT NULL
+  monto_rendido REAL NOT NULL,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- tipo: 'aporte' (recurrente, precargado desde cerrajeros.aporte_fijo) |

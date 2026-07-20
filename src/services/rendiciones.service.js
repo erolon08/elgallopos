@@ -4,12 +4,15 @@ const db = require('../db');
 // rendición (familia con usa_mano_obra=1 -> servicio sobre monto_mano_obra, o
 // usa_precio_rendicion=1 -> duplicado sobre precio_rendicion) y que todavía no
 // fueron incluidos en ninguna rendición previa (evita rendir dos veces la misma línea).
+// El filtro "IS NOT NULL" es necesario porque las líneas agregadas a mano no tienen
+// venta_item_id, y un NULL en el subquery de un NOT IN anula la comparación para todas
+// las filas si no se excluye explícitamente.
 function elegibles(cerrajero_id, fecha_desde, fecha_hasta) {
   return db
     .prepare(
       `SELECT vi.id AS venta_item_id, vi.descripcion, vi.cantidad, vi.monto_mano_obra,
               v.numero AS venta_numero, v.cobrado_en,
-              f.usa_mano_obra, f.usa_precio_rendicion, p.precio_rendicion
+              p.codigo, f.usa_mano_obra, f.usa_precio_rendicion, p.precio_rendicion
        FROM venta_items vi
        JOIN ventas v ON v.id = vi.venta_id
        LEFT JOIN productos p ON p.id = vi.producto_id
@@ -18,7 +21,7 @@ function elegibles(cerrajero_id, fecha_desde, fecha_hasta) {
          AND v.estado = 'cobrada'
          AND date(v.cobrado_en) BETWEEN date(@fecha_desde) AND date(@fecha_hasta)
          AND (f.usa_mano_obra = 1 OR f.usa_precio_rendicion = 1)
-         AND vi.id NOT IN (SELECT venta_item_id FROM rendicion_detalle)
+         AND vi.id NOT IN (SELECT venta_item_id FROM rendicion_detalle WHERE venta_item_id IS NOT NULL)
        ORDER BY v.cobrado_en`
     )
     .all({ cerrajero_id, fecha_desde, fecha_hasta });
@@ -31,9 +34,11 @@ function calcularDetalle(rows, porcentaje) {
     const monto_rendido = Math.round(monto_base * (porcentaje / 100));
     return {
       venta_item_id: r.venta_item_id,
+      codigo: r.codigo || null,
       descripcion: r.descripcion,
       venta_numero: r.venta_numero,
       cobrado_en: r.cobrado_en,
+      cantidad: r.cantidad,
       tipo,
       monto_base,
       porcentaje,
@@ -85,8 +90,8 @@ function generar({ cerrajero_id, fecha_desde, fecha_hasta, descuentos_extra = []
     const rendicion_id = info.lastInsertRowid;
 
     const insDet = db.prepare(
-      `INSERT INTO rendicion_detalle (rendicion_id, venta_item_id, tipo, monto_base, porcentaje, monto_rendido)
-       VALUES (@rendicion_id, @venta_item_id, @tipo, @monto_base, @porcentaje, @monto_rendido)`
+      `INSERT INTO rendicion_detalle (rendicion_id, venta_item_id, tipo, codigo, descripcion, venta_numero, cantidad, monto_base, porcentaje, monto_rendido)
+       VALUES (@rendicion_id, @venta_item_id, @tipo, @codigo, @descripcion, @venta_numero, @cantidad, @monto_base, @porcentaje, @monto_rendido)`
     );
     for (const d of detalle) insDet.run({ rendicion_id, ...d });
 
@@ -121,18 +126,67 @@ function obtener(id) {
     .prepare(`SELECT r.*, c.nombre AS cerrajero_nombre FROM rendiciones r JOIN cerrajeros c ON c.id = r.cerrajero_id WHERE r.id = ?`)
     .get(id);
   if (!rendicion) return null;
-  rendicion.detalle = db
-    .prepare(
-      `SELECT rd.*, vi.descripcion, v.numero AS venta_numero
-       FROM rendicion_detalle rd
-       JOIN venta_items vi ON vi.id = rd.venta_item_id
-       JOIN ventas v ON v.id = vi.venta_id
-       WHERE rd.rendicion_id = ?
-       ORDER BY rd.id`
-    )
-    .all(id);
+  rendicion.detalle = db.prepare('SELECT * FROM rendicion_detalle WHERE rendicion_id = ? ORDER BY tipo DESC, id').all(id);
   rendicion.descuentos = db.prepare('SELECT * FROM rendicion_descuentos WHERE rendicion_id = ? ORDER BY id').all(id);
   return rendicion;
+}
+
+function recalcularTotales(rendicion_id) {
+  const total_bruto = db.prepare('SELECT COALESCE(SUM(monto_rendido),0) AS s FROM rendicion_detalle WHERE rendicion_id = ?').get(rendicion_id).s;
+  const rendicion = db.prepare('SELECT total_descuentos FROM rendiciones WHERE id = ?').get(rendicion_id);
+  const total_pagar = total_bruto - rendicion.total_descuentos;
+  db.prepare('UPDATE rendiciones SET total_bruto = ?, total_pagar = ? WHERE id = ?').run(total_bruto, total_pagar, rendicion_id);
+}
+
+function requerirGenerada(rendicion_id) {
+  const r = db.prepare('SELECT * FROM rendiciones WHERE id = ?').get(rendicion_id);
+  if (!r) throw new Error('Rendición no encontrada');
+  if (r.estado !== 'generada') throw new Error('Solo se pueden editar líneas de una rendición en estado generada');
+  return r;
+}
+
+// Línea agregada a mano por el admin (ej. un trabajo que no quedó cargado en una venta,
+// o que se asignó al cerrajero equivocado). No tiene venta_item_id asociado.
+function agregarLinea(rendicion_id, { tipo, codigo, descripcion, cantidad, precio_unitario, porcentaje }) {
+  requerirGenerada(rendicion_id);
+  if (!['servicio', 'duplicado'].includes(tipo)) throw new Error('Tipo de línea inválido');
+  if (!descripcion || !descripcion.trim()) throw new Error('La descripción es obligatoria');
+  const cant = Number(cantidad) || 1;
+  const unitario = Number(precio_unitario) || 0;
+  const pct = Number(porcentaje) || 0;
+  const monto_base = tipo === 'servicio' ? unitario : unitario * cant;
+  const monto_rendido = Math.round(monto_base * (pct / 100));
+
+  const tx = db.transaction(() => {
+    db.prepare(
+      `INSERT INTO rendicion_detalle (rendicion_id, venta_item_id, tipo, codigo, descripcion, venta_numero, cantidad, monto_base, porcentaje, monto_rendido)
+       VALUES (@rendicion_id, NULL, @tipo, @codigo, @descripcion, NULL, @cantidad, @monto_base, @porcentaje, @monto_rendido)`
+    ).run({
+      rendicion_id,
+      tipo,
+      codigo: codigo ? codigo.trim() : null,
+      descripcion: descripcion.trim(),
+      cantidad: cant,
+      monto_base,
+      porcentaje: pct,
+      monto_rendido,
+    });
+    recalcularTotales(rendicion_id);
+  });
+  tx();
+  return obtener(rendicion_id);
+}
+
+function quitarLinea(rendicion_id, detalle_id) {
+  requerirGenerada(rendicion_id);
+  const linea = db.prepare('SELECT * FROM rendicion_detalle WHERE id = ? AND rendicion_id = ?').get(detalle_id, rendicion_id);
+  if (!linea) throw new Error('Línea no encontrada');
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM rendicion_detalle WHERE id = ?').run(detalle_id);
+    recalcularTotales(rendicion_id);
+  });
+  tx();
+  return obtener(rendicion_id);
 }
 
 function marcarPagada(id) {
@@ -155,4 +209,4 @@ function anular(id) {
   tx();
 }
 
-module.exports = { previsualizar, generar, listar, obtener, marcarPagada, anular };
+module.exports = { previsualizar, generar, listar, obtener, marcarPagada, anular, agregarLinea, quitarLinea };
