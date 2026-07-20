@@ -1360,7 +1360,7 @@ async function mostrarTicketRendicion(id) {
     .join('');
 
   document.getElementById('ticketContenido').innerHTML = `
-    <h4>CERRAJERÍA EL GALLO</h4>
+    <img src="/img/logo-badge.png" class="ticket-logo" alt="El Gallo"><h4>CERRAJERÍA EL GALLO</h4>
     <div class="center">RENDICIÓN DE CERRAJERO</div><hr>
     Cerrajero: <b>${r.cerrajero_nombre}</b><br>
     Período: ${r.fecha_desde} a ${r.fecha_hasta}<hr>
@@ -2078,7 +2078,7 @@ function mostrarTicket(venta) {
     .join('');
   const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
   document.getElementById('ticketContenido').innerHTML = `
-    <h4>CERRAJERÍA EL GALLO</h4>
+    <img src="/img/logo-badge.png" class="ticket-logo" alt="El Gallo"><h4>CERRAJERÍA EL GALLO</h4>
     <div class="center">Corrientes Capital</div><hr>
     Fecha: ${fecha}<br>N°: ${venta.numero} · ${venta.tipo_comprobante}<br>
     Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}<hr>
@@ -2097,7 +2097,7 @@ function mostrarTicketPresupuesto(presupuesto) {
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}<br>`)
     .join('');
   document.getElementById('ticketContenido').innerHTML = `
-    <h4>CERRAJERÍA EL GALLO</h4>
+    <img src="/img/logo-badge.png" class="ticket-logo" alt="El Gallo"><h4>CERRAJERÍA EL GALLO</h4>
     <div class="center">PRESUPUESTO</div><hr>
     Fecha: ${fecha}<br>N°: ${presupuesto.numero}<br>Válido por ${presupuesto.vigencia_dias} días<br>
     Cliente: ${presupuesto.cliente ? presupuesto.cliente.nombre : 'Consumidor Final'}<hr>
