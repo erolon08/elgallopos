@@ -26,7 +26,10 @@ const familias = [
   { nombre: 'CERRADURAS', descuento_debito: 20, descuento_efectivo: 30, usa_precio_rendicion: 0, usa_mano_obra: 0 },
   { nombre: 'MANIJAS', descuento_debito: 20, descuento_efectivo: 30, usa_precio_rendicion: 0, usa_mano_obra: 0 },
   { nombre: 'CANDADOS', descuento_debito: 20, descuento_efectivo: 30, usa_precio_rendicion: 0, usa_mano_obra: 0 },
-  { nombre: 'DUPLICADOS', descuento_debito: 20, descuento_efectivo: 30, usa_precio_rendicion: 1, usa_mano_obra: 0 },
+  // Duplicados de llave: un solo precio para las 3 formas de pago (sin descuento
+  // por débito/efectivo). Se puede pisar a mano por producto desde Productos
+  // desmarcando "Usar regla automática" y cargando precios propios.
+  { nombre: 'DUPLICADOS', descuento_debito: 0, descuento_efectivo: 0, usa_precio_rendicion: 1, usa_mano_obra: 0 },
   // Débito/Transferencia de servicios = Precio Final − 15% (confirmado por el negocio).
   // Efectivo de servicios no usa este %: es directamente la mano de obra sin recargos.
   { nombre: 'SERVICIOS', descuento_debito: 15, descuento_efectivo: 0, usa_precio_rendicion: 0, usa_mano_obra: 1 },

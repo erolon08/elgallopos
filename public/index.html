@@ -32,7 +32,15 @@
 
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><h1>EL GALLO POS</h1><small>Cerrajería El Gallo</small></div>
+    <div class="brand">
+      <h1>EL GALLO POS</h1><small>Cerrajería El Gallo</small>
+      <div class="theme-picker" id="themePicker" title="Tema de colores">
+        <button class="theme-swatch" data-theme="rojo" style="--sw:#e31c23" title="Rojo"></button>
+        <button class="theme-swatch" data-theme="azul" style="--sw:#1167b1" title="Azul"></button>
+        <button class="theme-swatch" data-theme="verde" style="--sw:#1f9d55" title="Verde"></button>
+        <button class="theme-swatch" data-theme="violeta" style="--sw:#7c3aed" title="Violeta"></button>
+      </div>
+    </div>
     <div class="role-box">
       <label>Sesión actual</label>
       <div class="session-user"><b id="sessionRoleLabel">—</b><button class="logout-btn" onclick="logout()">Salir</button></div>
@@ -55,15 +63,7 @@
   <main class="main">
     <header class="topbar">
       <h2 id="screenTitle">Dashboard</h2>
-      <div class="top-actions">
-        <div class="theme-picker" id="themePicker" title="Tema de colores">
-          <button class="theme-swatch" data-theme="rojo" style="--sw:#e31c23" title="Rojo"></button>
-          <button class="theme-swatch" data-theme="azul" style="--sw:#1167b1" title="Azul"></button>
-          <button class="theme-swatch" data-theme="verde" style="--sw:#1f9d55" title="Verde"></button>
-          <button class="theme-swatch" data-theme="violeta" style="--sw:#7c3aed" title="Violeta"></button>
-        </div>
-        <span class="badge red">LAN conectada</span>
-      </div>
+      <div class="top-actions"><span class="badge red">LAN conectada</span></div>
     </header>
     <div class="content">
 
