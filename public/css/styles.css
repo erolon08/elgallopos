@@ -1,62 +1,62 @@
 :root, [data-theme="rojo"] {
-  --red:#e31c23; --red2:#b80f16; --black:#221111; --ink:#312121;
-  --bg:#f6eeee; --card:#faf6f6; --line:#e5cdcd; --muted:#7a5c5d;
+  --red:#e31c23; --red2:#b80f16; --black:#200e0e; --ink:#2e191a;
+  --bg:#f0d5d6; --card:#f4e6e6; --line:#e0a3a5; --muted:#764c4d;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#f5e5e6; --tint2:#e8b0b2;
+  --tint:#f0cccd; --tint2:#e69496;
 }
 [data-theme="azul"] {
-  --red:#1167b1; --red2:#0d548c; --black:#111a22; --ink:#212931;
-  --bg:#eef3f6; --card:#f6f8fa; --line:#cddae5; --muted:#5c6c7a;
+  --red:#1167b1; --red2:#0d548c; --black:#0e1820; --ink:#19242e;
+  --bg:#d5e4f0; --card:#e6eef4; --line:#a3c4e0; --muted:#4c6276;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#e5eef5; --tint2:#b0cee8;
+  --tint:#ccdff0; --tint2:#94bfe6;
 }
 [data-theme="verde"] {
-  --red:#1f9d55; --red2:#167a41; --black:#112218; --ink:#213128;
-  --bg:#eef6f2; --card:#f6faf8; --line:#cde5d7; --muted:#5c7a69;
+  --red:#1f9d55; --red2:#167a41; --black:#0e2016; --ink:#192e22;
+  --bg:#d5f0e1; --card:#e6f4ec; --line:#a3e0be; --muted:#4c765e;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#e5f5ec; --tint2:#b0e8c8;
+  --tint:#ccf0db; --tint2:#94e6b7;
 }
 [data-theme="violeta"] {
-  --red:#7c3aed; --red2:#5b21b6; --black:#171122; --ink:#272131;
-  --bg:#f1eef6; --card:#f8f6fa; --line:#d5cde5; --muted:#675c7a;
+  --red:#7c3aed; --red2:#5b21b6; --black:#150e20; --ink:#21192e;
+  --bg:#dfd5f0; --card:#ebe6f4; --line:#baa3e0; --muted:#5b4c76;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#ebe5f5; --tint2:#c5b0e8;
+  --tint:#d9ccf0; --tint2:#b294e6;
 }
 [data-theme="naranja"] {
-  --red:#f06d0f; --red2:#c0570c; --black:#221811; --ink:#312721;
-  --bg:#f6f2ee; --card:#faf8f6; --line:#e5d7cd; --muted:#7a695c;
+  --red:#f06d0f; --red2:#c0570c; --black:#20150e; --ink:#2e2219;
+  --bg:#f0e1d5; --card:#f4ece6; --line:#e0bda3; --muted:#765d4c;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#f5ece5; --tint2:#e8c7b0;
+  --tint:#f0dbcc; --tint2:#e6b694;
 }
 [data-theme="turquesa"] {
-  --red:#1d9a96; --red2:#177875; --black:#112222; --ink:#213130;
-  --bg:#eef6f6; --card:#f6fafa; --line:#cde5e4; --muted:#5c7a79;
+  --red:#1d9a96; --red2:#177875; --black:#0e2020; --ink:#192e2e;
+  --bg:#d5f0f0; --card:#e6f4f4; --line:#a3e0de; --muted:#4c7675;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#e5f5f5; --tint2:#b0e8e6;
+  --tint:#ccf0ef; --tint2:#94e6e3;
 }
 [data-theme="rosa"] {
-  --red:#dd2c7c; --red2:#b81e63; --black:#221119; --ink:#312128;
-  --bg:#f6eef2; --card:#faf6f8; --line:#e5cdd8; --muted:#7a5c6a;
+  --red:#dd2c7c; --red2:#b81e63; --black:#200e16; --ink:#2e1923;
+  --bg:#f0d5e2; --card:#f4e6ec; --line:#e0a3bf; --muted:#764c5f;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#f5e5ec; --tint2:#e8b0c9;
+  --tint:#f0ccdc; --tint2:#e694b9;
 }
 [data-theme="dorado"] {
-  --red:#d49a11; --red2:#aa7b0e; --black:#221d11; --ink:#312c21;
-  --bg:#f6f4ee; --card:#faf9f6; --line:#e5decd; --muted:#7a715c;
+  --red:#d49a11; --red2:#aa7b0e; --black:#201b0e; --ink:#2e2819;
+  --bg:#f0e8d5; --card:#f4f0e6; --line:#e0cea3; --muted:#76694c;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#f5f0e5; --tint2:#e8d7b0;
+  --tint:#f0e5cc; --tint2:#e6cd94;
 }
 [data-theme="marron"] {
-  --red:#7c4127; --red2:#5d301d; --black:#221611; --ink:#312621;
-  --bg:#f6f1ee; --card:#faf7f6; --line:#e5d4cd; --muted:#7a655c;
+  --red:#7c4127; --red2:#5d301d; --black:#20130e; --ink:#2e1f19;
+  --bg:#f0ded5; --card:#f4eae6; --line:#e0b6a3; --muted:#76584c;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#f5eae5; --tint2:#e8c1b0;
+  --tint:#f0d7cc; --tint2:#e6ac94;
 }
 [data-theme="grafito"] {
-  --red:#394556; --red2:#29323d; --black:#111822; --ink:#212831;
-  --bg:#eef2f6; --card:#f6f8fa; --line:#cdd7e5; --muted:#5c697a;
+  --red:#324967; --red2:#24354c; --black:#0e1620; --ink:#19222e;
+  --bg:#d5e1f0; --card:#e6ecf4; --line:#a3bee0; --muted:#4c5e76;
   --green:#1f9d55; --amber:#d98e00; --blue:#1167b1;
-  --tint:#e5ecf5; --tint2:#b0c8e8;
+  --tint:#ccdbf0; --tint2:#94b7e6;
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink)}
