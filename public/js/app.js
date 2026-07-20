@@ -1227,7 +1227,12 @@ async function verDetalleRendicion(id) {
     )
     .join('');
   const filasDescuentos = r.descuentos
-    .map((d) => `<tr><td>${TIPO_DESCUENTO_LABEL[d.tipo]}</td><td>${d.descripcion || '—'}</td><td>$ ${money.format(d.monto)}</td></tr>`)
+    .map(
+      (d) => `<tr>
+        <td>${TIPO_DESCUENTO_LABEL[d.tipo]}</td><td>${d.descripcion || '—'}</td><td>$ ${money.format(d.monto)}</td>
+        <td>${editable ? `<button class="btn light" onclick="quitarDescuentoRendicion(${id}, ${d.id})">✕</button>` : ''}</td>
+      </tr>`
+    )
     .join('');
   document.getElementById('rendDetalleContenido').innerHTML = `
     <div class="table-wrap">
@@ -1244,10 +1249,16 @@ async function verDetalleRendicion(id) {
     }
     <div class="table-wrap" style="margin-top:10px">
       <table>
-        <thead><tr><th>Descuento</th><th>Descripción</th><th>Monto</th></tr></thead>
-        <tbody>${filasDescuentos || '<tr><td colspan="3">Sin descuentos</td></tr>'}</tbody>
+        <thead><tr><th>Descuento</th><th>Descripción</th><th>Monto</th><th></th></tr></thead>
+        <tbody>${filasDescuentos || '<tr><td colspan="4">Sin descuentos</td></tr>'}</tbody>
       </table>
     </div>
+    ${
+      editable
+        ? `<div class="toolbar" style="margin-top:8px"><button class="btn light" onclick="mostrarFormAgregarDescuentoRendicion()">+ Agregar gasto</button></div>
+           <div id="rendAgregarDescuentoForm" style="display:none;margin-top:8px"></div>`
+        : ''
+    }
     <div class="small" style="text-align:right;margin-top:10px">
       <div>Total bruto: <b>$ ${money.format(r.total_bruto)}</b></div>
       <div>Total descuentos: <b>$ ${money.format(r.total_descuentos)}</b></div>
@@ -1255,6 +1266,63 @@ async function verDetalleRendicion(id) {
     </div>
   `;
   document.getElementById('rendicionDetalleModal').classList.add('open');
+}
+
+function mostrarFormAgregarDescuentoRendicion() {
+  const cont = document.getElementById('rendAgregarDescuentoForm');
+  cont.style.display = 'block';
+  cont.innerHTML = `
+    <div class="two-col-form">
+      <div class="field"><label>Tipo</label>
+        <select id="rdTipo">
+          <option value="repuesto">Repuesto</option>
+          <option value="adelanto">Adelanto</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div class="field"><label>Descripción</label><input id="rdDescripcion"></div>
+      <div class="field"><label>Monto</label><input id="rdMonto" type="number" step="any" value="0"></div>
+    </div>
+    <div class="toolbar" style="margin-top:8px">
+      <button class="btn primary" onclick="confirmarAgregarDescuentoRendicion()">Agregar</button>
+      <button class="btn outline" onclick="document.getElementById('rendAgregarDescuentoForm').style.display='none'">Cancelar</button>
+    </div>
+  `;
+}
+
+async function confirmarAgregarDescuentoRendicion() {
+  const payload = {
+    tipo: document.getElementById('rdTipo').value,
+    descripcion: document.getElementById('rdDescripcion').value.trim(),
+    monto: Number(document.getElementById('rdMonto').value) || 0,
+  };
+  if (payload.monto <= 0) {
+    alert('El monto tiene que ser mayor a 0.');
+    return;
+  }
+  const res = await fetch(`/api/rendiciones/${rendicionDetalleActualId}/descuentos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  verDetalleRendicion(rendicionDetalleActualId);
+  cargarRendiciones();
+}
+
+async function quitarDescuentoRendicion(rendicionId, descuentoId) {
+  const res = await fetch(`/api/rendiciones/${rendicionId}/descuentos/${descuentoId}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  verDetalleRendicion(rendicionId);
+  cargarRendiciones();
 }
 
 function closeRendicionDetalle() {

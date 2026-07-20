@@ -72,4 +72,20 @@ router.delete('/:id/detalle/:detalleId', (req, res) => {
   }
 });
 
+router.post('/:id/descuentos', (req, res) => {
+  try {
+    res.status(201).json(rendicionesService.agregarDescuento(Number(req.params.id), req.body));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/:id/descuentos/:descuentoId', (req, res) => {
+  try {
+    res.json(rendicionesService.quitarDescuento(Number(req.params.id), Number(req.params.descuentoId)));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;

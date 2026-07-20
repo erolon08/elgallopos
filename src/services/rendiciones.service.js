@@ -160,9 +160,14 @@ function obtener(id) {
 
 function recalcularTotales(rendicion_id) {
   const total_bruto = db.prepare('SELECT COALESCE(SUM(monto_rendido),0) AS s FROM rendicion_detalle WHERE rendicion_id = ?').get(rendicion_id).s;
-  const rendicion = db.prepare('SELECT total_descuentos FROM rendiciones WHERE id = ?').get(rendicion_id);
-  const total_pagar = roundUpTo100(total_bruto - rendicion.total_descuentos);
-  db.prepare('UPDATE rendiciones SET total_bruto = ?, total_pagar = ? WHERE id = ?').run(total_bruto, total_pagar, rendicion_id);
+  const total_descuentos = db.prepare('SELECT COALESCE(SUM(monto),0) AS s FROM rendicion_descuentos WHERE rendicion_id = ?').get(rendicion_id).s;
+  const total_pagar = roundUpTo100(total_bruto - total_descuentos);
+  db.prepare('UPDATE rendiciones SET total_bruto = ?, total_descuentos = ?, total_pagar = ? WHERE id = ?').run(
+    total_bruto,
+    total_descuentos,
+    total_pagar,
+    rendicion_id
+  );
 }
 
 function requerirGenerada(rendicion_id) {
@@ -216,6 +221,39 @@ function quitarLinea(rendicion_id, detalle_id) {
   return obtener(rendicion_id);
 }
 
+// Gasto/descuento agregado a mano después de generada la rendición (ej. un
+// repuesto que el cerrajero avisa recién más tarde, o un adelanto).
+function agregarDescuento(rendicion_id, { tipo, descripcion, monto }) {
+  requerirGenerada(rendicion_id);
+  if (!TIPOS_DESCUENTO_EXTRA.includes(tipo)) throw new Error('Tipo de descuento inválido');
+  const m = Number(monto) || 0;
+  if (m <= 0) throw new Error('El monto tiene que ser mayor a 0');
+
+  const tx = db.transaction(() => {
+    db.prepare('INSERT INTO rendicion_descuentos (rendicion_id, tipo, descripcion, monto) VALUES (?, ?, ?, ?)').run(
+      rendicion_id,
+      tipo,
+      descripcion ? descripcion.trim() : '',
+      m
+    );
+    recalcularTotales(rendicion_id);
+  });
+  tx();
+  return obtener(rendicion_id);
+}
+
+function quitarDescuento(rendicion_id, descuento_id) {
+  requerirGenerada(rendicion_id);
+  const descuento = db.prepare('SELECT * FROM rendicion_descuentos WHERE id = ? AND rendicion_id = ?').get(descuento_id, rendicion_id);
+  if (!descuento) throw new Error('Descuento no encontrado');
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM rendicion_descuentos WHERE id = ?').run(descuento_id);
+    recalcularTotales(rendicion_id);
+  });
+  tx();
+  return obtener(rendicion_id);
+}
+
 function marcarPagada(id) {
   const r = db.prepare('SELECT * FROM rendiciones WHERE id = ?').get(id);
   if (!r) throw new Error('Rendición no encontrada');
@@ -236,4 +274,15 @@ function anular(id) {
   tx();
 }
 
-module.exports = { previsualizar, generar, listar, obtener, marcarPagada, anular, agregarLinea, quitarLinea };
+module.exports = {
+  previsualizar,
+  generar,
+  listar,
+  obtener,
+  marcarPagada,
+  anular,
+  agregarLinea,
+  quitarLinea,
+  agregarDescuento,
+  quitarDescuento,
+};
