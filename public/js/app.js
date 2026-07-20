@@ -1147,7 +1147,6 @@ function actualizarTotalesRendicionPreview() {
 
 async function generarRendicion() {
   if (!rendicionPreviewActual) return;
-  if (!confirm('¿Generar la rendición? Los trabajos incluidos no van a poder rendirse de nuevo.')) return;
   const payload = {
     cerrajero_id: rendicionPreviewActual.cerrajero_id,
     fecha_desde: rendicionPreviewActual.fecha_desde,
@@ -1310,7 +1309,6 @@ async function confirmarAgregarLineaRendicion() {
 }
 
 async function quitarLineaRendicion(rendicionId, detalleId) {
-  if (!confirm('¿Quitar esta línea de la rendición?')) return;
   const res = await fetch(`/api/rendiciones/${rendicionId}/detalle/${detalleId}`, { method: 'DELETE' });
   const data = await res.json();
   if (!res.ok) {
@@ -1382,7 +1380,6 @@ async function mostrarTicketRendicion(id) {
 }
 
 async function marcarRendicionPagada(id) {
-  if (!confirm('¿Marcar esta rendición como pagada?')) return;
   const res = await fetch(`/api/rendiciones/${id}/pagar`, { method: 'PUT' });
   const data = await res.json();
   if (!res.ok) {
@@ -1393,7 +1390,6 @@ async function marcarRendicionPagada(id) {
 }
 
 async function anularRendicion(id) {
-  if (!confirm('¿Anular esta rendición? Los trabajos incluidos volverán a estar disponibles para rendir.')) return;
   const res = await fetch(`/api/rendiciones/${id}`, { method: 'DELETE' });
   if (!res.ok) {
     const data = await res.json();
