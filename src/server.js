@@ -14,6 +14,7 @@ const authRoutes = require('./routes/auth.routes');
 const ventasRoutes = require('./routes/ventas.routes');
 const cerrajerosRoutes = require('./routes/cerrajeros.routes');
 const presupuestosRoutes = require('./routes/presupuestos.routes');
+const rendicionesRoutes = require('./routes/rendiciones.routes');
 
 const app = express();
 app.use(express.json());
@@ -28,6 +29,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/ventas', ventasRoutes);
 app.use('/api/cerrajeros', cerrajerosRoutes);
 app.use('/api/presupuestos', presupuestosRoutes);
+app.use('/api/rendiciones', rendicionesRoutes);
 
 const server = http.createServer(app);
 sockets.init(server);

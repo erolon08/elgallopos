@@ -61,7 +61,7 @@
       <button data-screen="productos">📦 Productos</button>
       <button data-screen="familias">🗂️ Familias</button>
       <button data-screen="stock">🏷️ Stock</button>
-      <button disabled>🔧 Rendición cerrajeros <span class="tag">próximamente</span></button>
+      <button data-screen="rendicion">🔧 Rendición cerrajeros</button>
       <button disabled>🚚 Reposición <span class="tag">próximamente</span></button>
       <button disabled>🏆 Ranking <span class="tag">próximamente</span></button>
     </div>
@@ -117,6 +117,66 @@
             <table>
               <thead><tr><th>Nombre</th><th>Desc. Débito</th><th>Desc. Efectivo</th><th>Precio rendición</th><th>Mano de obra</th><th>Estado</th><th></th></tr></thead>
               <tbody id="familiasBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="rendicion">
+        <div class="card">
+          <div class="section-title"><h3>Cerrajeros</h3><button class="btn primary" onclick="openCerrajero()">+ Nuevo cerrajero</button></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nombre</th><th>% Rendición</th><th>Aporte fijo</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="cerrajerosBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <div class="section-title"><h3>Generar rendición</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Cerrajero</label><select id="rendCerrajero"></select></div>
+            <div class="field"><label>Desde</label><input id="rendDesde" type="date"></div>
+            <div class="field"><label>Hasta</label><input id="rendHasta" type="date"></div>
+            <button class="btn primary" onclick="calcularRendicionPreview()">Calcular</button>
+          </div>
+          <div id="rendPreviewWrap" style="display:none">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Venta</th><th>Fecha</th><th>Descripción</th><th>Tipo</th><th>Base</th><th>%</th><th>Rinde</th></tr></thead>
+                <tbody id="rendPreviewBody"></tbody>
+              </table>
+            </div>
+            <div class="grid g2" style="margin-top:12px">
+              <div>
+                <div class="section-title"><h3 style="font-size:14px">Descuentos</h3><button class="btn light" onclick="agregarDescuentoExtra()">+ Agregar</button></div>
+                <div id="rendDescuentosBody"></div>
+              </div>
+              <div class="small" style="text-align:right;align-self:end">
+                <div>Total bruto: <b id="rendTotalBruto">$ 0</b></div>
+                <div>Total descuentos: <b id="rendTotalDescuentos">$ 0</b></div>
+                <div style="font-size:16px;margin-top:4px">Total a pagar: <b id="rendTotalPagar">$ 0</b></div>
+              </div>
+            </div>
+            <div class="toolbar" style="margin-top:14px">
+              <button class="btn primary" onclick="generarRendicion()">Generar rendición</button>
+            </div>
+          </div>
+          <div class="notice" id="rendPreviewVacio" style="display:none">No hay trabajos pendientes de rendir para este cerrajero en el período elegido.</div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <div class="section-title"><h3>Historial de rendiciones</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Cerrajero</label><select id="rendHistCerrajero"><option value="">Todos</option></select></div>
+            <div class="field"><label>Estado</label><select id="rendHistEstado"><option value="">Todos</option><option value="generada">Generada</option><option value="pagada">Pagada</option></select></div>
+            <button class="btn primary" onclick="cargarRendiciones()">Buscar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cerrajero</th><th>Período</th><th>Bruto</th><th>Descuentos</th><th>A pagar</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="rendicionesBody"></tbody>
             </table>
           </div>
         </div>
@@ -373,6 +433,33 @@
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="guardarFamilia()">Guardar</button>
       <button class="btn outline" onclick="closeFamilia()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="cerrajeroModal">
+  <div class="modal-box">
+    <div class="section-title"><h3 id="cerrajeroTitulo">Nuevo cerrajero</h3><button class="btn light" onclick="closeCerrajero()">✕</button></div>
+    <input type="hidden" id="cerId">
+    <div class="two-col-form">
+      <div class="field"><label>Nombre</label><input id="cerNombre"></div>
+      <div class="field"><label>% Rendición</label><input id="cerPorcentaje" type="number" step="any" value="30"></div>
+      <div class="field"><label>Aporte fijo ($)</label><input id="cerAporte" type="number" step="any" value="0"></div>
+    </div>
+    <label style="display:block;margin:12px 0 4px" id="cerActivoWrap"><input type="checkbox" id="cerActivo" checked> Activo</label>
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn primary" onclick="guardarCerrajero()">Guardar</button>
+      <button class="btn outline" onclick="closeCerrajero()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="rendicionDetalleModal">
+  <div class="modal-box" style="max-width:640px">
+    <div class="section-title"><h3 id="rendDetalleTitulo">Rendición</h3><button class="btn light" onclick="closeRendicionDetalle()">✕</button></div>
+    <div id="rendDetalleContenido"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn outline" onclick="closeRendicionDetalle()">Cerrar</button>
     </div>
   </div>
 </div>

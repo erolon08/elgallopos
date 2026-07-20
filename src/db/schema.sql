@@ -276,7 +276,8 @@ CREATE TABLE IF NOT EXISTS rendiciones (
   total_pagar REAL NOT NULL DEFAULT 0,
   caja_movimiento_id INTEGER REFERENCES caja_movimientos(id),
   estado TEXT NOT NULL DEFAULT 'generada' CHECK (estado IN ('generada','pagada')),
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+  pagado_en TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_rendiciones_cerrajero ON rendiciones(cerrajero_id);
 

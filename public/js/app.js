@@ -1,6 +1,7 @@
 const titles = {
   dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', clientes: 'Clientes',
   venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
+  rendicion: 'Rendición cerrajeros',
 };
 
 // ============================================================
@@ -38,6 +39,7 @@ function showScreen(id) {
   if (id === 'pendientes') cargarPendientes();
   if (id === 'ventas') cargarVentasHistorial();
   if (id === 'presupuestos') cargarPresupuestos();
+  if (id === 'rendicion') { cargarCerrajerosAdmin(); cargarRendiciones(); }
   if (id === 'venta') { actualizarHintVenta(); cargarBotoneraVenta(); ajustarAltoVenta(); }
 }
 
@@ -945,6 +947,318 @@ async function cargarCerrajerosGlobal() {
   };
   opts(document.getElementById('ventaCerrajeroDefault'));
   opts(document.getElementById('ventasCerrajero'));
+}
+
+// ============================================================
+// CERRAJEROS — administración (ABM)
+// ============================================================
+let cerrajeroEditId = null;
+
+async function cargarCerrajerosAdmin() {
+  const res = await fetch('/api/cerrajeros?todos=1');
+  const cerrajeros = await res.json();
+  const tbody = document.getElementById('cerrajerosBody');
+  tbody.innerHTML = '';
+  cerrajeros.forEach((c) => tbody.appendChild(filaCerrajero(c)));
+
+  const opts = (sel, conPlaceholder) => {
+    const previo = sel.value;
+    sel.innerHTML = conPlaceholder ? '<option value="">Todos</option>' : '';
+    cerrajeros.filter((c) => c.activo).forEach((c) => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre;
+      sel.appendChild(opt);
+    });
+    if ([...sel.options].some((o) => o.value === previo)) sel.value = previo;
+  };
+  opts(document.getElementById('rendCerrajero'), false);
+  opts(document.getElementById('rendHistCerrajero'), true);
+}
+
+function filaCerrajero(c) {
+  const tr = document.createElement('tr');
+  const estado = c.activo ? '<span class="status s-ok">Activo</span>' : '<span class="status s-bad">Inactivo</span>';
+  tr.innerHTML = `
+    <td>${c.nombre}</td>
+    <td>${c.porcentaje_rendicion}%</td>
+    <td>$ ${money.format(c.aporte_fijo)}</td>
+    <td>${estado}</td>
+    <td>
+      <button class="btn light" onclick="openCerrajero(${c.id})">Editar</button>
+      <button class="btn light" onclick="toggleCerrajeroActivo(${c.id}, ${c.activo})">${c.activo ? 'Desactivar' : 'Activar'}</button>
+    </td>
+  `;
+  return tr;
+}
+
+async function openCerrajero(id) {
+  cerrajeroEditId = id || null;
+  document.getElementById('cerrajeroTitulo').textContent = id ? 'Editar cerrajero' : 'Nuevo cerrajero';
+  document.getElementById('cerActivoWrap').style.display = id ? 'block' : 'none';
+  if (id) {
+    const cerrajeros = await (await fetch('/api/cerrajeros?todos=1')).json();
+    const c = cerrajeros.find((x) => x.id === id);
+    document.getElementById('cerNombre').value = c.nombre;
+    document.getElementById('cerPorcentaje').value = c.porcentaje_rendicion;
+    document.getElementById('cerAporte').value = c.aporte_fijo;
+    document.getElementById('cerActivo').checked = !!c.activo;
+  } else {
+    document.getElementById('cerNombre').value = '';
+    document.getElementById('cerPorcentaje').value = 30;
+    document.getElementById('cerAporte').value = 0;
+    document.getElementById('cerActivo').checked = true;
+  }
+  document.getElementById('cerrajeroModal').classList.add('open');
+}
+
+function closeCerrajero() {
+  document.getElementById('cerrajeroModal').classList.remove('open');
+  cerrajeroEditId = null;
+}
+
+async function guardarCerrajero() {
+  const payload = {
+    nombre: document.getElementById('cerNombre').value.trim(),
+    porcentaje_rendicion: Number(document.getElementById('cerPorcentaje').value) || 0,
+    aporte_fijo: Number(document.getElementById('cerAporte').value) || 0,
+    activo: document.getElementById('cerActivo').checked,
+  };
+  if (!payload.nombre) {
+    alert('El nombre es obligatorio.');
+    return;
+  }
+  const url = cerrajeroEditId ? `/api/cerrajeros/${cerrajeroEditId}` : '/api/cerrajeros';
+  const method = cerrajeroEditId ? 'PUT' : 'POST';
+  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  closeCerrajero();
+  cargarCerrajerosAdmin();
+  cargarCerrajerosGlobal();
+}
+
+async function toggleCerrajeroActivo(id, activo) {
+  await fetch(`/api/cerrajeros/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ activo: !activo }),
+  });
+  cargarCerrajerosAdmin();
+  cargarCerrajerosGlobal();
+}
+
+// ============================================================
+// RENDICIÓN DE CERRAJEROS
+// ============================================================
+let rendicionPreviewActual = null; // { cerrajero_id, fecha_desde, fecha_hasta, detalle, total_bruto, cerrajero }
+let rendicionDescuentosExtra = [];
+
+const TIPO_MOVIMIENTO_LABEL = { servicio: 'Servicio', duplicado: 'Duplicado' };
+const TIPO_DESCUENTO_LABEL = { aporte: 'Aporte fijo', repuesto: 'Repuesto', otro: 'Otro', adelanto: 'Adelanto' };
+
+async function calcularRendicionPreview() {
+  const cerrajero_id = document.getElementById('rendCerrajero').value;
+  const fecha_desde = document.getElementById('rendDesde').value;
+  const fecha_hasta = document.getElementById('rendHasta').value;
+  if (!cerrajero_id || !fecha_desde || !fecha_hasta) {
+    alert('Elegí cerrajero, fecha desde y fecha hasta.');
+    return;
+  }
+  const res = await fetch(`/api/rendiciones/preview?cerrajero_id=${cerrajero_id}&fecha_desde=${fecha_desde}&fecha_hasta=${fecha_hasta}`);
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  rendicionPreviewActual = { cerrajero_id, fecha_desde, fecha_hasta, ...data };
+  rendicionDescuentosExtra = [];
+
+  document.getElementById('rendPreviewVacio').style.display = data.detalle.length ? 'none' : 'block';
+  document.getElementById('rendPreviewWrap').style.display = data.detalle.length ? 'block' : 'none';
+  if (!data.detalle.length) return;
+
+  const tbody = document.getElementById('rendPreviewBody');
+  tbody.innerHTML = '';
+  data.detalle.forEach((d) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${d.venta_numero}</td>
+      <td>${new Date(d.cobrado_en).toLocaleDateString('es-AR')}</td>
+      <td>${d.descripcion}</td>
+      <td>${TIPO_MOVIMIENTO_LABEL[d.tipo]}</td>
+      <td>$ ${money.format(d.monto_base)}</td>
+      <td>${d.porcentaje}%</td>
+      <td>$ ${money.format(d.monto_rendido)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  renderRendicionDescuentos();
+}
+
+function renderRendicionDescuentos() {
+  const cont = document.getElementById('rendDescuentosBody');
+  cont.innerHTML = '';
+  const aporte = rendicionPreviewActual.cerrajero.aporte_fijo;
+  if (aporte > 0) {
+    const div = document.createElement('div');
+    div.className = 'small';
+    div.style.marginBottom = '4px';
+    div.textContent = `Aporte fijo: $ ${money.format(aporte)}`;
+    cont.appendChild(div);
+  }
+  rendicionDescuentosExtra.forEach((d, i) => {
+    const row = document.createElement('div');
+    row.className = 'toolbar';
+    row.style.marginBottom = '4px';
+    row.innerHTML = `
+      <select style="flex:0 0 110px" onchange="rendicionDescuentosExtra[${i}].tipo=this.value">
+        <option value="repuesto" ${d.tipo === 'repuesto' ? 'selected' : ''}>Repuesto</option>
+        <option value="adelanto" ${d.tipo === 'adelanto' ? 'selected' : ''}>Adelanto</option>
+        <option value="otro" ${d.tipo === 'otro' ? 'selected' : ''}>Otro</option>
+      </select>
+      <input placeholder="Descripción" value="${d.descripcion || ''}" style="flex:1" oninput="rendicionDescuentosExtra[${i}].descripcion=this.value">
+      <input type="number" step="any" placeholder="Monto" value="${d.monto || ''}" style="flex:0 0 110px" oninput="rendicionDescuentosExtra[${i}].monto=Number(this.value)||0; actualizarTotalesRendicionPreview()">
+      <button class="btn light" onclick="rendicionDescuentosExtra.splice(${i},1); renderRendicionDescuentos(); actualizarTotalesRendicionPreview()">✕</button>
+    `;
+    cont.appendChild(row);
+  });
+  actualizarTotalesRendicionPreview();
+}
+
+function agregarDescuentoExtra() {
+  rendicionDescuentosExtra.push({ tipo: 'repuesto', descripcion: '', monto: 0 });
+  renderRendicionDescuentos();
+}
+
+function actualizarTotalesRendicionPreview() {
+  const total_bruto = rendicionPreviewActual.total_bruto;
+  const aporte = rendicionPreviewActual.cerrajero.aporte_fijo || 0;
+  const total_descuentos = aporte + rendicionDescuentosExtra.reduce((s, d) => s + (Number(d.monto) || 0), 0);
+  const total_pagar = total_bruto - total_descuentos;
+  document.getElementById('rendTotalBruto').textContent = '$ ' + money.format(total_bruto);
+  document.getElementById('rendTotalDescuentos').textContent = '$ ' + money.format(total_descuentos);
+  document.getElementById('rendTotalPagar').textContent = '$ ' + money.format(total_pagar);
+}
+
+async function generarRendicion() {
+  if (!rendicionPreviewActual) return;
+  if (!confirm('¿Generar la rendición? Los trabajos incluidos no van a poder rendirse de nuevo.')) return;
+  const payload = {
+    cerrajero_id: rendicionPreviewActual.cerrajero_id,
+    fecha_desde: rendicionPreviewActual.fecha_desde,
+    fecha_hasta: rendicionPreviewActual.fecha_hasta,
+    descuentos_extra: rendicionDescuentosExtra.filter((d) => d.monto > 0),
+  };
+  const res = await fetch('/api/rendiciones', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  rendicionPreviewActual = null;
+  rendicionDescuentosExtra = [];
+  document.getElementById('rendPreviewWrap').style.display = 'none';
+  document.getElementById('rendPreviewVacio').style.display = 'none';
+  cargarRendiciones();
+  alert('Rendición generada.');
+}
+
+async function cargarRendiciones() {
+  const cerrajero_id = document.getElementById('rendHistCerrajero').value;
+  const estado = document.getElementById('rendHistEstado').value;
+  const params = new URLSearchParams();
+  if (cerrajero_id) params.set('cerrajero_id', cerrajero_id);
+  if (estado) params.set('estado', estado);
+  const res = await fetch(`/api/rendiciones?${params}`);
+  const rendiciones = await res.json();
+  const tbody = document.getElementById('rendicionesBody');
+  tbody.innerHTML = '';
+  rendiciones.forEach((r) => tbody.appendChild(filaRendicion(r)));
+}
+
+function filaRendicion(r) {
+  const tr = document.createElement('tr');
+  const estado = r.estado === 'pagada' ? '<span class="status s-ok">Pagada</span>' : '<span class="status s-warn">Generada</span>';
+  const acciones = [`<button class="btn light" onclick="verDetalleRendicion(${r.id})">Ver</button>`];
+  if (r.estado === 'generada') {
+    acciones.push(`<button class="btn light" onclick="marcarRendicionPagada(${r.id})">Marcar pagada</button>`);
+    acciones.push(`<button class="btn light" onclick="anularRendicion(${r.id})">Anular</button>`);
+  }
+  tr.innerHTML = `
+    <td>${r.cerrajero_nombre}</td>
+    <td>${r.fecha_desde} a ${r.fecha_hasta}</td>
+    <td>$ ${money.format(r.total_bruto)}</td>
+    <td>$ ${money.format(r.total_descuentos)}</td>
+    <td>$ ${money.format(r.total_pagar)}</td>
+    <td>${estado}</td>
+    <td>${acciones.join(' ')}</td>
+  `;
+  return tr;
+}
+
+async function verDetalleRendicion(id) {
+  const r = await (await fetch(`/api/rendiciones/${id}`)).json();
+  document.getElementById('rendDetalleTitulo').textContent = `${r.cerrajero_nombre} — ${r.fecha_desde} a ${r.fecha_hasta}`;
+  const filasDetalle = r.detalle
+    .map((d) => `<tr><td>${d.venta_numero}</td><td>${d.descripcion}</td><td>${TIPO_MOVIMIENTO_LABEL[d.tipo]}</td><td>$ ${money.format(d.monto_base)}</td><td>${d.porcentaje}%</td><td>$ ${money.format(d.monto_rendido)}</td></tr>`)
+    .join('');
+  const filasDescuentos = r.descuentos
+    .map((d) => `<tr><td>${TIPO_DESCUENTO_LABEL[d.tipo]}</td><td>${d.descripcion || '—'}</td><td>$ ${money.format(d.monto)}</td></tr>`)
+    .join('');
+  document.getElementById('rendDetalleContenido').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Venta</th><th>Descripción</th><th>Tipo</th><th>Base</th><th>%</th><th>Rinde</th></tr></thead>
+        <tbody>${filasDetalle}</tbody>
+      </table>
+    </div>
+    <div class="table-wrap" style="margin-top:10px">
+      <table>
+        <thead><tr><th>Descuento</th><th>Descripción</th><th>Monto</th></tr></thead>
+        <tbody>${filasDescuentos || '<tr><td colspan="3">Sin descuentos</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="small" style="text-align:right;margin-top:10px">
+      <div>Total bruto: <b>$ ${money.format(r.total_bruto)}</b></div>
+      <div>Total descuentos: <b>$ ${money.format(r.total_descuentos)}</b></div>
+      <div style="font-size:16px">Total a pagar: <b>$ ${money.format(r.total_pagar)}</b></div>
+    </div>
+  `;
+  document.getElementById('rendicionDetalleModal').classList.add('open');
+}
+
+function closeRendicionDetalle() {
+  document.getElementById('rendicionDetalleModal').classList.remove('open');
+}
+
+async function marcarRendicionPagada(id) {
+  if (!confirm('¿Marcar esta rendición como pagada?')) return;
+  const res = await fetch(`/api/rendiciones/${id}/pagar`, { method: 'PUT' });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  cargarRendiciones();
+}
+
+async function anularRendicion(id) {
+  if (!confirm('¿Anular esta rendición? Los trabajos incluidos volverán a estar disponibles para rendir.')) return;
+  const res = await fetch(`/api/rendiciones/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json();
+    alert('Error: ' + data.error);
+    return;
+  }
+  cargarRendiciones();
 }
 
 // ============================================================
