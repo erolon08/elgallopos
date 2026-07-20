@@ -3,6 +3,17 @@ const titles = {
   venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
 };
 
+// ============================================================
+// TEMA DE COLORES
+// ============================================================
+function aplicarTema(tema) {
+  document.documentElement.setAttribute('data-theme', tema);
+  document.querySelectorAll('.theme-swatch').forEach((b) => b.classList.toggle('active', b.dataset.theme === tema));
+  localStorage.setItem('gallo_theme', tema);
+}
+document.querySelectorAll('.theme-swatch').forEach((b) => b.addEventListener('click', () => aplicarTema(b.dataset.theme)));
+aplicarTema(localStorage.getItem('gallo_theme') || 'rojo');
+
 document.querySelectorAll('.nav button[data-screen]').forEach((b) =>
   b.addEventListener('click', () => showScreen(b.dataset.screen))
 );
@@ -1064,11 +1075,11 @@ function agregarProductoACarrito(p, tipoElegido) {
       cantidad: 1,
       es_servicio: true,
       recargos_mano_obra: p.recargos_mano_obra || '',
+      descuento_debito_servicio: Number(p.descuento_debito) || 0,
       monto_mano_obra: 0,
       precio_unitario: 0,
-      precio_manual: false,
       descuento_pct: 0,
-      tipo_precio: 'manual',
+      tipo_precio: tipoElegido || 'final',
       cerrajero_id: cerrajeroDefault,
     });
   } else {
@@ -1097,6 +1108,14 @@ function calcularPrecioServicio(item) {
   return roundUpTo100((Number(item.monto_mano_obra) || 0) * factor);
 }
 
+function calcularPreciosServicio(item) {
+  const final = calcularPrecioServicio(item);
+  const debitoPct = Math.min(100, Math.max(0, Number(item.descuento_debito_servicio) || 0));
+  const debito = roundUpTo100(final * (1 - debitoPct / 100));
+  const efectivo = roundUpTo100(Number(item.monto_mano_obra) || 0);
+  return { final, debito, efectivo };
+}
+
 function calcularSubtotalLinea(it) {
   const bruto = it.precio_unitario * it.cantidad;
   const descPct = Math.min(100, Math.max(0, Number(it.descuento_pct) || 0));
@@ -1107,15 +1126,22 @@ function renderVenta() {
   const tbody = document.getElementById('ventaBody');
   tbody.innerHTML = '';
   carritoVenta.forEach((it, i) => {
-    if (it.es_servicio && !it.precio_manual) it.precio_unitario = calcularPrecioServicio(it);
+    if (it.es_servicio && it.tipo_precio !== 'manual') {
+      it.precio_unitario = calcularPreciosServicio(it)[it.tipo_precio];
+    }
     const subtotal = calcularSubtotalLinea(it);
     const tr = document.createElement('tr');
     const descripcionCell = it.es_servicio
       ? `<input value="${it.descripcion}" style="width:170px" oninput="cambiarDescripcionLinea(${i}, this.value)">`
       : `<b>${it.descripcion}</b>`;
     const precioCell = it.es_servicio
-      ? `<input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioServicioLinea(${i}, this.value)">
-         ${it.precio_manual ? `<button class="btn light" style="padding:2px 5px;font-size:10px;margin-top:3px" title="Recalcular desde mano de obra" onclick="resetPrecioServicioLinea(${i})">↺ auto</button>` : ''}`
+      ? `<div class="line-price-choice">
+           <button class="${it.tipo_precio === 'final' ? 'active' : ''}" onclick="elegirPrecioServicioLinea(${i},'final')">F</button>
+           <button class="${it.tipo_precio === 'debito' ? 'active' : ''}" onclick="elegirPrecioServicioLinea(${i},'debito')">D</button>
+           <button class="${it.tipo_precio === 'efectivo' ? 'active' : ''}" onclick="elegirPrecioServicioLinea(${i},'efectivo')">E</button>
+         </div>
+         <input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioServicioLinea(${i}, this.value)">
+         ${it.tipo_precio === 'manual' ? `<button class="btn light btn-reset-precio" style="padding:2px 5px;font-size:10px;margin-top:3px" title="Recalcular desde mano de obra" onclick="resetPrecioServicioLinea(${i})">↺ auto</button>` : ''}`
       : `<div class="line-price-choice">
            <button class="${it.tipo_precio === 'final' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'final')">F</button>
            <button class="${it.tipo_precio === 'debito' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'debito')">D</button>
@@ -1149,22 +1175,24 @@ function calcularDescuentoGeneralMonto() {
 }
 function actualizarFilaEnVivoVenta(i) {
   const it = carritoVenta[i];
-  if (it.es_servicio && !it.precio_manual) it.precio_unitario = calcularPrecioServicio(it);
+  if (it.es_servicio && it.tipo_precio !== 'manual') {
+    it.precio_unitario = calcularPreciosServicio(it)[it.tipo_precio];
+  }
   const tr = document.getElementById('ventaBody').children[i];
   if (tr) {
     if (it.es_servicio) {
       const precioCell = tr.querySelector('[data-col="precio"]');
       precioCell.querySelector('input').value = it.precio_unitario;
-      let resetBtn = precioCell.querySelector('button');
-      if (it.precio_manual && !resetBtn) {
+      let resetBtn = precioCell.querySelector('.btn-reset-precio');
+      if (it.tipo_precio === 'manual' && !resetBtn) {
         resetBtn = document.createElement('button');
-        resetBtn.className = 'btn light';
+        resetBtn.className = 'btn light btn-reset-precio';
         resetBtn.style.cssText = 'padding:2px 5px;font-size:10px;margin-top:3px';
         resetBtn.title = 'Recalcular desde mano de obra';
         resetBtn.textContent = '↺ auto';
         resetBtn.onclick = () => resetPrecioServicioLinea(i);
         precioCell.appendChild(resetBtn);
-      } else if (!it.precio_manual && resetBtn) {
+      } else if (it.tipo_precio !== 'manual' && resetBtn) {
         resetBtn.remove();
       }
     }
@@ -1197,16 +1225,22 @@ function elegirPrecioLinea(i, tipo) {
   it.precio_unitario = it.precios[tipo];
   renderVenta();
 }
+function elegirPrecioServicioLinea(i, tipo) {
+  const it = carritoVenta[i];
+  it.tipo_precio = tipo;
+  it.precio_unitario = calcularPreciosServicio(it)[tipo];
+  renderVenta();
+}
 function cambiarDescripcionLinea(i, v) {
   carritoVenta[i].descripcion = v;
 }
 function cambiarPrecioServicioLinea(i, v) {
   carritoVenta[i].precio_unitario = Number(v) || 0;
-  carritoVenta[i].precio_manual = true;
+  carritoVenta[i].tipo_precio = 'manual';
   actualizarFilaEnVivoVenta(i);
 }
 function resetPrecioServicioLinea(i) {
-  carritoVenta[i].precio_manual = false;
+  carritoVenta[i].tipo_precio = 'final';
   renderVenta();
 }
 function cambiarManoObraLinea(i, v) {
@@ -1706,8 +1740,7 @@ async function abrirPendienteParaEditar(id) {
       linea.descuento_pct = bruto > 0 && it.descuento ? (Number(it.descuento) / bruto) * 100 : 0;
       if (linea.es_servicio) {
         linea.monto_mano_obra = it.monto_mano_obra || 0;
-        const autoCalc = calcularPrecioServicio(linea);
-        linea.precio_manual = Math.abs(autoCalc - it.precio_unitario) > 0.01;
+        linea.tipo_precio = ['final', 'debito', 'efectivo'].includes(it.tipo_precio) ? it.tipo_precio : 'manual';
         linea.precio_unitario = it.precio_unitario;
       } else {
         linea.precio_unitario = it.precio_unitario;
@@ -1918,6 +1951,10 @@ async function convertirPresupuestoEnVenta(id) {
       linea.descuento_pct = descuentoPctGuardado;
       if (linea.es_servicio) {
         linea.monto_mano_obra = it.monto_mano_obra || 0;
+        const precios = calcularPreciosServicio(linea);
+        const tipoDetectado = Object.keys(precios).find((k) => Math.abs(precios[k] - it.precio_unitario) < 0.01);
+        linea.tipo_precio = tipoDetectado || 'manual';
+        linea.precio_unitario = it.precio_unitario;
       } else {
         linea.precio_unitario = it.precio_unitario;
         linea.tipo_precio = 'manual';

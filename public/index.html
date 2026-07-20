@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EL GALLO POS</title>
 <link rel="stylesheet" href="/css/styles.css">
+<script>
+(function () {
+  try {
+    document.documentElement.setAttribute('data-theme', localStorage.getItem('gallo_theme') || 'rojo');
+  } catch (e) {}
+})();
+</script>
 </head>
 <body>
 <div class="login-screen" id="loginScreen">
@@ -48,7 +55,15 @@
   <main class="main">
     <header class="topbar">
       <h2 id="screenTitle">Dashboard</h2>
-      <div class="top-actions"><span class="badge red">LAN conectada</span></div>
+      <div class="top-actions">
+        <div class="theme-picker" id="themePicker" title="Tema de colores">
+          <button class="theme-swatch" data-theme="rojo" style="--sw:#e31c23" title="Rojo"></button>
+          <button class="theme-swatch" data-theme="azul" style="--sw:#1167b1" title="Azul"></button>
+          <button class="theme-swatch" data-theme="verde" style="--sw:#1f9d55" title="Verde"></button>
+          <button class="theme-swatch" data-theme="violeta" style="--sw:#7c3aed" title="Violeta"></button>
+        </div>
+        <span class="badge red">LAN conectada</span>
+      </div>
     </header>
     <div class="content">
 

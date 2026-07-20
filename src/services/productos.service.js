@@ -18,7 +18,7 @@ function enriquecer(p) {
 
 function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = {}) {
   let sql = `
-    SELECT p.*, f.nombre AS familia, f.usa_mano_obra, pr.nombre AS proveedor
+    SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.descuento_debito, f.descuento_efectivo, pr.nombre AS proveedor
     FROM productos p
     JOIN familias f ON f.id = p.familia_id
     LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
@@ -51,7 +51,7 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
 function obtener(id) {
   const row = db
     .prepare(
-      `SELECT p.*, f.nombre AS familia, f.usa_mano_obra, pr.nombre AS proveedor
+      `SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.descuento_debito, f.descuento_efectivo, pr.nombre AS proveedor
        FROM productos p JOIN familias f ON f.id = p.familia_id
        LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
        WHERE p.id = ?`

@@ -27,7 +27,10 @@ const familias = [
   { nombre: 'MANIJAS', descuento_debito: 20, descuento_efectivo: 30, usa_precio_rendicion: 0, usa_mano_obra: 0 },
   { nombre: 'CANDADOS', descuento_debito: 20, descuento_efectivo: 30, usa_precio_rendicion: 0, usa_mano_obra: 0 },
   { nombre: 'DUPLICADOS', descuento_debito: 20, descuento_efectivo: 30, usa_precio_rendicion: 1, usa_mano_obra: 0 },
-  { nombre: 'SERVICIOS', descuento_debito: 0, descuento_efectivo: 0, usa_precio_rendicion: 0, usa_mano_obra: 1 },
+  // Débito/Transferencia de servicios = Precio Final − 15% (confirmado por el negocio).
+  // Efectivo de servicios no usa este %: es directamente la mano de obra sin recargos.
+  { nombre: 'SERVICIOS', descuento_debito: 15, descuento_efectivo: 0, usa_precio_rendicion: 0, usa_mano_obra: 1 },
+  { nombre: 'LLAVES', descuento_debito: 20, descuento_efectivo: 30, usa_precio_rendicion: 0, usa_mano_obra: 0 },
   { nombre: 'GENERAL', descuento_debito: 20, descuento_efectivo: 30, usa_precio_rendicion: 0, usa_mano_obra: 0 },
 ];
 for (const f of familias) insertFamilia.run(f);
@@ -54,6 +57,9 @@ const productosBase = [
   { codigo: 'LL1', descripcion: 'Duplicado llave común', familia: 'DUPLICADOS', proveedor: 'Genérico', costo: 900, precio_final: 3500, precio_rendicion: 1700, stock_actual: 500, stock_minimo: 50, favorito: 1 },
   { codigo: 'LL2', descripcion: 'Duplicado llave doble paleta', familia: 'DUPLICADOS', proveedor: 'Genérico', costo: 1800, precio_final: 7000, precio_rendicion: 3350, stock_actual: 300, stock_minimo: 50, favorito: 1 },
   { codigo: 'LLCOD', descripcion: 'Duplicado auto codificada', familia: 'CODIFICADOS', proveedor: 'Genérico', costo: 9000, precio_final: 25000, stock_actual: 40, stock_minimo: 10 },
+  { codigo: 'LLAVE-COM', descripcion: 'Llave común (bagno)', familia: 'LLAVES', proveedor: 'Genérico', costo: 400, precio_final: 1200, stock_actual: 200, stock_minimo: 30, favorito: 1 },
+  { codigo: 'LLAVE-DP', descripcion: 'Llave doble paleta', familia: 'LLAVES', proveedor: 'Genérico', costo: 900, precio_final: 2400, stock_actual: 150, stock_minimo: 20, favorito: 1 },
+  { codigo: 'LLAVE-SEG', descripcion: 'Llave de seguridad', familia: 'LLAVES', proveedor: 'Genérico', costo: 2500, precio_final: 6500, stock_actual: 80, stock_minimo: 15 },
   // Servicios 1001-1009: no tienen costo/precio de catálogo, precio final = mano de
   // obra + recargos en cadena. Los 9 códigos funcionan todos igual (misma familia
   // SERVICIOS), cada uno con su propia lista de recargos.
