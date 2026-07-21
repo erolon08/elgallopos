@@ -2,6 +2,7 @@ const titles = {
   dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', clientes: 'Clientes',
   venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
+  caja: 'Caja y turnos',
 };
 
 // ============================================================
@@ -40,6 +41,7 @@ function showScreen(id) {
   if (id === 'ventas') cargarVentasHistorial();
   if (id === 'presupuestos') cargarPresupuestos();
   if (id === 'rendicion') { cargarCerrajerosAdmin(); cargarRendiciones(); }
+  if (id === 'caja') cargarCaja();
   if (id === 'venta') { actualizarHintVenta(); cargarBotoneraVenta(); ajustarAltoVenta(); }
 }
 
@@ -825,6 +827,151 @@ async function importarClientesExcel(event) {
   }
 }
 
+// ============================================================
+// CAJA Y TURNOS
+// ============================================================
+let cajaTurnoActual = null;
+
+const FORMATO_MONEDA_CAJA = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
+function moneyStr(v) {
+  return FORMATO_MONEDA_CAJA.format(Number(v) || 0);
+}
+
+async function cargarCaja() {
+  document.getElementById('cajaTerminalLabel').textContent = session.rol;
+  const res = await fetch(`/api/caja/turno-activo?terminal=${session.rol}`);
+  cajaTurnoActual = await res.json();
+  renderCaja();
+  cargarHistorialCaja();
+}
+
+function renderCaja() {
+  const sinTurno = document.getElementById('cajaSinTurno');
+  const conTurno = document.getElementById('cajaConTurno');
+  if (!cajaTurnoActual) {
+    sinTurno.style.display = 'block';
+    conTurno.style.display = 'none';
+    return;
+  }
+  sinTurno.style.display = 'none';
+  conTurno.style.display = 'block';
+  document.getElementById('cajaTurnoNumero').textContent = cajaTurnoActual.numero;
+  document.getElementById('cajaTurnoTerminal').textContent = cajaTurnoActual.terminal;
+  document.getElementById('cajaTurnoAbiertoEn').textContent = new Date(cajaTurnoActual.abierto_en).toLocaleString('es-AR');
+  document.getElementById('cajaTurnoFondo').textContent = moneyStr(cajaTurnoActual.fondo_inicial);
+  document.getElementById('cajaTotalIngresos').textContent = moneyStr(cajaTurnoActual.resumen.totalIngresos);
+  document.getElementById('cajaTotalEgresos').textContent = moneyStr(cajaTurnoActual.resumen.totalEgresos);
+  document.getElementById('cajaEfectivoEsperado').textContent = moneyStr(cajaTurnoActual.resumen.efectivoEsperado);
+
+  const formasBody = document.getElementById('cajaResumenFormasBody');
+  const formas = Object.entries(cajaTurnoActual.resumen.porFormaPago);
+  formasBody.innerHTML = formas.length
+    ? formas.map(([fp, r]) => `<tr><td>${fp}</td><td>${moneyStr(r.ingresos)}</td><td>${moneyStr(r.egresos)}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="small">Sin movimientos todavía.</td></tr>';
+
+  const movBody = document.getElementById('cajaMovimientosBody');
+  movBody.innerHTML = cajaTurnoActual.movimientos.length
+    ? [...cajaTurnoActual.movimientos].reverse().map((m) => `
+        <tr>
+          <td>${new Date(m.creado_en).toLocaleString('es-AR')}</td>
+          <td>${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
+          <td>${m.categoria}</td>
+          <td>${m.concepto || ''}</td>
+          <td>${m.forma_pago || ''}</td>
+          <td>${moneyStr(m.monto)}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="6" class="small">Sin movimientos todavía.</td></tr>';
+}
+
+async function abrirTurnoCaja() {
+  const fondo_inicial = document.getElementById('cajaFondoInicial').value;
+  const res = await fetch('/api/caja/abrir', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ terminal: session.rol, usuario_id: session.id, fondo_inicial }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  cajaTurnoActual = data;
+  renderCaja();
+  cargarHistorialCaja();
+}
+
+function mostrarFormMovimientoCaja() {
+  document.getElementById('cajaFormMovimiento').style.display = 'flex';
+}
+
+async function confirmarMovimientoCaja() {
+  const tipo = document.getElementById('cajaMovTipo').value;
+  const categoria = document.getElementById('cajaMovCategoria').value;
+  const concepto = document.getElementById('cajaMovConcepto').value;
+  const forma_pago = document.getElementById('cajaMovFormaPago').value;
+  const monto = document.getElementById('cajaMovMonto').value;
+  const res = await fetch(`/api/caja/${cajaTurnoActual.id}/movimientos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tipo, categoria, concepto, forma_pago, monto, usuario_id: session.id }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  cajaTurnoActual = data;
+  document.getElementById('cajaMovConcepto').value = '';
+  document.getElementById('cajaMovMonto').value = '';
+  document.getElementById('cajaFormMovimiento').style.display = 'none';
+  renderCaja();
+}
+
+async function cerrarTurnoCaja() {
+  const efectivo_contado = document.getElementById('cajaEfectivoContado').value;
+  const observacion = document.getElementById('cajaObservacionCierre').value;
+  const res = await fetch(`/api/caja/${cajaTurnoActual.id}/cerrar`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ efectivo_contado, observacion }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  const diferencia = data.diferencia;
+  cajaTurnoActual = null;
+  document.getElementById('cajaEfectivoContado').value = '';
+  document.getElementById('cajaObservacionCierre').value = '';
+  renderCaja();
+  cargarHistorialCaja();
+  alert(`Turno cerrado. Diferencia: ${moneyStr(diferencia)}${Math.abs(diferencia) < 1 ? ' (caja exacta)' : diferencia < 0 ? ' (falta)' : ' (sobra)'}`);
+}
+
+async function cargarHistorialCaja() {
+  const filtroTerminal = session.rol === 'ADMIN' ? '' : `?terminal=${session.rol}`;
+  const res = await fetch(`/api/caja${filtroTerminal}`);
+  const turnos = await res.json();
+  const body = document.getElementById('cajaHistorialBody');
+  body.innerHTML = turnos.length
+    ? turnos.map((t) => `
+        <tr>
+          <td>${t.numero}</td>
+          <td>${t.terminal}</td>
+          <td>${new Date(t.abierto_en).toLocaleString('es-AR')}</td>
+          <td>${t.cerrado_en ? new Date(t.cerrado_en).toLocaleString('es-AR') : '—'}</td>
+          <td>${moneyStr(t.fondo_inicial)}</td>
+          <td>${t.efectivo_esperado != null ? moneyStr(t.efectivo_esperado) : '—'}</td>
+          <td>${t.efectivo_contado != null ? moneyStr(t.efectivo_contado) : '—'}</td>
+          <td>${t.diferencia != null ? moneyStr(t.diferencia) : '—'}</td>
+          <td>${t.estado === 'abierto' ? '<span class="badge green">Abierto</span>' : '<span class="badge">Cerrado</span>'}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="9" class="small">Sin turnos registrados.</td></tr>';
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeAjuste();
@@ -851,7 +998,12 @@ socket.on('stock:updated', (producto) => {
     if (activa.id === 'pendientes') cargarPendientes();
     if (activa.id === 'ventas') cargarVentasHistorial();
     if (activa.id === 'presupuestos') cargarPresupuestos();
+    if (activa.id === 'caja') cargarCaja();
   });
+});
+socket.on('caja:actualizada', () => {
+  const activa = document.querySelector('.screen.active');
+  if (activa && activa.id === 'caja') cargarCaja();
 });
 
 // ============================================================
@@ -860,7 +1012,7 @@ socket.on('stock:updated', (producto) => {
 let session = null;
 const PANTALLAS_POR_ROL = {
   ADMIN: null, // null = todas
-  CAJA: ['dashboard', 'venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'stock'],
+  CAJA: ['dashboard', 'venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'stock', 'caja'],
   VENTA: ['venta', 'pendientes', 'clientes'],
 };
 

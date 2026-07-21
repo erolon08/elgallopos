@@ -15,6 +15,7 @@ const ventasRoutes = require('./routes/ventas.routes');
 const cerrajerosRoutes = require('./routes/cerrajeros.routes');
 const presupuestosRoutes = require('./routes/presupuestos.routes');
 const rendicionesRoutes = require('./routes/rendiciones.routes');
+const cajaRoutes = require('./routes/caja.routes');
 
 const app = express();
 app.use(express.json());
@@ -30,6 +31,7 @@ app.use('/api/ventas', ventasRoutes);
 app.use('/api/cerrajeros', cerrajerosRoutes);
 app.use('/api/presupuestos', presupuestosRoutes);
 app.use('/api/rendiciones', rendicionesRoutes);
+app.use('/api/caja', cajaRoutes);
 
 const server = http.createServer(app);
 sockets.init(server);

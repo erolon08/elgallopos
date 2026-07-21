@@ -1,20 +1,10 @@
 const db = require('../db');
 const stockService = require('./stock.service');
+const cajaService = require('./caja.service');
 
 function generarNumero() {
   const { max } = db.prepare("SELECT MAX(CAST(numero AS INTEGER)) AS max FROM ventas").get();
   return String((max || 0) + 1).padStart(6, '0');
-}
-
-function turnoAbierto(terminal) {
-  let turno = db.prepare("SELECT * FROM caja_turnos WHERE terminal = ? AND estado = 'abierto'").get(terminal);
-  if (!turno) {
-    const info = db
-      .prepare("INSERT INTO caja_turnos (numero, terminal, fondo_inicial) VALUES (?, ?, 0)")
-      .run('T-' + Date.now(), terminal);
-    turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(info.lastInsertRowid);
-  }
-  return turno;
 }
 
 function calcularTotales(items, descuento_general) {
@@ -162,12 +152,12 @@ const cobrar = db.transaction((id, datos) => {
     }
   });
 
-  const turno = turnoAbierto(datos.terminal || venta.terminal_origen);
+  const turno = cajaService.turnoAbiertoOCrear(datos.terminal || venta.terminal_origen);
 
   const insertPago = db.prepare('INSERT INTO venta_pagos (venta_id, forma_pago, marca, monto) VALUES (?, ?, ?, ?)');
   const insertCajaMov = db.prepare(`
-    INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, referencia_tipo, referencia_id, usuario_id)
-    VALUES (@caja_turno_id, 'ingreso', 'venta', @concepto, @monto, 'venta', @referencia_id, @usuario_id)
+    INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
+    VALUES (@caja_turno_id, 'ingreso', 'venta', @concepto, @monto, @forma_pago, 'venta', @referencia_id, @usuario_id)
   `);
   datos.pagos.forEach((p) => {
     insertPago.run(id, p.forma_pago, p.marca || null, Number(p.monto) || 0);
@@ -175,6 +165,7 @@ const cobrar = db.transaction((id, datos) => {
       caja_turno_id: turno.id,
       concepto: `Venta N° ${venta.numero} — ${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}`,
       monto: Number(p.monto) || 0,
+      forma_pago: p.forma_pago,
       referencia_id: id,
       usuario_id: datos.usuario_id || null,
     });
@@ -259,11 +250,22 @@ const anular = db.transaction((id, { motivo, usuario_id, terminal } = {}) => {
         });
       }
     });
-    const turno = turnoAbierto(terminal || venta.terminal_origen);
-    db.prepare(
-      `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, referencia_tipo, referencia_id, usuario_id)
-       VALUES (?, 'egreso', 'venta', ?, ?, 'venta', ?, ?)`
-    ).run(turno.id, `Anulación venta N° ${venta.numero}${motivo ? ' — ' + motivo : ''}`, venta.total, id, usuario_id || null);
+    const turno = cajaService.turnoAbiertoOCrear(terminal || venta.terminal_origen);
+    const pagos = db.prepare('SELECT * FROM venta_pagos WHERE venta_id = ?').all(id);
+    const insertCajaMov = db.prepare(`
+      INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
+      VALUES (?, 'egreso', 'venta', ?, ?, ?, 'venta', ?, ?)
+    `);
+    pagos.forEach((p) => {
+      insertCajaMov.run(
+        turno.id,
+        `Anulación venta N° ${venta.numero}${motivo ? ' — ' + motivo : ''} (${p.forma_pago})`,
+        p.monto,
+        p.forma_pago,
+        id,
+        usuario_id || null
+      );
+    });
   }
 
   db.prepare("UPDATE ventas SET estado = 'anulada' WHERE id = ?").run(id);

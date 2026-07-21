@@ -64,6 +64,7 @@
       <button data-screen="familias">🗂️ Familias</button>
       <button data-screen="stock">🏷️ Stock</button>
       <button data-screen="rendicion">🔧 Rendición cerrajeros</button>
+      <button data-screen="caja">💰 Caja y turnos</button>
       <button disabled>🚚 Reposición <span class="tag">próximamente</span></button>
       <button disabled>🏆 Ranking <span class="tag">próximamente</span></button>
     </div>
@@ -179,6 +180,86 @@
             <table>
               <thead><tr><th>Cerrajero</th><th>Período</th><th>Bruto</th><th>Descuentos</th><th>A pagar</th><th>Estado</th><th></th></tr></thead>
               <tbody id="rendicionesBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="caja">
+        <div class="card" id="cajaSinTurno">
+          <div class="section-title"><h3>Caja — turno actual</h3></div>
+          <div class="notice">No hay un turno abierto en esta terminal (<span id="cajaTerminalLabel"></span>).</div>
+          <div class="toolbar">
+            <div class="field"><label>Fondo inicial</label><input id="cajaFondoInicial" type="number" step="any" value="0"></div>
+            <button class="btn primary" onclick="abrirTurnoCaja()">Abrir turno</button>
+          </div>
+        </div>
+
+        <div class="card" id="cajaConTurno" style="display:none">
+          <div class="section-title"><h3>Caja — turno <span id="cajaTurnoNumero"></span></h3><span class="badge green">Abierto</span></div>
+          <div class="grid g2">
+            <div class="small">
+              <div>Terminal: <b id="cajaTurnoTerminal"></b></div>
+              <div>Abierto: <b id="cajaTurnoAbiertoEn"></b></div>
+              <div>Fondo inicial: <b id="cajaTurnoFondo"></b></div>
+            </div>
+            <div class="small" style="text-align:right">
+              <div>Total ingresos: <b id="cajaTotalIngresos"></b></div>
+              <div>Total egresos: <b id="cajaTotalEgresos"></b></div>
+              <div style="font-size:16px;margin-top:4px">Efectivo esperado: <b id="cajaEfectivoEsperado"></b></div>
+            </div>
+          </div>
+
+          <div class="table-wrap" style="margin-top:12px">
+            <table>
+              <thead><tr><th>Forma de pago</th><th>Ingresos</th><th>Egresos</th></tr></thead>
+              <tbody id="cajaResumenFormasBody"></tbody>
+            </table>
+          </div>
+
+          <div class="section-title" style="margin-top:14px">
+            <h3 style="font-size:14px">Movimientos</h3>
+            <button class="btn light" onclick="mostrarFormMovimientoCaja()">+ Agregar movimiento</button>
+          </div>
+          <div class="toolbar" id="cajaFormMovimiento" style="display:none">
+            <div class="field"><label>Tipo</label><select id="cajaMovTipo"><option value="egreso">Egreso</option><option value="ingreso">Ingreso</option></select></div>
+            <div class="field"><label>Categoría</label><select id="cajaMovCategoria"><option value="retiro">Retiro</option><option value="gasto">Gasto</option><option value="empleados">Empleados</option><option value="otro">Otro</option></select></div>
+            <div class="field"><label>Concepto</label><input id="cajaMovConcepto" placeholder="Detalle..."></div>
+            <div class="field"><label>Forma de pago</label>
+              <select id="cajaMovFormaPago">
+                <option value="Efectivo">Efectivo</option>
+                <option value="Débito">Débito</option>
+                <option value="Crédito">Crédito</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="QR">QR</option>
+                <option value="Cuenta Corriente">Cuenta Corriente</option>
+              </select>
+            </div>
+            <div class="field"><label>Monto</label><input id="cajaMovMonto" type="number" step="any"></div>
+            <button class="btn primary" onclick="confirmarMovimientoCaja()">Guardar</button>
+            <button class="btn light" onclick="document.getElementById('cajaFormMovimiento').style.display='none'">Cancelar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Forma pago</th><th>Monto</th></tr></thead>
+              <tbody id="cajaMovimientosBody"></tbody>
+            </table>
+          </div>
+
+          <div class="section-title" style="margin-top:14px"><h3 style="font-size:14px">Cerrar turno</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Efectivo contado</label><input id="cajaEfectivoContado" type="number" step="any"></div>
+            <div class="field"><label>Observación</label><input id="cajaObservacionCierre" placeholder="Opcional"></div>
+            <button class="btn primary" onclick="cerrarTurnoCaja()">Cerrar turno</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <div class="section-title"><h3>Historial de turnos</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Número</th><th>Terminal</th><th>Abierto</th><th>Cerrado</th><th>Fondo</th><th>Esperado</th><th>Contado</th><th>Diferencia</th><th>Estado</th></tr></thead>
+              <tbody id="cajaHistorialBody"></tbody>
             </table>
           </div>
         </div>

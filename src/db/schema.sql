@@ -195,9 +195,11 @@ CREATE TABLE IF NOT EXISTS caja_movimientos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   caja_turno_id INTEGER NOT NULL REFERENCES caja_turnos(id),
   tipo TEXT NOT NULL CHECK (tipo IN ('ingreso','egreso')),
-  categoria TEXT NOT NULL,        -- 'venta' | 'empleados' | 'gasto' | 'otro'
+  categoria TEXT NOT NULL,        -- 'venta' | 'empleados' | 'gasto' | 'retiro' | 'otro'
   concepto TEXT,
   monto REAL NOT NULL,
+  forma_pago TEXT,                -- 'Efectivo' | 'Débito' | 'Crédito' | 'Transferencia' | 'QR' | 'Cuenta Corriente'
+                                   -- solo los movimientos en Efectivo entran al arqueo de caja física
   referencia_tipo TEXT,           -- 'venta' | 'rendicion' | null
   referencia_id INTEGER,
   usuario_id INTEGER REFERENCES usuarios(id),
