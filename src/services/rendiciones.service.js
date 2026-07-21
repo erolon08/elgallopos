@@ -1,4 +1,5 @@
 const db = require('../db');
+const cajaService = require('./caja.service');
 
 function roundUpTo100(v) {
   return Math.ceil(v / 100) * 100;
@@ -254,13 +255,35 @@ function quitarDescuento(rendicion_id, descuento_id) {
   return obtener(rendicion_id);
 }
 
-function marcarPagada(id) {
-  const r = db.prepare('SELECT * FROM rendiciones WHERE id = ?').get(id);
+// Pagarle a un cerrajero su rendición es plata que sale de la caja en
+// efectivo: se registra como egreso en el turno abierto de la terminal
+// desde la que se paga, igual que un retiro o un envío a caja fuerte.
+const marcarPagada = db.transaction((id, { terminal, usuario_id } = {}) => {
+  const r = db
+    .prepare('SELECT r.*, c.nombre AS cerrajero_nombre FROM rendiciones r JOIN cerrajeros c ON c.id = r.cerrajero_id WHERE r.id = ?')
+    .get(id);
   if (!r) throw new Error('Rendición no encontrada');
   if (r.estado !== 'generada') throw new Error('Solo se puede marcar como pagada una rendición en estado generada');
-  db.prepare(`UPDATE rendiciones SET estado = 'pagada', pagado_en = datetime('now','localtime') WHERE id = ?`).run(id);
+
+  // Si los descuentos superan el bruto (ej. un adelanto grande), total_pagar
+  // queda en 0 o negativo: no sale plata de la caja, así que no se genera egreso.
+  let caja_movimiento_id = null;
+  if (r.total_pagar > 0) {
+    const turno = cajaService.turnoAbiertoOCrear(terminal || 'ADMIN');
+    const info = db
+      .prepare(
+        `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
+         VALUES (?, 'egreso', 'rendicion', ?, ?, 'Efectivo', 'rendicion', ?, ?)`
+      )
+      .run(turno.id, `Rendición ${r.cerrajero_nombre} (${r.fecha_desde} a ${r.fecha_hasta})`, r.total_pagar, id, usuario_id || null);
+    caja_movimiento_id = info.lastInsertRowid;
+  }
+
+  db.prepare(
+    `UPDATE rendiciones SET estado = 'pagada', pagado_en = datetime('now','localtime'), caja_movimiento_id = ? WHERE id = ?`
+  ).run(caja_movimiento_id, id);
   return obtener(id);
-}
+});
 
 function anular(id) {
   const r = db.prepare('SELECT * FROM rendiciones WHERE id = ?').get(id);

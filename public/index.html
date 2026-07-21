@@ -236,12 +236,12 @@
               </select>
             </div>
             <div class="field"><label>Monto</label><input id="cajaMovMonto" type="number" step="any"></div>
-            <button class="btn primary" onclick="confirmarMovimientoCaja()">Guardar</button>
-            <button class="btn light" onclick="document.getElementById('cajaFormMovimiento').style.display='none'">Cancelar</button>
+            <button class="btn primary" id="btnGuardarMovimientoCaja" onclick="confirmarMovimientoCaja()">Guardar</button>
+            <button class="btn light" onclick="cajaMovimientoEditandoId=null;document.getElementById('cajaFormMovimiento').style.display='none'">Cancelar</button>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Forma pago</th><th>Monto</th></tr></thead>
+              <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Forma pago</th><th>Monto</th><th></th></tr></thead>
               <tbody id="cajaMovimientosBody"></tbody>
             </table>
           </div>

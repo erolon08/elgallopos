@@ -48,6 +48,26 @@ router.post('/:id/movimientos', (req, res) => {
   }
 });
 
+router.put('/:id/movimientos/:movId', (req, res) => {
+  try {
+    const turno = cajaService.editarMovimiento(Number(req.params.id), Number(req.params.movId), req.body);
+    emitVentaEvent('caja:actualizada', turno);
+    res.json(turno);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/:id/movimientos/:movId', (req, res) => {
+  try {
+    const turno = cajaService.quitarMovimiento(Number(req.params.id), Number(req.params.movId));
+    emitVentaEvent('caja:actualizada', turno);
+    res.json(turno);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.put('/:id/cerrar', (req, res) => {
   try {
     const turno = cajaService.cerrarTurno(Number(req.params.id), req.body);

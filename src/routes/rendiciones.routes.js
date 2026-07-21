@@ -41,7 +41,7 @@ router.post('/', (req, res) => {
 
 router.put('/:id/pagar', (req, res) => {
   try {
-    res.json(rendicionesService.marcarPagada(Number(req.params.id)));
+    res.json(rendicionesService.marcarPagada(Number(req.params.id), req.body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

@@ -74,6 +74,36 @@ function agregarMovimiento(turno_id, { tipo, categoria, concepto, monto, forma_p
   return obtener(turno_id);
 }
 
+// Solo se pueden editar/quitar movimientos cargados a mano (retiro, gasto,
+// empleados, otro): los que vienen de una venta, una rendición o el envío a
+// caja fuerte del cierre (referencia_tipo NOT NULL) reflejan un hecho real
+// y no se tocan desde acá.
+function requerirMovimientoEditable(turno_id, movimiento_id) {
+  const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(turno_id);
+  if (!turno) throw new Error('Turno no encontrado');
+  if (turno.estado !== 'abierto') throw new Error('El turno ya está cerrado');
+  const mov = db.prepare('SELECT * FROM caja_movimientos WHERE id = ? AND caja_turno_id = ?').get(movimiento_id, turno_id);
+  if (!mov) throw new Error('Movimiento no encontrado');
+  if (mov.referencia_tipo) throw new Error('Este movimiento no se puede editar');
+  return mov;
+}
+
+function editarMovimiento(turno_id, movimiento_id, { tipo, categoria, concepto, monto, forma_pago }) {
+  requerirMovimientoEditable(turno_id, movimiento_id);
+  if (!['ingreso', 'egreso'].includes(tipo)) throw new Error('Tipo de movimiento inválido');
+  if (!(Number(monto) > 0)) throw new Error('El monto debe ser mayor a 0');
+  db.prepare(
+    `UPDATE caja_movimientos SET tipo = ?, categoria = ?, concepto = ?, monto = ?, forma_pago = ? WHERE id = ?`
+  ).run(tipo, categoria || 'otro', concepto || null, Number(monto), forma_pago || 'Efectivo', movimiento_id);
+  return obtener(turno_id);
+}
+
+function quitarMovimiento(turno_id, movimiento_id) {
+  requerirMovimientoEditable(turno_id, movimiento_id);
+  db.prepare('DELETE FROM caja_movimientos WHERE id = ?').run(movimiento_id);
+  return obtener(turno_id);
+}
+
 // Al cerrar: el efectivo contado se reparte entre lo que se deja como fondo
 // del próximo turno (fondo_turno_siguiente) y lo que se manda a caja fuerte
 // (el resto), que queda registrado como un egreso más de este turno.
@@ -108,4 +138,15 @@ function fondoSugerido(terminal) {
   return ultimo && ultimo.fondo_turno_siguiente != null ? ultimo.fondo_turno_siguiente : 0;
 }
 
-module.exports = { turnoAbiertoDe, turnoAbiertoOCrear, abrirTurno, obtener, listar, agregarMovimiento, cerrarTurno, fondoSugerido };
+module.exports = {
+  turnoAbiertoDe,
+  turnoAbiertoOCrear,
+  abrirTurno,
+  obtener,
+  listar,
+  agregarMovimiento,
+  editarMovimiento,
+  quitarMovimiento,
+  cerrarTurno,
+  fondoSugerido,
+};

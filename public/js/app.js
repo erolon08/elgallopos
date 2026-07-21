@@ -831,6 +831,7 @@ async function importarClientesExcel(event) {
 // CAJA Y TURNOS
 // ============================================================
 let cajaTurnoActual = null;
+let cajaMovimientoEditandoId = null;
 
 const FORMATO_MONEDA_CAJA = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 function moneyStr(v) {
@@ -875,8 +876,9 @@ function renderCaja() {
     : '<tr><td colspan="3" class="small">Sin movimientos todavía.</td></tr>';
 
   const movBody = document.getElementById('cajaMovimientosBody');
-  movBody.innerHTML = cajaTurnoActual.movimientos.length
-    ? [...cajaTurnoActual.movimientos].reverse().map((m) => `
+  const movimientosManuales = cajaTurnoActual.movimientos.filter((m) => m.categoria !== 'venta');
+  movBody.innerHTML = movimientosManuales.length
+    ? [...movimientosManuales].reverse().map((m) => `
         <tr>
           <td>${new Date(m.creado_en).toLocaleString('es-AR')}</td>
           <td>${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
@@ -884,9 +886,12 @@ function renderCaja() {
           <td>${m.concepto || ''}</td>
           <td>${m.forma_pago || ''}</td>
           <td>${moneyStr(m.monto)}</td>
+          <td>${!m.referencia_tipo
+            ? `<button class="btn light" onclick="editarMovimientoCaja(${m.id})">✎</button> <button class="btn light" onclick="quitarMovimientoCaja(${m.id})">✕</button>`
+            : ''}</td>
         </tr>
       `).join('')
-    : '<tr><td colspan="6" class="small">Sin movimientos todavía.</td></tr>';
+    : '<tr><td colspan="7" class="small">Sin movimientos manuales todavía.</td></tr>';
 
   const fondoSiguienteInput = document.getElementById('cajaFondoSiguiente');
   if (!fondoSiguienteInput.value) fondoSiguienteInput.value = cajaTurnoActual.fondo_inicial;
@@ -921,7 +926,38 @@ async function abrirTurnoCaja() {
 }
 
 function mostrarFormMovimientoCaja() {
+  cajaMovimientoEditandoId = null;
+  document.getElementById('cajaMovTipo').value = 'egreso';
+  document.getElementById('cajaMovCategoria').value = 'retiro';
+  document.getElementById('cajaMovConcepto').value = '';
+  document.getElementById('cajaMovFormaPago').value = 'Efectivo';
+  document.getElementById('cajaMovMonto').value = '';
+  document.getElementById('btnGuardarMovimientoCaja').textContent = 'Guardar';
   document.getElementById('cajaFormMovimiento').style.display = 'flex';
+}
+
+function editarMovimientoCaja(movId) {
+  const m = cajaTurnoActual.movimientos.find((x) => x.id === movId);
+  if (!m) return;
+  cajaMovimientoEditandoId = movId;
+  document.getElementById('cajaMovTipo').value = m.tipo;
+  document.getElementById('cajaMovCategoria').value = m.categoria;
+  document.getElementById('cajaMovConcepto').value = m.concepto || '';
+  document.getElementById('cajaMovFormaPago').value = m.forma_pago || 'Efectivo';
+  document.getElementById('cajaMovMonto').value = m.monto;
+  document.getElementById('btnGuardarMovimientoCaja').textContent = 'Guardar cambios';
+  document.getElementById('cajaFormMovimiento').style.display = 'flex';
+}
+
+async function quitarMovimientoCaja(movId) {
+  const res = await fetch(`/api/caja/${cajaTurnoActual.id}/movimientos/${movId}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  cajaTurnoActual = data;
+  renderCaja();
 }
 
 async function confirmarMovimientoCaja() {
@@ -930,8 +966,10 @@ async function confirmarMovimientoCaja() {
   const concepto = document.getElementById('cajaMovConcepto').value;
   const forma_pago = document.getElementById('cajaMovFormaPago').value;
   const monto = document.getElementById('cajaMovMonto').value;
-  const res = await fetch(`/api/caja/${cajaTurnoActual.id}/movimientos`, {
-    method: 'POST',
+  const editando = cajaMovimientoEditandoId;
+  const url = editando ? `/api/caja/${cajaTurnoActual.id}/movimientos/${editando}` : `/api/caja/${cajaTurnoActual.id}/movimientos`;
+  const res = await fetch(url, {
+    method: editando ? 'PUT' : 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tipo, categoria, concepto, forma_pago, monto, usuario_id: session.id }),
   });
@@ -941,6 +979,7 @@ async function confirmarMovimientoCaja() {
     return;
   }
   cajaTurnoActual = data;
+  cajaMovimientoEditandoId = null;
   document.getElementById('cajaMovConcepto').value = '';
   document.getElementById('cajaMovMonto').value = '';
   document.getElementById('cajaFormMovimiento').style.display = 'none';
@@ -1626,7 +1665,11 @@ async function mostrarTicketRendicion(id) {
 }
 
 async function marcarRendicionPagada(id) {
-  const res = await fetch(`/api/rendiciones/${id}/pagar`, { method: 'PUT' });
+  const res = await fetch(`/api/rendiciones/${id}/pagar`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ terminal: session.rol, usuario_id: session.id }),
+  });
   const data = await res.json();
   if (!res.ok) {
     alert('Error: ' + data.error);
@@ -2283,9 +2326,14 @@ document.addEventListener('keydown', (e) => {
       closeCobro();
       return;
     }
-    if (e.key === 'Enter' && document.getElementById('cobroPasoEfectivo').style.display !== 'none') {
-      e.preventDefault();
-      confirmarPagoSimple('Efectivo');
+    if (e.key === 'Enter') {
+      if (document.getElementById('cobroPasoEfectivo').style.display !== 'none') {
+        e.preventDefault();
+        confirmarPagoSimple('Efectivo');
+      } else if (document.getElementById('cobroPasoSimple').style.display !== 'none') {
+        e.preventDefault();
+        document.getElementById('btnConfirmarSimple').click();
+      }
     }
     return;
   }
