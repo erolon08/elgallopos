@@ -124,7 +124,9 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, e
     sql += ' AND vi.cerrajero_id = @cerrajero_id';
     params.cerrajero_id = cerrajero_id;
   }
-  if (estado) {
+  if (estado === 'activas') {
+    sql += " AND v.estado != 'anulada'";
+  } else if (estado) {
     sql += ' AND v.estado = @estado';
     params.estado = estado;
   }

@@ -304,6 +304,16 @@
             <div class="field"><label>N° de venta</label><input id="ventasNumero" placeholder="ej: 000184"></div>
             <div class="field"><label>Cerrajero</label><select id="ventasCerrajero"><option value="">Todos</option></select></div>
             <div class="field"><label>Patente</label><input id="ventasPatente" placeholder="AB123CD"></div>
+            <div class="field"><label>Estado</label>
+              <select id="ventasEstado" onchange="cargarVentasHistorial()">
+                <option value="activas">Activas (sin anuladas)</option>
+                <option value="cobrada">Cobradas</option>
+                <option value="pendiente">Pendientes</option>
+                <option value="enviada_caja">Enviadas a caja</option>
+                <option value="anulada">Anuladas</option>
+                <option value="">Todas</option>
+              </select>
+            </div>
             <button class="btn primary" id="btnBuscarVentas">Buscar</button>
           </div>
           <div class="table-wrap">
