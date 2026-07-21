@@ -5,6 +5,17 @@ function roundUpTo100(v) {
   return Math.ceil(v / 100) * 100;
 }
 
+// dd/mm sin año, para que el renglón del ticket de cierre entre en una línea
+// (la comandera imprime en 80mm de ancho); si el período es de un solo día
+// no repite la misma fecha dos veces.
+function formatPeriodoCorto(desde, hasta) {
+  const corta = (f) => {
+    const [, m, d] = f.split('-');
+    return `${d}/${m}`;
+  };
+  return desde === hasta ? corta(desde) : `${corta(desde)} a ${corta(hasta)}`;
+}
+
 // venta_items del cerrajero, de ventas cobradas dentro del período, que generan
 // rendición (familia con usa_mano_obra=1 -> servicio sobre monto_mano_obra, o
 // usa_precio_rendicion=1 -> duplicado sobre precio_rendicion) y que todavía no
@@ -275,7 +286,7 @@ const marcarPagada = db.transaction((id, { terminal, usuario_id } = {}) => {
         `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
          VALUES (?, 'egreso', 'rendicion', ?, ?, 'Efectivo', 'rendicion', ?, ?)`
       )
-      .run(turno.id, `Rendición ${r.cerrajero_nombre} (${r.fecha_desde} a ${r.fecha_hasta})`, r.total_pagar, id, usuario_id || null);
+      .run(turno.id, `Rendición ${r.cerrajero_nombre} (${formatPeriodoCorto(r.fecha_desde, r.fecha_hasta)})`, r.total_pagar, id, usuario_id || null);
     caja_movimiento_id = info.lastInsertRowid;
   }
 
