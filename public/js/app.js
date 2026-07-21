@@ -1000,14 +1000,111 @@ async function cerrarTurnoCaja() {
     alert('Error: ' + data.error);
     return;
   }
-  const diferencia = data.diferencia;
   cajaTurnoActual = null;
   document.getElementById('cajaEfectivoContado').value = '';
   document.getElementById('cajaFondoSiguiente').value = '';
   document.getElementById('cajaObservacionCierre').value = '';
   document.getElementById('cajaFuerteCierrePreview').textContent = '';
   await cargarCaja();
-  alert(`Turno cerrado. Diferencia: ${moneyStr(diferencia)}${Math.abs(diferencia) < 1 ? ' (caja exacta)' : diferencia < 0 ? ' (falta)' : ' (sobra)'}`);
+  mostrarTicketCierre(data);
+}
+
+function construirTicketCierreHtml(t) {
+  const ventasMov = t.movimientos.filter((m) => m.categoria === 'venta');
+  const porFormaVentas = {};
+  ventasMov.forEach((m) => {
+    const fp = m.forma_pago || 'Otro';
+    porFormaVentas[fp] = (porFormaVentas[fp] || 0) + (m.tipo === 'ingreso' ? m.monto : -m.monto);
+  });
+  const totalVentas = Object.values(porFormaVentas).reduce((a, b) => a + b, 0);
+  const ventasHtml = Object.entries(porFormaVentas)
+    .filter(([, monto]) => monto !== 0)
+    .map(([fp, monto]) => `${fp}&nbsp;&nbsp;${moneyStr(monto)}<br>`)
+    .join('') || 'Sin ventas.<br>';
+
+  const gastosMov = t.movimientos.filter((m) => m.categoria !== 'venta' && m.categoria !== 'caja_fuerte');
+  const totalGastos = gastosMov.reduce((a, m) => a + (m.tipo === 'egreso' ? m.monto : -m.monto), 0);
+  const gastosHtml = gastosMov.length
+    ? gastosMov.map((m) => `${m.concepto || m.categoria}&nbsp;&nbsp;${moneyStr(m.tipo === 'egreso' ? -m.monto : m.monto)}<br>`).join('')
+    : 'Sin movimientos.<br>';
+
+  const cajaFuerteMov = t.movimientos.find((m) => m.categoria === 'caja_fuerte');
+  const diferencia = t.diferencia || 0;
+  const estadoDif = Math.abs(diferencia) < 1 ? 'CAJA EXACTA' : diferencia > 0 ? 'SOBRANTE' : 'FALTANTE';
+
+  return `
+    <img src="/img/logo-badge.png" class="ticket-logo" alt="El Gallo"><h4>CERRAJERÍA EL GALLO</h4>
+    <div class="center">CIERRE DE CAJA</div><hr>
+    Terminal: ${t.terminal} &nbsp; Turno: ${t.numero}<br>
+    Apertura: ${new Date(t.abierto_en).toLocaleString('es-AR')}<br>
+    Cierre: ${t.cerrado_en ? new Date(t.cerrado_en).toLocaleString('es-AR') : '—'}<hr>
+    SALDO INICIAL&nbsp;&nbsp;<b>${moneyStr(t.fondo_inicial)}</b><hr>
+    <b>VENTAS POR FORMA DE PAGO</b><br>
+    ${ventasHtml}
+    TOTAL VENTAS&nbsp;&nbsp;<b>${moneyStr(totalVentas)}</b><hr>
+    <b>MOVIMIENTOS DE CAJA</b><br>
+    ${gastosHtml}
+    TOTAL MOVIMIENTOS&nbsp;&nbsp;<b>${moneyStr(-totalGastos)}</b><hr>
+    SALDO DE CAJA (esperado)&nbsp;&nbsp;${moneyStr(t.efectivo_esperado)}<br>
+    EFECTIVO CONTADO&nbsp;&nbsp;${moneyStr(t.efectivo_contado)}<br>
+    DIFERENCIA&nbsp;&nbsp;<b>${moneyStr(diferencia)} (${estadoDif})</b><hr>
+    FONDO PRÓXIMO TURNO&nbsp;&nbsp;<b>${moneyStr(t.fondo_turno_siguiente)}</b><br>
+    ${cajaFuerteMov ? `ENVÍO A CAJA FUERTE&nbsp;&nbsp;<b>${moneyStr(cajaFuerteMov.monto)}</b><br>` : ''}
+    ${t.observacion ? `<hr>Observación: ${t.observacion}<br>` : ''}
+  `;
+}
+
+function mostrarTicketCierre(t) {
+  ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
+  document.querySelector('#ticket-screen .btn.green').style.display = 'none';
+  document.getElementById('btnEditarTicketRendicion').style.display = 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = '';
+  document.getElementById('ticketContenido').innerHTML = construirTicketCierreHtml(t);
+  showScreen('ticket-screen');
+}
+
+function editarCierreDesdeTicket() {
+  if (!ultimoDocumentoParaTicket || ultimoDocumentoParaTicket.tipo !== 'cierre') return;
+  showScreen('caja');
+  abrirModificarCierre(ultimoDocumentoParaTicket.data.id);
+}
+
+async function imprimirTicketCierre(turnoId) {
+  const t = await (await fetch(`/api/caja/${turnoId}`)).json();
+  mostrarTicketCierre(t);
+}
+
+async function abrirModificarCierre(turnoId) {
+  const t = await (await fetch(`/api/caja/${turnoId}`)).json();
+  document.getElementById('cierreModalTurnoId').value = t.id;
+  document.getElementById('cierreModalContado').value = t.efectivo_contado;
+  document.getElementById('cierreModalFondoSiguiente').value = t.fondo_turno_siguiente;
+  document.getElementById('cierreModalObservacion').value = t.observacion || '';
+  document.getElementById('editarCierreModal').classList.add('open');
+}
+
+function closeEditarCierre() {
+  document.getElementById('editarCierreModal').classList.remove('open');
+}
+
+async function confirmarModificarCierre() {
+  const id = document.getElementById('cierreModalTurnoId').value;
+  const efectivo_contado = document.getElementById('cierreModalContado').value;
+  const fondo_turno_siguiente = document.getElementById('cierreModalFondoSiguiente').value;
+  const observacion = document.getElementById('cierreModalObservacion').value;
+  const res = await fetch(`/api/caja/${id}/cierre`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ efectivo_contado, fondo_turno_siguiente, observacion }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  closeEditarCierre();
+  await cargarHistorialCaja();
+  mostrarTicketCierre(data);
 }
 
 async function cargarHistorialCaja() {
@@ -1028,9 +1125,12 @@ async function cargarHistorialCaja() {
           <td>${t.diferencia != null ? moneyStr(t.diferencia) : '—'}</td>
           <td>${t.fondo_turno_siguiente != null ? moneyStr(t.fondo_turno_siguiente) : '—'}</td>
           <td>${t.estado === 'abierto' ? '<span class="badge green">Abierto</span>' : '<span class="badge">Cerrado</span>'}</td>
+          <td>${t.estado === 'cerrado'
+            ? `<button class="btn light" onclick="imprimirTicketCierre(${t.id})">🖨️</button> <button class="btn light" onclick="abrirModificarCierre(${t.id})">✎</button>`
+            : ''}</td>
         </tr>
       `).join('')
-    : '<tr><td colspan="10" class="small">Sin turnos registrados.</td></tr>';
+    : '<tr><td colspan="11" class="small">Sin turnos registrados.</td></tr>';
 }
 
 document.addEventListener('keydown', (e) => {
@@ -1622,6 +1722,7 @@ async function mostrarTicketRendicion(id) {
   ultimoDocumentoParaTicket = { tipo: 'rendicion', data: r };
   document.querySelector('#ticket-screen .btn.green').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = r.estado === 'generada' ? '' : 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = 'none';
 
   const duplicados = r.detalle.filter((d) => d.tipo === 'duplicado');
   const servicios = r.detalle.filter((d) => d.tipo === 'servicio');
@@ -2371,6 +2472,7 @@ function mostrarTicket(venta) {
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
   document.querySelector('#ticket-screen .btn.green').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = 'none';
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}${it.cerrajero_nombre ? '<br><span style="font-size:11px">&nbsp;&nbsp;Cerrajero: ' + it.cerrajero_nombre + '</span>' : ''}<br>`)
@@ -2392,6 +2494,7 @@ function mostrarTicketPresupuesto(presupuesto) {
   ultimoDocumentoParaTicket = { tipo: 'presupuesto', data: presupuesto };
   document.querySelector('#ticket-screen .btn.green').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = 'none';
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
   const lineasHtml = presupuesto.items
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}<br>`)

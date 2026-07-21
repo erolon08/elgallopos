@@ -104,14 +104,17 @@ function quitarMovimiento(turno_id, movimiento_id) {
   return obtener(turno_id);
 }
 
-// Al cerrar: el efectivo contado se reparte entre lo que se deja como fondo
-// del próximo turno (fondo_turno_siguiente) y lo que se manda a caja fuerte
-// (el resto), que queda registrado como un egreso más de este turno.
-const cerrarTurno = db.transaction((id, { efectivo_contado, fondo_turno_siguiente, observacion } = {}) => {
-  const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(id);
-  if (!turno) throw new Error('Turno no encontrado');
-  if (turno.estado !== 'abierto') throw new Error('El turno ya está cerrado');
-  const movimientos = db.prepare('SELECT * FROM caja_movimientos WHERE caja_turno_id = ?').all(id);
+// Recalcula el arqueo de un turno (usado tanto al cerrar como al corregir un
+// cierre ya hecho): el efectivo contado se reparte entre lo que se deja como
+// fondo del próximo turno (fondo_turno_siguiente) y lo que se manda a caja
+// fuerte (el resto), que queda registrado como un egreso más de este turno.
+// Antes de recalcular se borra el envío a caja fuerte anterior (si existía)
+// para no arrastrar un monto viejo cuando se corrige el cierre.
+function aplicarCierre(turno, { efectivo_contado, fondo_turno_siguiente, observacion }) {
+  db.prepare(
+    "DELETE FROM caja_movimientos WHERE caja_turno_id = ? AND categoria = 'caja_fuerte' AND referencia_tipo = 'caja_turno' AND referencia_id = ?"
+  ).run(turno.id, turno.id);
+  const movimientos = db.prepare('SELECT * FROM caja_movimientos WHERE caja_turno_id = ?').all(turno.id);
   const { efectivoEsperado } = resumenDe(turno, movimientos);
   const contado = Number(efectivo_contado) || 0;
   const fondoSiguiente = Number(fondo_turno_siguiente) || 0;
@@ -122,12 +125,30 @@ const cerrarTurno = db.transaction((id, { efectivo_contado, fondo_turno_siguient
     db.prepare(
       `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id)
        VALUES (?, 'egreso', 'caja_fuerte', 'Envío a caja fuerte (cierre de turno)', ?, 'Efectivo', 'caja_turno', ?)`
-    ).run(id, montoCajaFuerte, id);
+    ).run(turno.id, montoCajaFuerte, turno.id);
   }
 
   db.prepare(
-    `UPDATE caja_turnos SET estado = 'cerrado', efectivo_esperado = ?, efectivo_contado = ?, diferencia = ?, fondo_turno_siguiente = ?, observacion = ?, cerrado_en = datetime('now','localtime') WHERE id = ?`
-  ).run(efectivoEsperado, contado, contado - efectivoEsperado, fondoSiguiente, observacion || null, id);
+    `UPDATE caja_turnos SET efectivo_esperado = ?, efectivo_contado = ?, diferencia = ?, fondo_turno_siguiente = ?, observacion = ? WHERE id = ?`
+  ).run(efectivoEsperado, contado, contado - efectivoEsperado, fondoSiguiente, observacion || null, turno.id);
+}
+
+const cerrarTurno = db.transaction((id, datos = {}) => {
+  const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(id);
+  if (!turno) throw new Error('Turno no encontrado');
+  if (turno.estado !== 'abierto') throw new Error('El turno ya está cerrado');
+  aplicarCierre(turno, datos);
+  db.prepare(`UPDATE caja_turnos SET estado = 'cerrado', cerrado_en = datetime('now','localtime') WHERE id = ?`).run(id);
+  return obtener(id);
+});
+
+// Corrige un cierre ya hecho (ej. se contó mal el efectivo o se dejó un
+// fondo equivocado) sin reabrir el turno ni tocar la fecha de cierre.
+const editarCierre = db.transaction((id, datos = {}) => {
+  const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(id);
+  if (!turno) throw new Error('Turno no encontrado');
+  if (turno.estado !== 'cerrado') throw new Error('Solo se puede modificar el cierre de un turno ya cerrado');
+  aplicarCierre(turno, datos);
   return obtener(id);
 });
 
@@ -148,5 +169,6 @@ module.exports = {
   editarMovimiento,
   quitarMovimiento,
   cerrarTurno,
+  editarCierre,
   fondoSugerido,
 };

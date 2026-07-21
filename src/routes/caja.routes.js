@@ -78,4 +78,14 @@ router.put('/:id/cerrar', (req, res) => {
   }
 });
 
+router.put('/:id/cierre', (req, res) => {
+  try {
+    const turno = cajaService.editarCierre(Number(req.params.id), req.body);
+    emitVentaEvent('caja:actualizada', turno);
+    res.json(turno);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;
