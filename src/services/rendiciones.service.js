@@ -258,7 +258,7 @@ function marcarPagada(id) {
   const r = db.prepare('SELECT * FROM rendiciones WHERE id = ?').get(id);
   if (!r) throw new Error('Rendición no encontrada');
   if (r.estado !== 'generada') throw new Error('Solo se puede marcar como pagada una rendición en estado generada');
-  db.prepare(`UPDATE rendiciones SET estado = 'pagada', pagado_en = datetime('now') WHERE id = ?`).run(id);
+  db.prepare(`UPDATE rendiciones SET estado = 'pagada', pagado_en = datetime('now','localtime') WHERE id = ?`).run(id);
   return obtener(id);
 }
 

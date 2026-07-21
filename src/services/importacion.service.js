@@ -80,7 +80,7 @@ function importarProductos(filas) {
       precio_efectivo = excluded.precio_efectivo,
       iva = excluded.iva,
       stock_minimo = excluded.stock_minimo,
-      actualizado_en = datetime('now')
+      actualizado_en = datetime('now','localtime')
   `);
 
   let creados = 0;

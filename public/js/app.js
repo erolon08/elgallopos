@@ -841,6 +841,11 @@ async function cargarCaja() {
   document.getElementById('cajaTerminalLabel').textContent = session.rol;
   const res = await fetch(`/api/caja/turno-activo?terminal=${session.rol}`);
   cajaTurnoActual = await res.json();
+  if (!cajaTurnoActual) {
+    const sugRes = await fetch(`/api/caja/fondo-sugerido?terminal=${session.rol}`);
+    const { fondo_sugerido } = await sugRes.json();
+    document.getElementById('cajaFondoInicial').value = fondo_sugerido;
+  }
   renderCaja();
   cargarHistorialCaja();
 }
@@ -882,6 +887,20 @@ function renderCaja() {
         </tr>
       `).join('')
     : '<tr><td colspan="6" class="small">Sin movimientos todavía.</td></tr>';
+
+  const fondoSiguienteInput = document.getElementById('cajaFondoSiguiente');
+  if (!fondoSiguienteInput.value) fondoSiguienteInput.value = cajaTurnoActual.fondo_inicial;
+  actualizarCajaFuerteCierre();
+}
+
+function actualizarCajaFuerteCierre() {
+  const contado = Number(document.getElementById('cajaEfectivoContado').value) || 0;
+  const fondoSiguiente = Number(document.getElementById('cajaFondoSiguiente').value) || 0;
+  const aCajaFuerte = contado - fondoSiguiente;
+  const el = document.getElementById('cajaFuerteCierrePreview');
+  el.textContent = aCajaFuerte < 0
+    ? 'El fondo para el próximo turno no puede ser mayor al efectivo contado.'
+    : `A caja fuerte: ${moneyStr(aCajaFuerte)}`;
 }
 
 async function abrirTurnoCaja() {
@@ -930,11 +949,12 @@ async function confirmarMovimientoCaja() {
 
 async function cerrarTurnoCaja() {
   const efectivo_contado = document.getElementById('cajaEfectivoContado').value;
+  const fondo_turno_siguiente = document.getElementById('cajaFondoSiguiente').value;
   const observacion = document.getElementById('cajaObservacionCierre').value;
   const res = await fetch(`/api/caja/${cajaTurnoActual.id}/cerrar`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ efectivo_contado, observacion }),
+    body: JSON.stringify({ efectivo_contado, fondo_turno_siguiente, observacion }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -944,9 +964,10 @@ async function cerrarTurnoCaja() {
   const diferencia = data.diferencia;
   cajaTurnoActual = null;
   document.getElementById('cajaEfectivoContado').value = '';
+  document.getElementById('cajaFondoSiguiente').value = '';
   document.getElementById('cajaObservacionCierre').value = '';
-  renderCaja();
-  cargarHistorialCaja();
+  document.getElementById('cajaFuerteCierrePreview').textContent = '';
+  await cargarCaja();
   alert(`Turno cerrado. Diferencia: ${moneyStr(diferencia)}${Math.abs(diferencia) < 1 ? ' (caja exacta)' : diferencia < 0 ? ' (falta)' : ' (sobra)'}`);
 }
 
@@ -966,10 +987,11 @@ async function cargarHistorialCaja() {
           <td>${t.efectivo_esperado != null ? moneyStr(t.efectivo_esperado) : '—'}</td>
           <td>${t.efectivo_contado != null ? moneyStr(t.efectivo_contado) : '—'}</td>
           <td>${t.diferencia != null ? moneyStr(t.diferencia) : '—'}</td>
+          <td>${t.fondo_turno_siguiente != null ? moneyStr(t.fondo_turno_siguiente) : '—'}</td>
           <td>${t.estado === 'abierto' ? '<span class="badge green">Abierto</span>' : '<span class="badge">Cerrado</span>'}</td>
         </tr>
       `).join('')
-    : '<tr><td colspan="9" class="small">Sin turnos registrados.</td></tr>';
+    : '<tr><td colspan="10" class="small">Sin turnos registrados.</td></tr>';
 }
 
 document.addEventListener('keydown', (e) => {

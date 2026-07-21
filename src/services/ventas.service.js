@@ -174,7 +174,7 @@ const cobrar = db.transaction((id, datos) => {
   const formaPagoResumen = datos.pagos.length > 1 ? 'Pago combinado' : datos.pagos[0].forma_pago;
 
   db.prepare(
-    `UPDATE ventas SET estado = 'cobrada', forma_pago = ?, tipo_comprobante = ?, caja_turno_id = ?, cobrado_en = datetime('now') WHERE id = ?`
+    `UPDATE ventas SET estado = 'cobrada', forma_pago = ?, tipo_comprobante = ?, caja_turno_id = ?, cobrado_en = datetime('now','localtime') WHERE id = ?`
   ).run(formaPagoResumen, datos.tipo_comprobante || venta.tipo_comprobante, turno.id, id);
 
   return obtener(id);

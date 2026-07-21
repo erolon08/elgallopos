@@ -11,6 +11,12 @@ router.get('/turno-activo', (req, res) => {
   res.json(turno ? cajaService.obtener(turno.id) : null);
 });
 
+router.get('/fondo-sugerido', (req, res) => {
+  const { terminal } = req.query;
+  if (!terminal) return res.status(400).json({ error: 'Falta terminal' });
+  res.json({ fondo_sugerido: cajaService.fondoSugerido(terminal) });
+});
+
 router.get('/', (req, res) => {
   const { terminal, estado } = req.query;
   res.json(cajaService.listar({ terminal, estado }));

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   password_hash TEXT NOT NULL,
   rol TEXT NOT NULL CHECK (rol IN ('ADMIN','CAJA','VENTA')),
   activo INTEGER NOT NULL DEFAULT 1,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- ============================================================
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS familias (
   usa_precio_rendicion INTEGER NOT NULL DEFAULT 0, -- ej: DUPLICADOS
   usa_mano_obra INTEGER NOT NULL DEFAULT 0,        -- ej: SERVICIOS
   activo INTEGER NOT NULL DEFAULT 1,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- ============================================================
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS proveedores (
   nombre TEXT NOT NULL UNIQUE,
   telefono TEXT,
   activo INTEGER NOT NULL DEFAULT 1,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- ============================================================
@@ -68,8 +68,8 @@ CREATE TABLE IF NOT EXISTS productos (
   stock_minimo REAL NOT NULL DEFAULT 0,
   favorito INTEGER NOT NULL DEFAULT 0,  -- aparece en la botonera rápida de Venta
   activo INTEGER NOT NULL DEFAULT 1,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now')),
-  actualizado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_productos_familia ON productos(familia_id);
 CREATE INDEX IF NOT EXISTS idx_productos_descripcion ON productos(descripcion);
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS stock_movimientos (
   referencia_id INTEGER,
   usuario_id INTEGER REFERENCES usuarios(id),
   terminal TEXT,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_stockmov_producto ON stock_movimientos(producto_id, creado_en);
 
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS compras (
   estado TEXT NOT NULL DEFAULT 'recibida' CHECK (estado IN ('recibida','anulada')),
   total REAL NOT NULL DEFAULT 0,
   usuario_id INTEGER REFERENCES usuarios(id),
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS compra_items (
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS clientes (
   venta_a_credito INTEGER NOT NULL DEFAULT 0,
   limite_credito REAL NOT NULL DEFAULT 0,
   activo INTEGER NOT NULL DEFAULT 1,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_clientes_nombre ON clientes(nombre);
 CREATE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS vehiculos (
   cliente_id INTEGER NOT NULL REFERENCES clientes(id),
   marca_modelo TEXT,
   patente TEXT UNIQUE,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_vehiculos_patente ON vehiculos(patente);
 CREATE INDEX IF NOT EXISTS idx_vehiculos_cliente ON vehiculos(cliente_id);
@@ -170,23 +170,28 @@ CREATE TABLE IF NOT EXISTS cerrajeros (
   aporte_fijo REAL NOT NULL DEFAULT 0,
   descuento_tarjeta_credito REAL NOT NULL DEFAULT 0,
   activo INTEGER NOT NULL DEFAULT 1,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- ============================================================
 -- CAJA — TURNOS Y MOVIMIENTOS
 -- ============================================================
+-- fondo_turno_siguiente: al cerrar, cuánto efectivo se deja en la caja como
+-- saldo inicial del próximo turno (se sugiere como fondo_inicial al abrir el
+-- siguiente). El resto del efectivo contado se envía a caja fuerte, lo que
+-- genera un egreso en caja_movimientos por esa diferencia (ver cerrarTurno).
 CREATE TABLE IF NOT EXISTS caja_turnos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   numero TEXT NOT NULL,
   terminal TEXT NOT NULL,
   usuario_id INTEGER REFERENCES usuarios(id),
   fondo_inicial REAL NOT NULL DEFAULT 0,
+  fondo_turno_siguiente REAL,
   efectivo_esperado REAL,
   efectivo_contado REAL,
   diferencia REAL,
   observacion TEXT,
-  abierto_en TEXT NOT NULL DEFAULT (datetime('now')),
+  abierto_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   cerrado_en TEXT,
   estado TEXT NOT NULL DEFAULT 'abierto' CHECK (estado IN ('abierto','cerrado'))
 );
@@ -203,7 +208,7 @@ CREATE TABLE IF NOT EXISTS caja_movimientos (
   referencia_tipo TEXT,           -- 'venta' | 'rendicion' | null
   referencia_id INTEGER,
   usuario_id INTEGER REFERENCES usuarios(id),
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_cajamov_turno ON caja_movimientos(caja_turno_id);
 
@@ -229,7 +234,7 @@ CREATE TABLE IF NOT EXISTS ventas (
   cae TEXT,
   cae_vencimiento TEXT,
   enviado_whatsapp INTEGER NOT NULL DEFAULT 0,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   cobrado_en TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_ventas_estado ON ventas(estado);
@@ -249,7 +254,7 @@ CREATE TABLE IF NOT EXISTS venta_items (
   descuento REAL NOT NULL DEFAULT 0,
   monto_mano_obra REAL,
   cerrajero_id INTEGER REFERENCES cerrajeros(id),
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_ventaitems_venta ON venta_items(venta_id);
 CREATE INDEX IF NOT EXISTS idx_ventaitems_cerrajero ON venta_items(cerrajero_id);
@@ -264,7 +269,7 @@ CREATE TABLE IF NOT EXISTS venta_pagos (
   forma_pago TEXT NOT NULL CHECK (forma_pago IN ('Efectivo','Débito','Crédito','Transferencia','QR','Cuenta Corriente')),
   marca TEXT,
   monto REAL NOT NULL,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_ventapagos_venta ON venta_pagos(venta_id);
 
@@ -283,7 +288,7 @@ CREATE TABLE IF NOT EXISTS rendiciones (
   total_pagar REAL NOT NULL DEFAULT 0,
   caja_movimiento_id INTEGER REFERENCES caja_movimientos(id),
   estado TEXT NOT NULL DEFAULT 'generada' CHECK (estado IN ('generada','pagada')),
-  creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   pagado_en TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_rendiciones_cerrajero ON rendiciones(cerrajero_id);
@@ -304,7 +309,7 @@ CREATE TABLE IF NOT EXISTS rendicion_detalle (
   monto_base REAL NOT NULL,
   porcentaje REAL NOT NULL,
   monto_rendido REAL NOT NULL,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- tipo: 'aporte' (recurrente, precargado desde cerrajeros.aporte_fijo) |
@@ -329,7 +334,7 @@ CREATE TABLE IF NOT EXISTS presupuestos (
   total REAL NOT NULL DEFAULT 0,
   venta_id INTEGER REFERENCES ventas(id),
   usuario_id INTEGER REFERENCES usuarios(id),
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS presupuesto_items (
@@ -354,7 +359,7 @@ CREATE TABLE IF NOT EXISTS agenda_trabajos (
   direccion TEXT,
   fecha_hora TEXT NOT NULL,
   estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','asignado','realizado','cancelado')),
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS notificaciones (
@@ -363,5 +368,5 @@ CREATE TABLE IF NOT EXISTS notificaciones (
   titulo TEXT NOT NULL,
   mensaje TEXT NOT NULL,
   leida INTEGER NOT NULL DEFAULT 0,
-  creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

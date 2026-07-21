@@ -74,17 +74,38 @@ function agregarMovimiento(turno_id, { tipo, categoria, concepto, monto, forma_p
   return obtener(turno_id);
 }
 
-function cerrarTurno(id, { efectivo_contado, observacion } = {}) {
+// Al cerrar: el efectivo contado se reparte entre lo que se deja como fondo
+// del próximo turno (fondo_turno_siguiente) y lo que se manda a caja fuerte
+// (el resto), que queda registrado como un egreso más de este turno.
+const cerrarTurno = db.transaction((id, { efectivo_contado, fondo_turno_siguiente, observacion } = {}) => {
   const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(id);
   if (!turno) throw new Error('Turno no encontrado');
   if (turno.estado !== 'abierto') throw new Error('El turno ya está cerrado');
   const movimientos = db.prepare('SELECT * FROM caja_movimientos WHERE caja_turno_id = ?').all(id);
   const { efectivoEsperado } = resumenDe(turno, movimientos);
   const contado = Number(efectivo_contado) || 0;
+  const fondoSiguiente = Number(fondo_turno_siguiente) || 0;
+  if (fondoSiguiente > contado) throw new Error('El fondo para el próximo turno no puede ser mayor al efectivo contado');
+  const montoCajaFuerte = contado - fondoSiguiente;
+
+  if (montoCajaFuerte > 0) {
+    db.prepare(
+      `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id)
+       VALUES (?, 'egreso', 'caja_fuerte', 'Envío a caja fuerte (cierre de turno)', ?, 'Efectivo', 'caja_turno', ?)`
+    ).run(id, montoCajaFuerte, id);
+  }
+
   db.prepare(
-    `UPDATE caja_turnos SET estado = 'cerrado', efectivo_esperado = ?, efectivo_contado = ?, diferencia = ?, observacion = ?, cerrado_en = datetime('now') WHERE id = ?`
-  ).run(efectivoEsperado, contado, contado - efectivoEsperado, observacion || null, id);
+    `UPDATE caja_turnos SET estado = 'cerrado', efectivo_esperado = ?, efectivo_contado = ?, diferencia = ?, fondo_turno_siguiente = ?, observacion = ?, cerrado_en = datetime('now','localtime') WHERE id = ?`
+  ).run(efectivoEsperado, contado, contado - efectivoEsperado, fondoSiguiente, observacion || null, id);
   return obtener(id);
+});
+
+function fondoSugerido(terminal) {
+  const ultimo = db
+    .prepare("SELECT fondo_turno_siguiente FROM caja_turnos WHERE terminal = ? AND estado = 'cerrado' ORDER BY cerrado_en DESC LIMIT 1")
+    .get(terminal);
+  return ultimo && ultimo.fondo_turno_siguiente != null ? ultimo.fondo_turno_siguiente : 0;
 }
 
-module.exports = { turnoAbiertoDe, turnoAbiertoOCrear, abrirTurno, obtener, listar, agregarMovimiento, cerrarTurno };
+module.exports = { turnoAbiertoDe, turnoAbiertoOCrear, abrirTurno, obtener, listar, agregarMovimiento, cerrarTurno, fondoSugerido };

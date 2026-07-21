@@ -143,7 +143,7 @@ function actualizar(id, datos) {
        costo = @costo, precio_final = @precio_final, precio_debito = @precio_debito, precio_efectivo = @precio_efectivo,
        precio_rendicion = @precio_rendicion, recargos_mano_obra = @recargos_mano_obra,
        usar_regla_automatica = @usar_regla_automatica, iva = @iva,
-       stock_minimo = @stock_minimo, favorito = @favorito, actualizado_en = datetime('now')
+       stock_minimo = @stock_minimo, favorito = @favorito, actualizado_en = datetime('now','localtime')
      WHERE id = @id`
   ).run({
     id,
