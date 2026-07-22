@@ -2,7 +2,7 @@ const titles = {
   dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', clientes: 'Clientes',
   venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
-  caja: 'Caja y turnos',
+  caja: 'Caja y turnos', ranking: 'Ranking',
 };
 
 // ============================================================
@@ -35,6 +35,7 @@ function showScreen(id) {
   document.getElementById('screenTitle').textContent = titles[id] || id;
   document.querySelector('.main').classList.toggle('venta-compacta', id === 'venta');
   if (id === 'dashboard') cargarDashboard();
+  if (id === 'ranking') cargarRanking();
   if (id === 'productos') cargarProductos();
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
@@ -1315,6 +1316,48 @@ async function guardarGastoManualDashboard() {
   document.getElementById('gmDetalle').value = '';
   document.getElementById('gmMonto').value = 0;
   cargarDashboard();
+}
+
+// ============================================================
+// RANKING (productos, clientes, cerrajeros)
+// ============================================================
+function mostrarTabRanking(tab) {
+  document.querySelectorAll('#rkTabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('rkPanelProductos').style.display = tab === 'productos' ? 'block' : 'none';
+  document.getElementById('rkPanelClientes').style.display = tab === 'clientes' ? 'block' : 'none';
+  document.getElementById('rkPanelCerrajeros').style.display = tab === 'cerrajeros' ? 'block' : 'none';
+}
+
+const MEDALLAS_RANKING = ['🥇', '🥈', '🥉'];
+function posicionRanking(i) {
+  return MEDALLAS_RANKING[i] || `#${i + 1}`;
+}
+
+async function cargarRanking() {
+  const params = new URLSearchParams();
+  const anio = document.getElementById('rkAnio').value;
+  const mes = document.getElementById('rkMes').value;
+  if (anio) params.set('anio', anio);
+  if (mes) params.set('mes', mes);
+  const r = await (await fetch('/api/reportes/ranking?' + params.toString())).json();
+
+  const selAnio = document.getElementById('rkAnio');
+  if (!selAnio.options.length) {
+    selAnio.innerHTML = r.aniosDisponibles.map((a) => `<option value="${a}">${a}</option>`).join('');
+    if (anio) selAnio.value = anio;
+  }
+
+  document.getElementById('rkProductosBody').innerHTML = r.productos.length
+    ? r.productos.map((p, i) => `<tr><td>${posicionRanking(i)}</td><td>${p.nombre}</td><td>${p.cantidad}</td><td>${moneyDash(p.importe)}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="small">Sin ventas en el período.</td></tr>';
+
+  document.getElementById('rkClientesBody').innerHTML = r.clientes.length
+    ? r.clientes.map((c, i) => `<tr><td>${posicionRanking(i)}</td><td>${c.nombre}</td><td>${c.cantidad}</td><td>${moneyDash(c.importe)}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="small">Sin compras con cliente asignado en el período.</td></tr>';
+
+  document.getElementById('rkCerrajerosBody').innerHTML = r.cerrajeros.length
+    ? r.cerrajeros.map((c, i) => `<tr><td>${posicionRanking(i)}</td><td>${c.nombre}</td><td>${c.cantidad}</td><td>${moneyDash(c.importe)}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="small">Sin servicios con cerrajero asignado en el período.</td></tr>';
 }
 
 document.addEventListener('keydown', (e) => {

@@ -135,6 +135,70 @@ function tiposEgresoDisponibles() {
     .map((r) => r.etiqueta);
 }
 
+// Productos/servicios más vendidos por cantidad, con su importe facturado
+// (agrupados por descripción: así se juntan también las líneas cargadas a mano).
+function rankingProductos({ anio, mes, limit }) {
+  const { sql, params } = condicionFecha('v.cobrado_en', { anio, mes });
+  return db
+    .prepare(
+      `SELECT vi.descripcion AS nombre,
+              SUM(vi.cantidad) AS cantidad,
+              SUM(vi.cantidad * vi.precio_unitario - vi.descuento) AS importe
+       FROM venta_items vi JOIN ventas v ON v.id = vi.venta_id
+       WHERE v.estado = 'cobrada' ${sql}
+       GROUP BY vi.descripcion
+       ORDER BY importe DESC
+       LIMIT @limit`
+    )
+    .all({ ...params, limit });
+}
+
+// Clientes que más compraron en el período (por importe total y cantidad de ventas).
+function rankingClientes({ anio, mes, limit }) {
+  const { sql, params } = condicionFecha('v.cobrado_en', { anio, mes });
+  return db
+    .prepare(
+      `SELECT c.id AS cliente_id, c.nombre AS nombre,
+              COUNT(*) AS cantidad,
+              SUM(v.total) AS importe
+       FROM ventas v JOIN clientes c ON c.id = v.cliente_id
+       WHERE v.estado = 'cobrada' ${sql}
+       GROUP BY v.cliente_id
+       ORDER BY importe DESC
+       LIMIT @limit`
+    )
+    .all({ ...params, limit });
+}
+
+// Cerrajeros que más mano de obra generaron en el período (base de sus rendiciones).
+function rankingCerrajeros({ anio, mes, limit }) {
+  const { sql, params } = condicionFecha('v.cobrado_en', { anio, mes });
+  return db
+    .prepare(
+      `SELECT cj.id AS cerrajero_id, cj.nombre AS nombre,
+              COUNT(*) AS cantidad,
+              SUM(vi.monto_mano_obra) AS importe
+       FROM venta_items vi
+       JOIN ventas v ON v.id = vi.venta_id
+       JOIN cerrajeros cj ON cj.id = vi.cerrajero_id
+       WHERE v.estado = 'cobrada' AND vi.cerrajero_id IS NOT NULL ${sql}
+       GROUP BY vi.cerrajero_id
+       ORDER BY importe DESC
+       LIMIT @limit`
+    )
+    .all({ ...params, limit });
+}
+
+function ranking({ anio, mes, limit }) {
+  const lim = Number(limit) || 15;
+  return {
+    productos: rankingProductos({ anio, mes, limit: lim }),
+    clientes: rankingClientes({ anio, mes, limit: lim }),
+    cerrajeros: rankingCerrajeros({ anio, mes, limit: lim }),
+    aniosDisponibles: aniosDisponibles(),
+  };
+}
+
 function dashboard({ anio, mes, tipo_egreso, forma_pago }) {
   const anioUsado = anio || String(new Date().getFullYear());
   const fFacturacion = facturacion({ anio: anioUsado, mes });
@@ -158,4 +222,4 @@ function dashboard({ anio, mes, tipo_egreso, forma_pago }) {
   };
 }
 
-module.exports = { dashboard };
+module.exports = { dashboard, ranking };

@@ -9,6 +9,11 @@ router.get('/dashboard', (req, res) => {
   res.json(reportesService.dashboard({ anio, mes, tipo_egreso, forma_pago }));
 });
 
+router.get('/ranking', (req, res) => {
+  const { anio, mes, limit } = req.query;
+  res.json(reportesService.ranking({ anio, mes, limit }));
+});
+
 router.post('/gasto-manual', (req, res) => {
   try {
     const turno = cajaService.agregarGastoRapido(req.body);
