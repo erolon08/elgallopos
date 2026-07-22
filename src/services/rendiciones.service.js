@@ -286,7 +286,7 @@ const marcarPagada = db.transaction((id, { terminal, usuario_id } = {}) => {
         `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
          VALUES (?, 'egreso', 'rendicion', ?, ?, 'Efectivo', 'rendicion', ?, ?)`
       )
-      .run(turno.id, `Rendición ${r.cerrajero_nombre} (${formatPeriodoCorto(r.fecha_desde, r.fecha_hasta)})`, r.total_pagar, id, usuario_id || null);
+      .run(turno.id, `${r.cerrajero_nombre} (${formatPeriodoCorto(r.fecha_desde, r.fecha_hasta)})`, r.total_pagar, id, usuario_id || null);
     caja_movimiento_id = info.lastInsertRowid;
   }
 
