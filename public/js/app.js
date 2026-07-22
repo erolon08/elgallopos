@@ -2917,8 +2917,11 @@ function formatearTextoTicket(tipo, doc) {
   const fecha = new Date(doc.cobrado_en || doc.creado_en).toLocaleString('es-AR');
   const lineas = doc.items.map((it) => `${it.cantidad} x ${it.descripcion}${it.cerrajero_nombre ? ' (Cerrajero: ' + it.cerrajero_nombre + ')' : ''}  $${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}`);
   const pagos = esVenta ? doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`) : [];
-  return [
-    'CERRAJERÍA EL GALLO',
+  const cfg = configCache || {};
+  const lineasTexto = [
+    cfg.nombre_negocio || 'CERRAJERÍA EL GALLO',
+    ...(cfg.subtitulo ? [cfg.subtitulo] : []),
+    ...(cfg.ticket_encabezado ? [cfg.ticket_encabezado] : []),
     esVenta ? `Fecha: ${fecha}` : `Presupuesto — válido ${doc.vigencia_dias} días desde ${fecha}`,
     esVenta ? `N°: ${doc.numero}  ·  ${doc.tipo_comprobante}` : `N°: ${doc.numero}`,
     `Cliente: ${doc.cliente ? doc.cliente.nombre : 'Consumidor Final'}`,
@@ -2928,7 +2931,9 @@ function formatearTextoTicket(tipo, doc) {
     `TOTAL: $${money.format(doc.total)}`,
     ...pagos,
     esVenta ? '¡Gracias por su compra!' : 'Presupuesto sujeto a modificaciones.',
-  ].join('\n');
+    ...(cfg.ticket_pie ? [cfg.ticket_pie] : []),
+  ];
+  return lineasTexto.join('\n');
 }
 
 async function mostrarTicket(venta) {
