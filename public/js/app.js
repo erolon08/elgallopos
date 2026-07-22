@@ -1083,7 +1083,8 @@ function construirTicketCierreHtml(t) {
   `;
 }
 
-function mostrarTicketCierre(t) {
+async function mostrarTicketCierre(t) {
+  await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
   document.querySelector('#ticket-screen .btn.green').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
@@ -2100,6 +2101,7 @@ function editarRendicionDesdeTicket() {
 }
 
 async function mostrarTicketRendicion(id) {
+  await cargarConfiguracionGlobal();
   const r = await (await fetch(`/api/rendiciones/${id}`)).json();
   ultimoDocumentoParaTicket = { tipo: 'rendicion', data: r };
   document.querySelector('#ticket-screen .btn.green').style.display = 'none';
@@ -2929,7 +2931,8 @@ function formatearTextoTicket(tipo, doc) {
   ].join('\n');
 }
 
-function mostrarTicket(venta) {
+async function mostrarTicket(venta) {
+  await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
   document.querySelector('#ticket-screen .btn.green').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
@@ -2951,7 +2954,8 @@ function mostrarTicket(venta) {
   showScreen('ticket-screen');
 }
 
-function mostrarTicketPresupuesto(presupuesto) {
+async function mostrarTicketPresupuesto(presupuesto) {
+  await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'presupuesto', data: presupuesto };
   document.querySelector('#ticket-screen .btn.green').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
