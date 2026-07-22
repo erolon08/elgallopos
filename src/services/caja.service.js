@@ -61,17 +61,41 @@ function listar({ terminal, estado } = {}) {
   return db.prepare(sql).all(params);
 }
 
-function agregarMovimiento(turno_id, { tipo, categoria, concepto, monto, forma_pago, usuario_id }) {
+function agregarMovimiento(turno_id, { tipo, categoria, concepto, monto, forma_pago, usuario_id, tipo_egreso, fecha }) {
   const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(turno_id);
   if (!turno) throw new Error('Turno no encontrado');
   if (turno.estado !== 'abierto') throw new Error('El turno ya está cerrado');
   if (!['ingreso', 'egreso'].includes(tipo)) throw new Error('Tipo de movimiento inválido');
   if (!(Number(monto) > 0)) throw new Error('El monto debe ser mayor a 0');
-  db.prepare(
-    `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, usuario_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(turno_id, tipo, categoria || 'otro', concepto || null, Number(monto), forma_pago || 'Efectivo', usuario_id || null);
+  if (fecha) {
+    db.prepare(
+      `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, tipo_egreso, concepto, monto, forma_pago, usuario_id, creado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(turno_id, tipo, categoria || 'otro', tipo_egreso || null, concepto || null, Number(monto), forma_pago || 'Efectivo', usuario_id || null, `${fecha} 12:00:00`);
+  } else {
+    db.prepare(
+      `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, tipo_egreso, concepto, monto, forma_pago, usuario_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(turno_id, tipo, categoria || 'otro', tipo_egreso || null, concepto || null, Number(monto), forma_pago || 'Efectivo', usuario_id || null);
+  }
   return obtener(turno_id);
+}
+
+// Alta rápida de un gasto desde el Dashboard, sin pasar por la pantalla de
+// Caja: usa (o abre) el turno de la terminal y guarda un egreso categoría
+// 'gasto', con la subcategoría libre "tipo_egreso" para los reportes.
+function agregarGastoRapido({ terminal, usuario_id, fecha, tipo_egreso, detalle, monto, forma_pago }) {
+  const turno = turnoAbiertoOCrear(terminal || 'ADMIN');
+  return agregarMovimiento(turno.id, {
+    tipo: 'egreso',
+    categoria: 'gasto',
+    tipo_egreso: tipo_egreso || null,
+    concepto: detalle || null,
+    monto,
+    forma_pago: forma_pago || 'Efectivo',
+    usuario_id,
+    fecha,
+  });
 }
 
 // Solo se pueden editar/quitar movimientos cargados a mano (retiro, gasto,
@@ -88,13 +112,13 @@ function requerirMovimientoEditable(turno_id, movimiento_id) {
   return mov;
 }
 
-function editarMovimiento(turno_id, movimiento_id, { tipo, categoria, concepto, monto, forma_pago }) {
+function editarMovimiento(turno_id, movimiento_id, { tipo, categoria, concepto, monto, forma_pago, tipo_egreso }) {
   requerirMovimientoEditable(turno_id, movimiento_id);
   if (!['ingreso', 'egreso'].includes(tipo)) throw new Error('Tipo de movimiento inválido');
   if (!(Number(monto) > 0)) throw new Error('El monto debe ser mayor a 0');
   db.prepare(
-    `UPDATE caja_movimientos SET tipo = ?, categoria = ?, concepto = ?, monto = ?, forma_pago = ? WHERE id = ?`
-  ).run(tipo, categoria || 'otro', concepto || null, Number(monto), forma_pago || 'Efectivo', movimiento_id);
+    `UPDATE caja_movimientos SET tipo = ?, categoria = ?, tipo_egreso = ?, concepto = ?, monto = ?, forma_pago = ? WHERE id = ?`
+  ).run(tipo, categoria || 'otro', tipo_egreso || null, concepto || null, Number(monto), forma_pago || 'Efectivo', movimiento_id);
   return obtener(turno_id);
 }
 
@@ -166,6 +190,7 @@ module.exports = {
   obtener,
   listar,
   agregarMovimiento,
+  agregarGastoRapido,
   editarMovimiento,
   quitarMovimiento,
   cerrarTurno,

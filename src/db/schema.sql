@@ -200,7 +200,9 @@ CREATE TABLE IF NOT EXISTS caja_movimientos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   caja_turno_id INTEGER NOT NULL REFERENCES caja_turnos(id),
   tipo TEXT NOT NULL CHECK (tipo IN ('ingreso','egreso')),
-  categoria TEXT NOT NULL,        -- 'venta' | 'empleados' | 'gasto' | 'retiro' | 'otro'
+  categoria TEXT NOT NULL,        -- 'venta' | 'empleados' | 'gasto' | 'retiro' | 'otro' | 'rendicion' | 'caja_fuerte'
+  tipo_egreso TEXT,                -- subcategoría libre para reportes (ej. "Combustible", o el nombre
+                                   -- del cerrajero cuando categoria='rendicion'); no confundir con "tipo"
   concepto TEXT,
   monto REAL NOT NULL,
   forma_pago TEXT,                -- 'Efectivo' | 'Débito' | 'Crédito' | 'Transferencia' | 'QR' | 'Cuenta Corriente'

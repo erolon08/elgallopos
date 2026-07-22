@@ -77,9 +77,84 @@
     <div class="content">
 
       <section class="screen active" id="dashboard">
-        <div class="card">
-          <div class="section-title"><h3>EL GALLO POS</h3></div>
-          <p>Sistema en construcción. Los módulos <b>Productos</b>, <b>Familias</b>, <b>Stock</b> y <b>Clientes</b> ya están funcionales — accedé desde el menú lateral.</p>
+        <div class="toolbar" style="margin-bottom:14px">
+          <div class="field"><label>Año</label><select id="dashAnio" onchange="cargarDashboard()"></select></div>
+          <div class="field"><label>Mes</label>
+            <select id="dashMes" onchange="cargarDashboard()">
+              <option value="">Todos los meses</option>
+              <option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option>
+              <option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option>
+              <option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option>
+              <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+            </select>
+          </div>
+          <div class="field"><label>Tipo de egreso</label><select id="dashTipoEgreso" onchange="cargarDashboard()"><option value="">Todos los egresos</option></select></div>
+          <div class="field"><label>Forma de pago</label>
+            <select id="dashFormaPago" onchange="cargarDashboard()">
+              <option value="">Todas las formas de pago</option>
+              <option value="Efectivo">Efectivo</option>
+              <option value="Débito">Débito</option>
+              <option value="Crédito">Crédito</option>
+              <option value="Transferencia">Transferencia</option>
+              <option value="QR">QR</option>
+              <option value="Cuenta Corriente">Cuenta Corriente</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid dash-kpis" style="margin-bottom:14px">
+          <div class="card kpi kpi-green"><div class="label">Facturación</div><div class="value" id="dkFacturacion">—</div><div class="hint">Solo ventas, sin cobranzas</div></div>
+          <div class="card kpi kpi-amber"><div class="label">Cuenta Corriente</div><div class="value" id="dkCuentaCorriente">—</div><div class="hint">Ventas a cuenta / saldo pendiente</div></div>
+          <div class="card kpi kpi-red"><div class="label">Gastos</div><div class="value" id="dkGastos">—</div><div class="hint">Egresos filtrados</div></div>
+          <div class="card kpi kpi-blue"><div class="label">Caja Fuerte</div><div class="value" id="dkCajaFuerte">—</div><div class="hint">Lo que queda guardado</div></div>
+          <div class="card kpi kpi-violet"><div class="label">Pago Electrónico</div><div class="value" id="dkPagoElectronico">—</div><div class="hint">Transferencias · tarjetas · QR</div></div>
+          <div class="card kpi"><div class="label">Diferencia</div><div class="value" id="dkDiferencia">—</div><div class="hint" id="dkDiferenciaHint">Cierre correcto</div></div>
+        </div>
+
+        <div class="grid g2" style="margin-bottom:14px">
+          <div class="card">
+            <div class="section-title"><h3>Control de cierre</h3></div>
+            <div class="cierre-linea"><span>Facturación</span><b id="ccFacturacion">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Cuenta Corriente</span><b id="ccCuentaCorriente">$ 0</b></div>
+            <div class="cierre-linea cierre-total"><span>Saldo cobrado</span><b id="ccSaldoCobrado">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Gastos</span><b id="ccGastos">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Caja Fuerte</span><b id="ccCajaFuerte">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Pago Electrónico</span><b id="ccPagoElectronico">$ 0</b></div>
+            <div class="cierre-linea cierre-total"><span>Diferencia</span><b id="ccDiferencia">$ 0</b></div>
+          </div>
+          <div class="card">
+            <div class="section-title"><h3>Lectura rápida</h3></div>
+            <div class="lectura-badge ok" id="lecturaBadge">✅ Cierre correcto: la diferencia da $0</div>
+            <p class="small" style="margin-top:10px">La diferencia usa esta lógica: Facturación − Cuenta Corriente − Gastos − Caja Fuerte − Pago Electrónico. Todo lo que sea Cuenta Corriente queda excluido.</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>+ Cargar gasto manual</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Fecha</label><input id="gmFecha" type="date"></div>
+            <div class="field"><label>Tipo de gasto</label><input id="gmTipo" placeholder="Ej: Combustible"></div>
+            <div class="field" style="flex:2"><label>Detalle</label><input id="gmDetalle" placeholder="Descripción del gasto"></div>
+            <div class="field"><label>Monto</label><input id="gmMonto" type="number" step="any" value="0"></div>
+            <div class="field"><label>Forma de pago</label>
+              <select id="gmFormaPago">
+                <option>Efectivo</option><option>Débito</option><option>Crédito</option><option>Transferencia</option><option>QR</option>
+              </select>
+            </div>
+            <button class="btn primary" onclick="guardarGastoManualDashboard()">Guardar gasto</button>
+          </div>
+          <div class="notice" style="margin-top:10px">Estos gastos quedan guardados en la caja de esta terminal (se abre un turno si hace falta) y se suman al Dashboard.</div>
+        </div>
+
+        <div class="grid g2">
+          <div class="card">
+            <div class="section-title"><h3>Facturación, Gastos, Caja Fuerte y Pago Electrónico</h3></div>
+            <div id="dashChartMensual"></div>
+          </div>
+          <div class="card">
+            <div class="section-title"><h3>Gastos por tipo de egreso</h3></div>
+            <div id="dashChartTipos"></div>
+          </div>
         </div>
       </section>
 

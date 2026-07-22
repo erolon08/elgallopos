@@ -34,6 +34,7 @@ function showScreen(id) {
   );
   document.getElementById('screenTitle').textContent = titles[id] || id;
   document.querySelector('.main').classList.toggle('venta-compacta', id === 'venta');
+  if (id === 'dashboard') cargarDashboard();
   if (id === 'productos') cargarProductos();
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
@@ -1155,6 +1156,165 @@ async function cargarHistorialCaja() {
         </tr>
       `).join('')
     : '<tr><td colspan="11" class="small">Sin turnos registrados.</td></tr>';
+}
+
+// ============================================================
+// DASHBOARD — panel financiero
+// ============================================================
+function fechaLocalHoy() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function moneyDash(v) {
+  return '$ ' + money.format(Math.round(v));
+}
+
+async function cargarDashboard() {
+  if (!document.getElementById('gmFecha').value) {
+    document.getElementById('gmFecha').value = fechaLocalHoy();
+  }
+  const params = new URLSearchParams();
+  const anio = document.getElementById('dashAnio').value;
+  const mes = document.getElementById('dashMes').value;
+  const tipoEgreso = document.getElementById('dashTipoEgreso').value;
+  const formaPago = document.getElementById('dashFormaPago').value;
+  if (anio) params.set('anio', anio);
+  if (mes) params.set('mes', mes);
+  if (tipoEgreso) params.set('tipo_egreso', tipoEgreso);
+  if (formaPago) params.set('forma_pago', formaPago);
+  const r = await (await fetch('/api/reportes/dashboard?' + params.toString())).json();
+
+  const selAnio = document.getElementById('dashAnio');
+  if (!selAnio.options.length) {
+    selAnio.innerHTML = r.aniosDisponibles.map((a) => `<option value="${a}">${a}</option>`).join('');
+    selAnio.value = r.anio;
+  }
+  const selTipo = document.getElementById('dashTipoEgreso');
+  const tipoPrevio = selTipo.value;
+  selTipo.innerHTML =
+    '<option value="">Todos los egresos</option>' +
+    r.tiposEgresoDisponibles.map((t) => `<option value="${t}" ${t === tipoPrevio ? 'selected' : ''}>${t}</option>`).join('');
+
+  renderDashboardKpis(r);
+  renderControlCierre(r);
+  renderLecturaRapida(r);
+  renderChartMensual(r.serieMensual);
+  renderChartTipos(r.gastosPorTipo);
+}
+
+function renderDashboardKpis(r) {
+  document.getElementById('dkFacturacion').textContent = moneyDash(r.facturacion);
+  document.getElementById('dkCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
+  document.getElementById('dkGastos').textContent = moneyDash(r.gastos);
+  document.getElementById('dkCajaFuerte').textContent = moneyDash(r.cajaFuerte);
+  document.getElementById('dkPagoElectronico').textContent = moneyDash(r.pagoElectronico);
+  const dif = document.getElementById('dkDiferencia');
+  dif.textContent = moneyDash(r.diferencia);
+  dif.style.color = Math.abs(r.diferencia) < 1 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('dkDiferenciaHint').textContent = Math.abs(r.diferencia) < 1 ? 'Cierre correcto' : 'Revisar diferencia';
+}
+
+function renderControlCierre(r) {
+  const saldoCobrado = r.facturacion - r.cuentaCorriente;
+  document.getElementById('ccFacturacion').textContent = moneyDash(r.facturacion);
+  document.getElementById('ccCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
+  document.getElementById('ccSaldoCobrado').textContent = moneyDash(saldoCobrado);
+  document.getElementById('ccGastos').textContent = moneyDash(r.gastos);
+  document.getElementById('ccCajaFuerte').textContent = moneyDash(r.cajaFuerte);
+  document.getElementById('ccPagoElectronico').textContent = moneyDash(r.pagoElectronico);
+  const ccDif = document.getElementById('ccDiferencia');
+  ccDif.textContent = moneyDash(r.diferencia);
+  ccDif.style.color = Math.abs(r.diferencia) < 1 ? 'var(--green)' : 'var(--red)';
+}
+
+function renderLecturaRapida(r) {
+  const badge = document.getElementById('lecturaBadge');
+  if (Math.abs(r.diferencia) < 1) {
+    badge.className = 'lectura-badge ok';
+    badge.textContent = '✅ Cierre correcto: la diferencia da $0';
+  } else {
+    badge.className = 'lectura-badge warn';
+    badge.textContent = `⚠️ Revisar: la diferencia da ${moneyDash(r.diferencia)}`;
+  }
+}
+
+const MESES_LABEL_DASH = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+function renderChartMensual(serie) {
+  const cont = document.getElementById('dashChartMensual');
+  const max = Math.max(1, ...serie.flatMap((m) => [m.facturacion, m.gastos, m.cajaFuerte, m.pagoElectronico]));
+  const leyenda = `
+    <div class="chart-legend">
+      <span><i style="background:var(--green)"></i>Facturación</span>
+      <span><i style="background:var(--red)"></i>Gastos</span>
+      <span><i style="background:var(--blue)"></i>Caja Fuerte</span>
+      <span><i style="background:#7c3aed"></i>Electrónico</span>
+    </div>`;
+  const barras = serie
+    .map(
+      (m, i) => `
+    <div class="chart-mensual-mes" title="${MESES_LABEL_DASH[i]}: Facturación ${moneyDash(m.facturacion)}, Gastos ${moneyDash(m.gastos)}, Caja fuerte ${moneyDash(m.cajaFuerte)}, Electrónico ${moneyDash(m.pagoElectronico)}">
+      <div class="chart-mensual-barras">
+        <div style="height:${(m.facturacion / max) * 100}%;background:var(--green)"></div>
+        <div style="height:${(m.gastos / max) * 100}%;background:var(--red)"></div>
+        <div style="height:${(m.cajaFuerte / max) * 100}%;background:var(--blue)"></div>
+        <div style="height:${(m.pagoElectronico / max) * 100}%;background:#7c3aed"></div>
+      </div>
+      <div class="chart-mensual-label">${MESES_LABEL_DASH[i]}</div>
+    </div>`
+    )
+    .join('');
+  cont.innerHTML = leyenda + `<div class="chart-mensual">${barras}</div>`;
+}
+
+function renderChartTipos(rows) {
+  const cont = document.getElementById('dashChartTipos');
+  if (!rows.length) {
+    cont.innerHTML = '<p class="small">Sin gastos en el período.</p>';
+    return;
+  }
+  const max = Math.max(...rows.map((r) => r.total));
+  cont.innerHTML = rows
+    .map(
+      (r) => `
+    <div class="chart-tipos-fila">
+      <div class="chart-tipos-label" title="${r.etiqueta}">${r.etiqueta}</div>
+      <div class="chart-tipos-barra-wrap"><div class="chart-tipos-barra" style="width:${(r.total / max) * 100}%"></div></div>
+      <div class="chart-tipos-monto">${moneyDash(r.total)}</div>
+    </div>`
+    )
+    .join('');
+}
+
+async function guardarGastoManualDashboard() {
+  const fecha = document.getElementById('gmFecha').value;
+  const tipo_egreso = document.getElementById('gmTipo').value.trim();
+  const detalle = document.getElementById('gmDetalle').value.trim();
+  const monto = Number(document.getElementById('gmMonto').value) || 0;
+  const forma_pago = document.getElementById('gmFormaPago').value;
+  if (!tipo_egreso) {
+    alert('Ingresá el tipo de gasto.');
+    return;
+  }
+  if (monto <= 0) {
+    alert('El monto debe ser mayor a 0.');
+    return;
+  }
+  const res = await fetch('/api/reportes/gasto-manual', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ terminal: session.rol, usuario_id: session.id, fecha, tipo_egreso, detalle, monto, forma_pago }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  document.getElementById('gmTipo').value = '';
+  document.getElementById('gmDetalle').value = '';
+  document.getElementById('gmMonto').value = 0;
+  cargarDashboard();
 }
 
 document.addEventListener('keydown', (e) => {
