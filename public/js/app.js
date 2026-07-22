@@ -1357,7 +1357,7 @@ socket.on('caja:actualizada', () => {
 let session = null;
 const PANTALLAS_POR_ROL = {
   ADMIN: null, // null = todas
-  CAJA: ['dashboard', 'venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'stock', 'caja'],
+  CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'stock', 'caja'],
   VENTA: ['venta', 'pendientes', 'clientes'],
 };
 
