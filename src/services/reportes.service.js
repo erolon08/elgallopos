@@ -199,6 +199,68 @@ function ranking({ anio, mes, limit }) {
   };
 }
 
+// Igual que condicionFecha, pero admite un rango de fechas libre (desde/hasta)
+// además de año/mes. Si viene desde u hasta, el rango libre tiene prioridad.
+function condicionRango(columna, { anio, mes, desde, hasta }) {
+  if (desde || hasta) {
+    const cond = [];
+    const params = {};
+    if (desde) {
+      cond.push(`date(${columna}) >= date(@desde)`);
+      params.desde = desde;
+    }
+    if (hasta) {
+      cond.push(`date(${columna}) <= date(@hasta)`);
+      params.hasta = hasta;
+    }
+    return { sql: cond.length ? 'AND ' + cond.join(' AND ') : '', params };
+  }
+  return condicionFecha(columna, { anio, mes });
+}
+
+// Cuánto se vendió de un producto puntual en el período, más su stock actual
+// (para decidir cuánto reponer).
+function consultaProducto({ producto_id, anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
+  params.producto_id = producto_id;
+  const totales = db
+    .prepare(
+      `SELECT COALESCE(SUM(vi.cantidad), 0) AS cantidad,
+              COALESCE(SUM(vi.cantidad * vi.precio_unitario - vi.descuento), 0) AS importe
+       FROM venta_items vi JOIN ventas v ON v.id = vi.venta_id
+       WHERE v.estado = 'cobrada' AND vi.producto_id = @producto_id ${sql}`
+    )
+    .get(params);
+  const producto = db.prepare('SELECT id, codigo, descripcion, stock_actual, stock_minimo FROM productos WHERE id = ?').get(producto_id);
+  return { producto, cantidad: totales.cantidad, importe: totales.importe };
+}
+
+// Igual que consultaProducto pero para todos los productos activos de una familia
+// (incluye los que no tuvieron ventas en el período, con cantidad 0, para no
+// perderlos de vista a la hora de decidir la reposición).
+function consultaFamilia({ familia_id, anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
+  params.familia_id = familia_id;
+  const detalle = db
+    .prepare(
+      `SELECT p.id AS producto_id, p.codigo, p.descripcion AS nombre, p.stock_actual, p.stock_minimo,
+              COALESCE(SUM(vi.cantidad), 0) AS cantidad,
+              COALESCE(SUM(vi.cantidad * vi.precio_unitario - vi.descuento), 0) AS importe
+       FROM productos p
+       LEFT JOIN (
+         SELECT vi.producto_id, vi.cantidad, vi.precio_unitario, vi.descuento
+         FROM venta_items vi JOIN ventas v ON v.id = vi.venta_id
+         WHERE v.estado = 'cobrada' ${sql}
+       ) vi ON vi.producto_id = p.id
+       WHERE p.familia_id = @familia_id AND p.activo = 1
+       GROUP BY p.id
+       ORDER BY cantidad DESC`
+    )
+    .all(params);
+  const total = detalle.reduce((acc, r) => ({ cantidad: acc.cantidad + r.cantidad, importe: acc.importe + r.importe }), { cantidad: 0, importe: 0 });
+  return { detalle, total };
+}
+
 function dashboard({ anio, mes, tipo_egreso, forma_pago }) {
   const anioUsado = anio || String(new Date().getFullYear());
   const fFacturacion = facturacion({ anio: anioUsado, mes });
@@ -222,4 +284,4 @@ function dashboard({ anio, mes, tipo_egreso, forma_pago }) {
   };
 }
 
-module.exports = { dashboard, ranking };
+module.exports = { dashboard, ranking, consultaProducto, consultaFamilia };

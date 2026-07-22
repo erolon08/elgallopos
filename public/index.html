@@ -176,6 +176,7 @@
           <button class="active" data-tab="productos" onclick="mostrarTabRanking('productos')">📦 Productos y servicios</button>
           <button data-tab="clientes" onclick="mostrarTabRanking('clientes')">👥 Clientes</button>
           <button data-tab="cerrajeros" onclick="mostrarTabRanking('cerrajeros')">🔧 Cerrajeros</button>
+          <button data-tab="consulta" onclick="mostrarTabRanking('consulta')">🔍 Producto o familia</button>
         </div>
 
         <div class="card" id="rkPanelProductos">
@@ -200,6 +201,50 @@
             <thead><tr><th>#</th><th>Cerrajero</th><th>Servicios</th><th>Importe</th></tr></thead>
             <tbody id="rkCerrajerosBody"></tbody>
           </table>
+        </div>
+
+        <div class="card" id="rkPanelConsulta" style="display:none">
+          <div class="section-title"><h3>Cuánto se vendió — y cuánto queda en stock</h3></div>
+
+          <div class="botonera-tabs" id="rkObjetivoTabs" style="margin-bottom:10px">
+            <button class="active" data-obj="producto" onclick="cambiarObjetivoRanking('producto')">Producto específico</button>
+            <button data-obj="familia" onclick="cambiarObjetivoRanking('familia')">Familia específica</button>
+          </div>
+
+          <div id="rkObjetivoProducto" style="position:relative;margin-bottom:10px">
+            <input id="rkProductoBuscar" placeholder="Buscar producto por código o descripción..." autocomplete="off">
+            <div class="search-results" id="rkProductoResultados" style="display:none"></div>
+            <div class="small" id="rkProductoSeleccionadoTxt" style="margin-top:6px"></div>
+          </div>
+          <div id="rkObjetivoFamilia" style="display:none;margin-bottom:10px">
+            <select id="rkFamiliaId"></select>
+          </div>
+
+          <div class="botonera-tabs" id="rkFechaTabs" style="margin-bottom:10px">
+            <button class="active" data-modo="mes" onclick="cambiarModoFechaRanking('mes')">Mes determinado</button>
+            <button data-modo="rango" onclick="cambiarModoFechaRanking('rango')">Rango de fechas</button>
+          </div>
+
+          <div class="toolbar" id="rkFechaMesFields" style="margin-bottom:14px">
+            <div class="field"><label>Año</label><select id="rkConsultaAnio"></select></div>
+            <div class="field"><label>Mes</label>
+              <select id="rkConsultaMes">
+                <option value="">Todos los meses</option>
+                <option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option>
+                <option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option>
+                <option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option>
+                <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+              </select>
+            </div>
+          </div>
+          <div class="toolbar" id="rkFechaRangoFields" style="display:none;margin-bottom:14px">
+            <div class="field"><label>Desde</label><input id="rkConsultaDesde" type="date"></div>
+            <div class="field"><label>Hasta</label><input id="rkConsultaHasta" type="date"></div>
+          </div>
+
+          <button class="btn primary" onclick="consultarRanking()">Consultar</button>
+
+          <div id="rkConsultaResultado" style="margin-top:16px"></div>
         </div>
       </section>
 

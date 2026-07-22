@@ -96,6 +96,7 @@ async function cargarFamiliasGlobal() {
   populateSelect(document.getElementById('stockFamilia'), familiasCache, { placeholder: 'Todas' });
   populateSelect(document.getElementById('prodFamilia'), familiasCache, { placeholder: 'Todas' });
   populateSelect(document.getElementById('prodFamiliaSel'), familiasCache);
+  populateSelect(document.getElementById('rkFamiliaId'), familiasCache, { placeholder: 'Elegir familia' });
 }
 
 async function cargarProveedoresGlobal() {
@@ -1326,6 +1327,11 @@ function mostrarTabRanking(tab) {
   document.getElementById('rkPanelProductos').style.display = tab === 'productos' ? 'block' : 'none';
   document.getElementById('rkPanelClientes').style.display = tab === 'clientes' ? 'block' : 'none';
   document.getElementById('rkPanelCerrajeros').style.display = tab === 'cerrajeros' ? 'block' : 'none';
+  document.getElementById('rkPanelConsulta').style.display = tab === 'consulta' ? 'block' : 'none';
+  if (tab === 'consulta' && !document.getElementById('rkConsultaAnio').options.length) {
+    const selAnio = document.getElementById('rkAnio');
+    document.getElementById('rkConsultaAnio').innerHTML = selAnio.innerHTML;
+  }
 }
 
 const MEDALLAS_RANKING = ['🥇', '🥈', '🥉'];
@@ -1358,6 +1364,116 @@ async function cargarRanking() {
   document.getElementById('rkCerrajerosBody').innerHTML = r.cerrajeros.length
     ? r.cerrajeros.map((c, i) => `<tr><td>${posicionRanking(i)}</td><td>${c.nombre}</td><td>${c.cantidad}</td><td>${moneyDash(c.importe)}</td></tr>`).join('')
     : '<tr><td colspan="4" class="small">Sin servicios con cerrajero asignado en el período.</td></tr>';
+}
+
+// --- Consulta por producto/familia: cuánto se vendió + stock actual ---
+let rkObjetivoTipo = 'producto';
+let rkFechaModo = 'mes';
+let rkProductoSeleccionado = null;
+
+function cambiarObjetivoRanking(tipo) {
+  rkObjetivoTipo = tipo;
+  document.querySelectorAll('#rkObjetivoTabs button').forEach((b) => b.classList.toggle('active', b.dataset.obj === tipo));
+  document.getElementById('rkObjetivoProducto').style.display = tipo === 'producto' ? 'block' : 'none';
+  document.getElementById('rkObjetivoFamilia').style.display = tipo === 'familia' ? 'block' : 'none';
+}
+
+function cambiarModoFechaRanking(modo) {
+  rkFechaModo = modo;
+  document.querySelectorAll('#rkFechaTabs button').forEach((b) => b.classList.toggle('active', b.dataset.modo === modo));
+  document.getElementById('rkFechaMesFields').style.display = modo === 'mes' ? 'flex' : 'none';
+  document.getElementById('rkFechaRangoFields').style.display = modo === 'rango' ? 'flex' : 'none';
+}
+
+function elegirProductoRanking(p) {
+  rkProductoSeleccionado = p;
+  document.getElementById('rkProductoSeleccionadoTxt').innerHTML = `Elegido: <b>${p.codigo}</b> — ${p.descripcion}`;
+  document.getElementById('rkProductoResultados').style.display = 'none';
+  document.getElementById('rkProductoBuscar').value = '';
+}
+
+async function buscarProductoRanking() {
+  const q = document.getElementById('rkProductoBuscar').value.trim();
+  const cont = document.getElementById('rkProductoResultados');
+  if (!q) {
+    cont.style.display = 'none';
+    return;
+  }
+  const res = await fetch('/api/productos?q=' + encodeURIComponent(q));
+  const rows = (await res.json()).slice(0, 12);
+  cont.innerHTML = rows.length
+    ? rows.map((p) => `<div class="search-result-item" data-id="${p.id}"><b>${p.codigo}</b> — ${p.descripcion}</div>`).join('')
+    : '<div class="small" style="padding:8px 12px">Sin resultados.</div>';
+  cont.querySelectorAll('.search-result-item').forEach((el) => {
+    const p = rows.find((x) => String(x.id) === el.dataset.id);
+    el.onclick = () => elegirProductoRanking(p);
+  });
+  cont.style.display = 'block';
+}
+document.getElementById('rkProductoBuscar').addEventListener('input', buscarProductoRanking);
+document.addEventListener('click', (e) => {
+  const cont = document.getElementById('rkProductoResultados');
+  if (cont && !e.target.closest('#rkObjetivoProducto')) cont.style.display = 'none';
+});
+
+function filaStockClase(p) {
+  if (p.stock_actual <= 0) return 's-bad';
+  if (p.stock_actual < p.stock_minimo) return 's-bad';
+  return 's-ok';
+}
+
+async function consultarRanking() {
+  const params = new URLSearchParams();
+  if (rkObjetivoTipo === 'producto') {
+    if (!rkProductoSeleccionado) {
+      alert('Elegí un producto de la lista de resultados.');
+      return;
+    }
+    params.set('producto_id', rkProductoSeleccionado.id);
+  } else {
+    const familiaId = document.getElementById('rkFamiliaId').value;
+    if (!familiaId) {
+      alert('Elegí una familia.');
+      return;
+    }
+    params.set('familia_id', familiaId);
+  }
+  if (rkFechaModo === 'mes') {
+    const anio = document.getElementById('rkConsultaAnio').value;
+    const mes = document.getElementById('rkConsultaMes').value;
+    if (anio) params.set('anio', anio);
+    if (mes) params.set('mes', mes);
+  } else {
+    const desde = document.getElementById('rkConsultaDesde').value;
+    const hasta = document.getElementById('rkConsultaHasta').value;
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+  }
+
+  const r = await (await fetch('/api/reportes/consulta?' + params.toString())).json();
+  const cont = document.getElementById('rkConsultaResultado');
+
+  if (r.tipo === 'producto') {
+    const p = r.producto;
+    cont.innerHTML = `
+      <div class="grid dash-kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div class="card kpi kpi-green"><div class="label">Cantidad vendida</div><div class="value">${r.cantidad}</div><div class="hint">${p.codigo} — ${p.descripcion}</div></div>
+        <div class="card kpi kpi-blue"><div class="label">Importe facturado</div><div class="value">${moneyDash(r.importe)}</div></div>
+        <div class="card kpi"><div class="label">Stock actual</div><div class="value"><span class="status ${filaStockClase(p)}">${money.format(p.stock_actual)}</span></div><div class="hint">Mínimo: ${money.format(p.stock_minimo)}</div></div>
+      </div>`;
+  } else {
+    const filas = r.detalle
+      .map(
+        (d) => `<tr><td>${d.codigo}</td><td>${d.nombre}</td><td>${d.cantidad}</td><td>${moneyDash(d.importe)}</td><td><span class="status ${filaStockClase(d)}">${money.format(d.stock_actual)}</span></td></tr>`
+      )
+      .join('');
+    cont.innerHTML = `
+      <table class="table">
+        <thead><tr><th>Código</th><th>Producto</th><th>Cantidad vendida</th><th>Importe</th><th>Stock actual</th></tr></thead>
+        <tbody>${filas || '<tr><td colspan="5" class="small">Esta familia no tiene productos activos.</td></tr>'}</tbody>
+        <tfoot><tr><td colspan="2"><b>Total</b></td><td><b>${r.total.cantidad}</b></td><td><b>${moneyDash(r.total.importe)}</b></td><td></td></tr></tfoot>
+      </table>`;
+  }
 }
 
 document.addEventListener('keydown', (e) => {
