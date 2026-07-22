@@ -1320,53 +1320,16 @@ async function guardarGastoManualDashboard() {
 }
 
 // ============================================================
-// RANKING (productos, clientes, cerrajeros)
+// RANKING — cuánto se vendió de un producto o familia + stock actual
 // ============================================================
-function mostrarTabRanking(tab) {
-  document.querySelectorAll('#rkTabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-  document.getElementById('rkPanelProductos').style.display = tab === 'productos' ? 'block' : 'none';
-  document.getElementById('rkPanelClientes').style.display = tab === 'clientes' ? 'block' : 'none';
-  document.getElementById('rkPanelCerrajeros').style.display = tab === 'cerrajeros' ? 'block' : 'none';
-  document.getElementById('rkPanelConsulta').style.display = tab === 'consulta' ? 'block' : 'none';
-  if (tab === 'consulta' && !document.getElementById('rkConsultaAnio').options.length) {
-    const selAnio = document.getElementById('rkAnio');
-    document.getElementById('rkConsultaAnio').innerHTML = selAnio.innerHTML;
-  }
-}
-
-const MEDALLAS_RANKING = ['🥇', '🥈', '🥉'];
-function posicionRanking(i) {
-  return MEDALLAS_RANKING[i] || `#${i + 1}`;
-}
-
 async function cargarRanking() {
-  const params = new URLSearchParams();
-  const anio = document.getElementById('rkAnio').value;
-  const mes = document.getElementById('rkMes').value;
-  if (anio) params.set('anio', anio);
-  if (mes) params.set('mes', mes);
-  const r = await (await fetch('/api/reportes/ranking?' + params.toString())).json();
-
-  const selAnio = document.getElementById('rkAnio');
-  if (!selAnio.options.length) {
-    selAnio.innerHTML = r.aniosDisponibles.map((a) => `<option value="${a}">${a}</option>`).join('');
-    if (anio) selAnio.value = anio;
-  }
-
-  document.getElementById('rkProductosBody').innerHTML = r.productos.length
-    ? r.productos.map((p, i) => `<tr><td>${posicionRanking(i)}</td><td>${p.nombre}</td><td>${p.cantidad}</td><td>${moneyDash(p.importe)}</td></tr>`).join('')
-    : '<tr><td colspan="4" class="small">Sin ventas en el período.</td></tr>';
-
-  document.getElementById('rkClientesBody').innerHTML = r.clientes.length
-    ? r.clientes.map((c, i) => `<tr><td>${posicionRanking(i)}</td><td>${c.nombre}</td><td>${c.cantidad}</td><td>${moneyDash(c.importe)}</td></tr>`).join('')
-    : '<tr><td colspan="4" class="small">Sin compras con cliente asignado en el período.</td></tr>';
-
-  document.getElementById('rkCerrajerosBody').innerHTML = r.cerrajeros.length
-    ? r.cerrajeros.map((c, i) => `<tr><td>${posicionRanking(i)}</td><td>${c.nombre}</td><td>${c.cantidad}</td><td>${moneyDash(c.importe)}</td></tr>`).join('')
-    : '<tr><td colspan="4" class="small">Sin servicios con cerrajero asignado en el período.</td></tr>';
+  const sel = document.getElementById('rkConsultaAnio');
+  if (sel.options.length) return;
+  const anios = await (await fetch('/api/reportes/anios-disponibles')).json();
+  sel.innerHTML = anios.map((a) => `<option value="${a}">${a}</option>`).join('');
 }
 
-// --- Consulta por producto/familia: cuánto se vendió + stock actual ---
+
 let rkObjetivoTipo = 'producto';
 let rkFechaModo = 'mes';
 let rkProductoSeleccionado = null;

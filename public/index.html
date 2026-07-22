@@ -159,51 +159,7 @@
       </section>
 
       <section class="screen" id="ranking">
-        <div class="toolbar" style="margin-bottom:14px">
-          <div class="field"><label>Año</label><select id="rkAnio" onchange="cargarRanking()"></select></div>
-          <div class="field"><label>Mes</label>
-            <select id="rkMes" onchange="cargarRanking()">
-              <option value="">Todos los meses</option>
-              <option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option>
-              <option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option>
-              <option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option>
-              <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="botonera-tabs" id="rkTabs" style="margin-bottom:10px">
-          <button class="active" data-tab="productos" onclick="mostrarTabRanking('productos')">📦 Productos y servicios</button>
-          <button data-tab="clientes" onclick="mostrarTabRanking('clientes')">👥 Clientes</button>
-          <button data-tab="cerrajeros" onclick="mostrarTabRanking('cerrajeros')">🔧 Cerrajeros</button>
-          <button data-tab="consulta" onclick="mostrarTabRanking('consulta')">🔍 Producto o familia</button>
-        </div>
-
-        <div class="card" id="rkPanelProductos">
-          <div class="section-title"><h3>Más vendidos por importe facturado</h3></div>
-          <table class="table">
-            <thead><tr><th>#</th><th>Producto / servicio</th><th>Cantidad</th><th>Importe</th></tr></thead>
-            <tbody id="rkProductosBody"></tbody>
-          </table>
-        </div>
-
-        <div class="card" id="rkPanelClientes" style="display:none">
-          <div class="section-title"><h3>Clientes que más compraron</h3></div>
-          <table class="table">
-            <thead><tr><th>#</th><th>Cliente</th><th>Compras</th><th>Importe</th></tr></thead>
-            <tbody id="rkClientesBody"></tbody>
-          </table>
-        </div>
-
-        <div class="card" id="rkPanelCerrajeros" style="display:none">
-          <div class="section-title"><h3>Cerrajeros que más mano de obra generaron</h3></div>
-          <table class="table">
-            <thead><tr><th>#</th><th>Cerrajero</th><th>Servicios</th><th>Importe</th></tr></thead>
-            <tbody id="rkCerrajerosBody"></tbody>
-          </table>
-        </div>
-
-        <div class="card" id="rkPanelConsulta" style="display:none">
+        <div class="card" id="rkPanelConsulta">
           <div class="section-title"><h3>Cuánto se vendió — y cuánto queda en stock</h3></div>
 
           <div class="botonera-tabs" id="rkObjetivoTabs" style="margin-bottom:10px">

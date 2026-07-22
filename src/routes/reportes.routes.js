@@ -9,9 +9,8 @@ router.get('/dashboard', (req, res) => {
   res.json(reportesService.dashboard({ anio, mes, tipo_egreso, forma_pago }));
 });
 
-router.get('/ranking', (req, res) => {
-  const { anio, mes, limit } = req.query;
-  res.json(reportesService.ranking({ anio, mes, limit }));
+router.get('/anios-disponibles', (req, res) => {
+  res.json(reportesService.aniosDisponibles());
 });
 
 router.get('/consulta', (req, res) => {
