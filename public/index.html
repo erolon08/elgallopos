@@ -326,7 +326,11 @@
                     <button class="btn light" style="white-space:nowrap" onclick="aplicarCerrajeroATodas()" title="Asigna el cerrajero elegido a todas las líneas ya cargadas en la venta">Aplicar</button>
                   </div>
                 </div>
-                <button class="btn light" onclick="showScreen('clientes')">Cambiar cliente</button>
+                <div class="search-big" style="max-width:240px;margin:0">
+                  <input id="ventaClienteBuscar" placeholder="Buscar cliente: nombre, DNI, código, domicilio...">
+                  <div class="search-results" id="ventaClienteResultados" style="display:none"></div>
+                </div>
+                <button class="btn light" style="white-space:nowrap" onclick="nuevoClienteDesdeVenta()">+ Nuevo cliente</button>
               </div>
               <div class="search-big">
                 <input id="ventaBuscar" placeholder="Buscar producto o servicio por código o descripción...">

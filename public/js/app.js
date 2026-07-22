@@ -747,6 +747,7 @@ function closeCliente() {
   document.getElementById('clienteModal').classList.remove('open');
   clienteEditId = null;
   vehiculosEnEdicion = [];
+  clienteModalOrigenVenta = false;
 }
 
 async function guardarCliente() {
@@ -788,11 +789,20 @@ async function guardarCliente() {
         alert(`Cliente guardado, pero no se pudo agregar el vehículo ${v.patente}: ${verr.error}`);
       }
     }
+    const actualizado = await (await fetch(`/api/clientes/${data.id}`)).json();
+    if (clienteModalOrigenVenta) {
+      // Se creó desde la búsqueda rápida de la pantalla de Venta: lo dejamos
+      // seleccionado ahí mismo y cerramos, sin quedarse en modo edición.
+      clienteModalOrigenVenta = false;
+      closeCliente();
+      elegirClienteEnVenta(actualizado);
+      cargarClientes();
+      return;
+    }
     clienteEditId = data.id;
     document.getElementById('clienteTitulo').textContent = 'Editar cliente';
     document.getElementById('clienteCodigoBadge').textContent = `N° cliente: ${data.codigo}`;
     document.getElementById('btnEliminarCli').style.display = 'inline-block';
-    const actualizado = await (await fetch(`/api/clientes/${data.id}`)).json();
     vehiculosEnEdicion = actualizado.vehiculos;
     renderVehiculosModal();
   }
@@ -2159,6 +2169,58 @@ async function elegirClienteParaVenta(id) {
   document.getElementById('ventaClienteNombre').textContent = cliente.nombre;
   actualizarDatosClienteVenta();
   showScreen('venta');
+}
+
+function elegirClienteEnVenta(cliente) {
+  clienteVentaActual = cliente;
+  document.getElementById('ventaClienteNombre').textContent = cliente.nombre;
+  actualizarDatosClienteVenta();
+  const cont = document.getElementById('ventaClienteResultados');
+  cont.style.display = 'none';
+  document.getElementById('ventaClienteBuscar').value = '';
+}
+
+async function buscarClienteVenta() {
+  const q = document.getElementById('ventaClienteBuscar').value.trim();
+  const cont = document.getElementById('ventaClienteResultados');
+  if (!q) {
+    cont.style.display = 'none';
+    return;
+  }
+  const res = await fetch('/api/clientes?q=' + encodeURIComponent(q));
+  const rows = (await res.json()).slice(0, 12);
+  cont.innerHTML = rows.length
+    ? rows
+        .map((c) => {
+          const doc = c.cuit ? `CUIT ${c.cuit}` : c.documento ? `DNI ${c.documento}` : null;
+          const datos = [c.codigo ? 'N° ' + c.codigo : null, doc, c.direccion].filter(Boolean).join(' · ');
+          return `<div class="search-result-item" data-id="${c.id}"><b>${c.nombre}</b>${datos ? `<div class="small">${datos}</div>` : ''}</div>`;
+        })
+        .join('')
+    : '<div class="small" style="padding:8px 12px">Sin resultados. Podés cargarlo con "+ Nuevo cliente".</div>';
+  cont.querySelectorAll('.search-result-item').forEach((el) => {
+    const cliente = rows.find((c) => String(c.id) === el.dataset.id);
+    el.onclick = () => elegirClienteEnVenta(cliente);
+  });
+  cont.style.display = 'block';
+}
+document.getElementById('ventaClienteBuscar').addEventListener('input', buscarClienteVenta);
+document.getElementById('ventaClienteBuscar').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.getElementById('ventaClienteResultados').style.display = 'none';
+});
+document.addEventListener('click', (e) => {
+  const cont = document.getElementById('ventaClienteResultados');
+  if (cont && !e.target.closest('#ventaClienteBuscar') && !e.target.closest('#ventaClienteResultados')) {
+    cont.style.display = 'none';
+  }
+});
+
+let clienteModalOrigenVenta = false;
+function nuevoClienteDesdeVenta() {
+  document.getElementById('ventaClienteResultados').style.display = 'none';
+  document.getElementById('ventaClienteBuscar').value = '';
+  clienteModalOrigenVenta = true;
+  openCliente();
 }
 
 function limpiarCarrito() {

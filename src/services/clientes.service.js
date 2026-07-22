@@ -24,6 +24,7 @@ function listar({ q } = {}) {
   if (q) {
     sql += ` AND (
       c.nombre LIKE @q OR c.codigo LIKE @q OR c.telefono LIKE @q OR c.documento LIKE @q OR c.cuit LIKE @q
+      OR c.direccion LIKE @q OR c.localidad LIKE @q
       OR EXISTS (SELECT 1 FROM vehiculos v WHERE v.cliente_id = c.id AND v.patente LIKE @qPatente)
     )`;
     params.q = `%${q}%`;
