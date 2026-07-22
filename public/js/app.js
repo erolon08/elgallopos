@@ -280,6 +280,8 @@ function filaProducto(p) {
 
   const columnasPrecio = p.usa_mano_obra
     ? `<td colspan="3">Fórmula: mano de obra ${formatearRecargos(p.recargos_mano_obra)}</td><td>—</td>`
+    : p.usa_precio_rendicion
+    ? `<td colspan="3">Precio único: $ ${money.format(p.precio_final)}</td><td>$ ${money.format(p.costo)}</td>`
     : `
     <td>$ ${money.format(p.precio_final)}</td>
     <td>$ ${money.format(p.precio_debito)}</td>
@@ -325,11 +327,23 @@ function esFamiliaServicio() {
   return !!(familia && familia.usa_mano_obra);
 }
 
+function esFamiliaPrecioUnico() {
+  const familia = familiasCache.find((f) => String(f.id) === String(document.getElementById('prodFamiliaSel').value));
+  return !!(familia && familia.usa_precio_rendicion);
+}
+
 function toggleCamposPorFamilia() {
   const esServicio = esFamiliaServicio();
+  const precioUnico = esFamiliaPrecioUnico();
   document.getElementById('prodCamposNormales').style.display = esServicio ? 'none' : 'block';
   document.getElementById('prodCamposServicio').style.display = esServicio ? 'block' : 'none';
   document.getElementById('prodCostoField').style.display = esServicio ? 'none' : 'flex';
+  // Familias de precio único (ej. DUPLICADOS): un solo precio, sin la regla
+  // de descuento débito/efectivo ni el checkbox que la activa/desactiva.
+  document.getElementById('prodReglaAutomaticaRow').style.display = precioUnico ? 'none' : 'block';
+  document.getElementById('prodPrecioDebitoField').style.display = precioUnico ? 'none' : 'block';
+  document.getElementById('prodPrecioEfectivoField').style.display = precioUnico ? 'none' : 'block';
+  document.getElementById('prodPrecioFinalLabel').textContent = precioUnico ? 'Precio' : 'Precio final';
   if (esServicio) recalcularPreviewServicio();
 }
 
@@ -1825,6 +1839,17 @@ async function buscarProductoVenta() {
         agregarProductoACarrito(p);
         cerrar();
       };
+    } else if (p.usa_precio_rendicion) {
+      div.innerHTML = `
+        <div><b>${p.codigo}</b> — ${p.descripcion}</div>
+        <div class="sr-precios">
+          <button type="button" data-tipo="final">$ ${money.format(p.precio_final)}</button>
+        </div>`;
+      div.querySelector('.sr-precios button').onclick = (e) => {
+        e.stopPropagation();
+        agregarProductoACarrito(p, 'final');
+        cerrar();
+      };
     } else {
       div.innerHTML = `
         <div><b>${p.codigo}</b> — ${p.descripcion}</div>
@@ -1924,6 +1949,19 @@ function agregarProductoACarrito(p, tipoElegido) {
       tipo_precio: tipoElegido || 'final',
       cerrajero_id: cerrajeroDefault,
     });
+  } else if (p.usa_precio_rendicion) {
+    carritoVenta.push({
+      producto_id: p.id,
+      descripcion: p.descripcion,
+      cantidad: 1,
+      es_servicio: false,
+      precio_unico: true,
+      precios: { final: p.precio_final, debito: p.precio_final, efectivo: p.precio_final },
+      precio_unitario: p.precio_final,
+      tipo_precio: 'final',
+      descuento_pct: 0,
+      cerrajero_id: cerrajeroDefault,
+    });
   } else {
     const tipo = tipoElegido || tipoPrecioGlobal;
     carritoVenta.push({
@@ -1984,6 +2022,8 @@ function renderVenta() {
          </div>
          <input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioServicioLinea(${i}, this.value)">
          ${it.tipo_precio === 'manual' ? `<button class="btn light btn-reset-precio" style="padding:2px 5px;font-size:10px;margin-top:3px" title="Recalcular desde mano de obra" onclick="resetPrecioServicioLinea(${i})">↺ auto</button>` : ''}`
+      : it.precio_unico
+      ? `<input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioLinea(${i}, this.value)">`
       : `<div class="line-price-choice">
            <button class="${it.tipo_precio === 'final' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'final')">F</button>
            <button class="${it.tipo_precio === 'debito' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'debito')">D</button>

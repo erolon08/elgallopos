@@ -107,9 +107,16 @@ function importarProductos(filas) {
       if (!esServicio) {
         costo = Number(fila[COL.COSTO]) || 0;
         precioFinal = Number(fila[COL.PRECIO_FINAL]) || 0;
-        const precios = calcularPrecios(precioFinal, familia);
-        precioDebito = precios.precio_debito;
-        precioEfectivo = precios.precio_efectivo;
+        if (familia.usa_precio_rendicion) {
+          // Familias de precio único (ej. DUPLICADOS): sin regla de descuento,
+          // copiado tal cual para que nunca difiera del precio de la planilla.
+          precioDebito = precioFinal;
+          precioEfectivo = precioFinal;
+        } else {
+          const precios = calcularPrecios(precioFinal, familia);
+          precioDebito = precios.precio_debito;
+          precioEfectivo = precios.precio_efectivo;
+        }
       }
 
       const yaExistia = !!existeCodigo.get(codigo);

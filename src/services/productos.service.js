@@ -18,7 +18,7 @@ function enriquecer(p) {
 
 function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = {}) {
   let sql = `
-    SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.descuento_debito, f.descuento_efectivo, pr.nombre AS proveedor
+    SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.usa_precio_rendicion, f.descuento_debito, f.descuento_efectivo, pr.nombre AS proveedor
     FROM productos p
     JOIN familias f ON f.id = p.familia_id
     LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
@@ -51,7 +51,7 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
 function obtener(id) {
   const row = db
     .prepare(
-      `SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.descuento_debito, f.descuento_efectivo, pr.nombre AS proveedor
+      `SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.usa_precio_rendicion, f.descuento_debito, f.descuento_efectivo, pr.nombre AS proveedor
        FROM productos p JOIN familias f ON f.id = p.familia_id
        LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
        WHERE p.id = ?`
@@ -74,12 +74,20 @@ function calcularCamposPrecio(datos, familia) {
     };
   }
 
-  const usarRegla = datos.usar_regla_automatica !== false && datos.usar_regla_automatica !== 0;
   const base = {
     costo: Number(datos.costo) || 0,
     precio_final: Number(datos.precio_final) || 0,
     recargos_mano_obra: null,
   };
+
+  // Familias como DUPLICADOS (copias de llave): un solo precio para las tres
+  // formas de pago, sin la regla de descuento débito/efectivo. Se copia tal
+  // cual (sin redondear a $100) para que nunca difiera del precio cargado.
+  if (familia.usa_precio_rendicion) {
+    return { ...base, precio_debito: base.precio_final, precio_efectivo: base.precio_final, usar_regla_automatica: 1 };
+  }
+
+  const usarRegla = datos.usar_regla_automatica !== false && datos.usar_regla_automatica !== 0;
   if (usarRegla) {
     const { precio_debito, precio_efectivo } = calcularPrecios(base.precio_final, familia);
     return { ...base, precio_debito, precio_efectivo, usar_regla_automatica: 1 };

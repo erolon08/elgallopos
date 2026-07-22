@@ -498,13 +498,13 @@
     </label>
 
     <div id="prodCamposNormales">
-      <label style="display:block;margin:14px 0 6px">
+      <label id="prodReglaAutomaticaRow" style="display:block;margin:14px 0 6px">
         <input type="checkbox" id="prodUsaRegla" checked onchange="toggleReglaAutomatica()"> Usar regla automática de precio
       </label>
       <div class="two-col-form">
-        <div class="field"><label>Precio final</label><input id="prodPrecioFinal" type="number" step="any" oninput="recalcularPreview()"></div>
-        <div class="field"><label>Débito / Transferencia</label><input id="prodPrecioDebito" type="number" step="any" readonly></div>
-        <div class="field"><label>Efectivo</label><input id="prodPrecioEfectivo" type="number" step="any" readonly></div>
+        <div class="field"><label id="prodPrecioFinalLabel">Precio final</label><input id="prodPrecioFinal" type="number" step="any" oninput="recalcularPreview()"></div>
+        <div class="field" id="prodPrecioDebitoField"><label>Débito / Transferencia</label><input id="prodPrecioDebito" type="number" step="any" readonly></div>
+        <div class="field" id="prodPrecioEfectivoField"><label>Efectivo</label><input id="prodPrecioEfectivo" type="number" step="any" readonly></div>
       </div>
     </div>
 
