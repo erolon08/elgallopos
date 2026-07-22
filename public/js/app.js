@@ -2,7 +2,7 @@ const titles = {
   dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', clientes: 'Clientes',
   venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
-  caja: 'Caja y turnos', ranking: 'Ranking',
+  caja: 'Caja y turnos', ranking: 'Ranking', configuracion: 'Configuración',
 };
 
 // ============================================================
@@ -36,6 +36,7 @@ function showScreen(id) {
   document.querySelector('.main').classList.toggle('venta-compacta', id === 'venta');
   if (id === 'dashboard') cargarDashboard();
   if (id === 'ranking') cargarRanking();
+  if (id === 'configuracion') { cargarCerrajerosAdmin(); cargarConfiguracion(); }
   if (id === 'productos') cargarProductos();
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
@@ -1060,7 +1061,7 @@ function construirTicketCierreHtml(t) {
   const estadoDif = Math.abs(diferencia) < 1 ? 'CAJA EXACTA' : diferencia > 0 ? 'SOBRANTE' : 'FALTANTE';
 
   return `
-    <img src="/img/logo-badge.png" class="ticket-logo" alt="El Gallo"><h4>CERRAJERÍA EL GALLO</h4>
+    ${ticketEncabezadoHtml()}
     <div class="center">CIERRE DE CAJA</div><hr>
     Terminal: ${t.terminal} &nbsp; Turno: ${t.numero}<br>
     Apertura: ${new Date(t.abierto_en).toLocaleString('es-AR')}<br>
@@ -1078,6 +1079,7 @@ function construirTicketCierreHtml(t) {
     FONDO PRÓXIMO TURNO&nbsp;&nbsp;<b>${moneyStr(t.fondo_turno_siguiente)}</b><br>
     ${cajaFuerteMov ? `ENVÍO A CAJA FUERTE&nbsp;&nbsp;<b>${moneyStr(cajaFuerteMov.monto)}</b><br>` : ''}
     ${t.observacion ? `<hr>Observación: ${t.observacion}<br>` : ''}
+    ${ticketPieHtml()}
   `;
 }
 
@@ -1437,6 +1439,80 @@ async function consultarRanking() {
         <tfoot><tr><td colspan="2"><b>Total</b></td><td><b>${r.total.cantidad}</b></td><td><b>${moneyDash(r.total.importe)}</b></td><td></td></tr></tfoot>
       </table>`;
   }
+}
+
+// ============================================================
+// CONFIGURACIÓN — negocio, impresora, cerrajeros, notas de ticket
+// ============================================================
+let configCache = null;
+
+async function cargarConfiguracionGlobal() {
+  configCache = await (await fetch('/api/configuracion')).json();
+}
+
+async function cargarConfiguracion() {
+  await cargarConfiguracionGlobal();
+  document.getElementById('cfgImpresoraNombre').value = configCache.impresora_nombre || '';
+  document.getElementById('cfgImpresoraAncho').value = String(configCache.impresora_ancho_mm || 80);
+  document.getElementById('cfgNombreNegocio').value = configCache.nombre_negocio || '';
+  document.getElementById('cfgSubtitulo').value = configCache.subtitulo || '';
+  document.getElementById('cfgLogoPreview').src = configCache.logo_url || '/img/logo-badge.png';
+  document.getElementById('cfgTicketEncabezado').value = configCache.ticket_encabezado || '';
+  document.getElementById('cfgTicketPie').value = configCache.ticket_pie || '';
+}
+
+async function guardarImpresoraConfig() {
+  const payload = {
+    impresora_nombre: document.getElementById('cfgImpresoraNombre').value.trim() || null,
+    impresora_ancho_mm: Number(document.getElementById('cfgImpresoraAncho').value),
+  };
+  await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  await cargarConfiguracionGlobal();
+  alert('Impresora guardada.');
+}
+
+async function guardarDatosNegocioConfig() {
+  const payload = {
+    nombre_negocio: document.getElementById('cfgNombreNegocio').value.trim() || 'CERRAJERÍA EL GALLO',
+    subtitulo: document.getElementById('cfgSubtitulo').value.trim(),
+  };
+  const archivo = document.getElementById('cfgLogoInput').files[0];
+  if (archivo) {
+    const fd = new FormData();
+    fd.append('logo', archivo);
+    await fetch('/api/configuracion/logo', { method: 'POST', body: fd });
+    document.getElementById('cfgLogoInput').value = '';
+  }
+  await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  await cargarConfiguracionGlobal();
+  document.getElementById('cfgLogoPreview').src = configCache.logo_url || '/img/logo-badge.png';
+  alert('Datos del negocio guardados.');
+}
+
+async function guardarNotasTicketConfig() {
+  const payload = {
+    ticket_encabezado: document.getElementById('cfgTicketEncabezado').value.trim() || null,
+    ticket_pie: document.getElementById('cfgTicketPie').value.trim() || null,
+  };
+  await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  await cargarConfiguracionGlobal();
+  alert('Notas del ticket guardadas.');
+}
+
+function ticketEncabezadoHtml() {
+  const cfg = configCache || {};
+  document.getElementById('ticketContenido').style.width = (cfg.impresora_ancho_mm || 80) + 'mm';
+  const logo = cfg.logo_url || '/img/logo-badge.png';
+  const nombre = cfg.nombre_negocio || 'CERRAJERÍA EL GALLO';
+  const sub = cfg.subtitulo ? `<div class="center">${cfg.subtitulo}</div>` : '';
+  const nota = cfg.ticket_encabezado ? `<div class="center">${cfg.ticket_encabezado.replace(/\n/g, '<br>')}</div>` : '';
+  return `<img src="${logo}" class="ticket-logo" alt="${nombre}"><h4>${nombre}</h4>${sub}${nota}`;
+}
+
+function ticketPieHtml() {
+  const cfg = configCache || {};
+  if (!cfg.ticket_pie) return '';
+  return `<hr><div class="center">${cfg.ticket_pie.replace(/\n/g, '<br>')}</div>`;
 }
 
 document.addEventListener('keydown', (e) => {
@@ -2058,7 +2134,7 @@ async function mostrarTicketRendicion(id) {
     .join('');
 
   document.getElementById('ticketContenido').innerHTML = `
-    <img src="/img/logo-badge.png" class="ticket-logo" alt="El Gallo"><h4>CERRAJERÍA EL GALLO</h4>
+    ${ticketEncabezadoHtml()}
     <div class="center">RENDICIÓN DE CERRAJERO</div><hr>
     Cerrajero: <b>${r.cerrajero_nombre}</b><br>
     Período: ${r.fecha_desde} a ${r.fecha_hasta}<hr>
@@ -2067,6 +2143,7 @@ async function mostrarTicketRendicion(id) {
     Total bruto: $${money.format(r.total_bruto)}<br>
     ${descuentosHtml}
     <div style="font-size:14px;margin-top:4px">TOTAL A PAGAR: <b>$${money.format(r.total_pagar)}</b></div>
+    ${ticketPieHtml()}
   `;
   showScreen('ticket-screen');
 }
@@ -2863,13 +2940,13 @@ function mostrarTicket(venta) {
     .join('');
   const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
   document.getElementById('ticketContenido').innerHTML = `
-    <img src="/img/logo-badge.png" class="ticket-logo" alt="El Gallo"><h4>CERRAJERÍA EL GALLO</h4>
-    <div class="center">Corrientes Capital</div><hr>
+    ${ticketEncabezadoHtml()}<hr>
     Fecha: ${fecha}<br>N°: ${venta.numero} · ${venta.tipo_comprobante}<br>
     Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}<hr>
     ${lineasHtml}<hr>
     TOTAL: <b>$${money.format(venta.total)}</b><br>${pagosHtml}<hr>
     <div class="center">¡Gracias por su compra!</div>
+    ${ticketPieHtml()}
   `;
   showScreen('ticket-screen');
 }
@@ -2884,13 +2961,14 @@ function mostrarTicketPresupuesto(presupuesto) {
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}<br>`)
     .join('');
   document.getElementById('ticketContenido').innerHTML = `
-    <img src="/img/logo-badge.png" class="ticket-logo" alt="El Gallo"><h4>CERRAJERÍA EL GALLO</h4>
+    ${ticketEncabezadoHtml()}
     <div class="center">PRESUPUESTO</div><hr>
     Fecha: ${fecha}<br>N°: ${presupuesto.numero}<br>Válido por ${presupuesto.vigencia_dias} días<br>
     Cliente: ${presupuesto.cliente ? presupuesto.cliente.nombre : 'Consumidor Final'}<hr>
     ${lineasHtml}<hr>
     TOTAL: <b>$${money.format(presupuesto.total)}</b><hr>
     <div class="center">Presupuesto sujeto a modificaciones.</div>
+    ${ticketPieHtml()}
   `;
   showScreen('ticket-screen');
 }
@@ -3226,3 +3304,4 @@ if (session) aplicarSesion();
 cargarFamiliasGlobal().then(cargarStock);
 cargarProveedoresGlobal();
 cargarCerrajerosGlobal();
+cargarConfiguracionGlobal();

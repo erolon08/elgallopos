@@ -372,3 +372,20 @@ CREATE TABLE IF NOT EXISTS notificaciones (
   leida INTEGER NOT NULL DEFAULT 0,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+
+-- ============================================================
+-- CONFIGURACIÓN — fila única (id=1) con los datos del negocio,
+-- impresora y notas que se imprimen en todos los tickets.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS configuracion (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  nombre_negocio TEXT NOT NULL DEFAULT 'CERRAJERÍA EL GALLO',
+  subtitulo TEXT NOT NULL DEFAULT 'Corrientes Capital',
+  logo_url TEXT,
+  ticket_encabezado TEXT,
+  ticket_pie TEXT,
+  impresora_nombre TEXT,
+  impresora_ancho_mm INTEGER NOT NULL DEFAULT 80,
+  actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+INSERT OR IGNORE INTO configuracion (id) VALUES (1);

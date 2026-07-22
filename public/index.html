@@ -67,6 +67,7 @@
       <button data-screen="caja">💰 Caja y turnos</button>
       <button data-screen="ranking">🏆 Ranking</button>
       <button disabled>🚚 Reposición <span class="tag">próximamente</span></button>
+      <button data-screen="configuracion">⚙️ Configuración</button>
     </div>
   </aside>
   <main class="main">
@@ -248,16 +249,6 @@
 
       <section class="screen" id="rendicion">
         <div class="card">
-          <div class="section-title"><h3>Cerrajeros</h3><button class="btn primary" onclick="openCerrajero()">+ Nuevo cerrajero</button></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Nombre</th><th>% Rendición</th><th>Aporte fijo</th><th>% Tarjeta crédito</th><th>Estado</th><th></th></tr></thead>
-              <tbody id="cerrajerosBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="card" style="margin-top:14px">
           <div class="section-title"><h3>Generar rendición</h3></div>
           <div class="toolbar">
             <div class="field"><label>Cerrajero</label><select id="rendCerrajero"></select></div>
@@ -553,6 +544,56 @@
             </table>
           </div>
           <div class="notice" style="margin-top:12px">Los presupuestos se cargan desde la pantalla de Venta con el botón verde "Presupuesto". "Convertir en venta" carga los mismos productos en una venta nueva para completar cerrajero y cobrar; al convertirse, el presupuesto pasa al historial.</div>
+        </div>
+      </section>
+
+      <section class="screen" id="configuracion">
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Cerrajeros</h3><button class="btn primary" onclick="openCerrajero()">+ Nuevo cerrajero</button></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nombre</th><th>% Rendición</th><th>Aporte fijo</th><th>% Tarjeta crédito</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="cerrajerosBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Impresora</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Nombre de la impresora</label><input id="cfgImpresoraNombre" placeholder="Ej: Epson TM-T20"></div>
+            <div class="field"><label>Ancho de papel</label>
+              <select id="cfgImpresoraAncho">
+                <option value="80">80mm</option>
+                <option value="58">58mm</option>
+              </select>
+            </div>
+            <button class="btn primary" onclick="guardarImpresoraConfig()">Guardar</button>
+          </div>
+          <div class="notice" style="margin-top:10px">El ancho de papel ajusta el formato del ticket. La impresora en sí se elige desde el diálogo de impresión del navegador — este campo es solo informativo, para tenerlo identificado.</div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Datos del negocio y logo del ticket</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Nombre del negocio</label><input id="cfgNombreNegocio" placeholder="CERRAJERÍA EL GALLO"></div>
+            <div class="field"><label>Subtítulo</label><input id="cfgSubtitulo" placeholder="Corrientes Capital"></div>
+          </div>
+          <div class="toolbar" style="margin-top:12px;align-items:center">
+            <img id="cfgLogoPreview" src="/img/logo-badge.png" alt="Logo" style="width:56px;height:56px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff">
+            <div class="field"><label>Cambiar logo</label><input id="cfgLogoInput" type="file" accept="image/*"></div>
+            <button class="btn primary" onclick="guardarDatosNegocioConfig()">Guardar</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title"><h3>Notas del ticket</h3></div>
+          <div class="toolbar">
+            <div class="field" style="flex:1"><label>Encabezado adicional</label><textarea id="cfgTicketEncabezado" rows="2" placeholder="Ej: Horario de atención: Lun a Vie 8 a 20hs"></textarea></div>
+            <div class="field" style="flex:1"><label>Pie de página</label><textarea id="cfgTicketPie" rows="2" placeholder="Ej: Garantía 30 días sobre repuestos"></textarea></div>
+          </div>
+          <button class="btn primary" onclick="guardarNotasTicketConfig()">Guardar</button>
+          <div class="notice" style="margin-top:10px">Estas notas se imprimen en todos los tickets: ventas, presupuestos, rendiciones y cierres de caja.</div>
         </div>
       </section>
 
