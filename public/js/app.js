@@ -1370,10 +1370,19 @@ async function buscarProductoRanking() {
     const p = rows.find((x) => String(x.id) === el.dataset.id);
     el.onclick = () => elegirProductoRanking(p);
   });
+  inicializarItemsBuscador('rkProductoResultados');
   cont.style.display = 'block';
 }
 document.getElementById('rkProductoBuscar').addEventListener('input', buscarProductoRanking);
 document.getElementById('rkProductoBuscar').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    moverBuscadorIndice('rkProductoResultados', 1);
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    moverBuscadorIndice('rkProductoResultados', -1);
+  }
   if (e.key === 'Enter') {
     e.preventDefault();
     elegirResultadoConEnter('rkProductoResultados');
@@ -2227,19 +2236,53 @@ async function buscarProductoVenta() {
     }
     cont.appendChild(div);
   });
+  inicializarItemsBuscador('ventaBuscarResultados');
   cont.style.display = 'block';
 }
-// Con Enter selecciona el resultado sobre el que está el cursor del mouse
-// (te desplazás con el mouse y confirmás con el teclado); si no hay ninguno
-// bajo el cursor, toma el primero de la lista.
+// Navegación por teclado (↑/↓) y mouse en las listas de resultados de búsqueda:
+// buscadorIndices guarda, por cada contenedor de resultados, cuál está resaltado.
+const buscadorIndices = {};
+
+function resaltarBuscadorItem(contenedorId, indice) {
+  const items = [...document.getElementById(contenedorId).querySelectorAll('.search-result-item')];
+  items.forEach((el) => el.classList.remove('activo'));
+  const i = Math.max(items.length ? 0 : -1, Math.min(indice, items.length - 1));
+  buscadorIndices[contenedorId] = i;
+  if (i >= 0) {
+    items[i].classList.add('activo');
+    items[i].scrollIntoView({ block: 'nearest' });
+  }
+}
+
+// Llamar después de armar los resultados: engancha el hover del mouse para que
+// sincronice con el resaltado de teclado, y deja resaltado el primero (así Enter
+// directo, sin tocar nada más, ya selecciona algo).
+function inicializarItemsBuscador(contenedorId) {
+  const items = [...document.getElementById(contenedorId).querySelectorAll('.search-result-item')];
+  items.forEach((el, i) => el.addEventListener('mouseenter', () => resaltarBuscadorItem(contenedorId, i)));
+  resaltarBuscadorItem(contenedorId, 0);
+}
+
+function moverBuscadorIndice(contenedorId, delta) {
+  resaltarBuscadorItem(contenedorId, (buscadorIndices[contenedorId] ?? -1) + delta);
+}
+
 function elegirResultadoConEnter(contenedorId) {
-  const cont = document.getElementById(contenedorId);
-  (cont.querySelector('.search-result-item:hover') || cont.querySelector('.search-result-item'))?.click();
+  const items = [...document.getElementById(contenedorId).querySelectorAll('.search-result-item')];
+  items[buscadorIndices[contenedorId]]?.click();
 }
 
 document.getElementById('ventaBuscar').addEventListener('input', buscarProductoVenta);
 document.getElementById('ventaBuscar').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') document.getElementById('ventaBuscarResultados').style.display = 'none';
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    moverBuscadorIndice('ventaBuscarResultados', 1);
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    moverBuscadorIndice('ventaBuscarResultados', -1);
+  }
   if (e.key === 'Enter') {
     e.preventDefault();
     elegirResultadoConEnter('ventaBuscarResultados');
@@ -2601,11 +2644,20 @@ async function buscarClienteVenta() {
     const cliente = rows.find((c) => String(c.id) === el.dataset.id);
     el.onclick = () => elegirClienteEnVenta(cliente);
   });
+  inicializarItemsBuscador('ventaClienteResultados');
   cont.style.display = 'block';
 }
 document.getElementById('ventaClienteBuscar').addEventListener('input', buscarClienteVenta);
 document.getElementById('ventaClienteBuscar').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') document.getElementById('ventaClienteResultados').style.display = 'none';
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    moverBuscadorIndice('ventaClienteResultados', 1);
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    moverBuscadorIndice('ventaClienteResultados', -1);
+  }
   if (e.key === 'Enter') {
     e.preventDefault();
     elegirResultadoConEnter('ventaClienteResultados');
