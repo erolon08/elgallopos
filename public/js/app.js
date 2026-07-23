@@ -3076,18 +3076,101 @@ async function mostrarTicketPresupuesto(presupuesto) {
   showScreen('ticket-screen');
 }
 
+// Pedir el teléfono con un prompt() nativo funciona para el texto (todo pasa
+// en la misma cadena síncrona del click), pero cuando WhatsApp abre después
+// de un prompt(), varios navegadores ya no consideran que el window.open()
+// venga de un click del usuario y lo bloquean como popup. Por eso, si no hay
+// teléfono guardado, se pide en un modal propio: el botón "Enviar" de ESE
+// modal es un click nuevo y genuino, así que el popup nunca se bloquea.
+let whatsappPendiente = null; // { modo: 'texto' | 'imagen', tipo, doc }
+
 function enviarTicketWhatsapp() {
   if (!ultimoDocumentoParaTicket) return;
-  enviarPorWhatsapp(ultimoDocumentoParaTicket.tipo, ultimoDocumentoParaTicket.data);
+  iniciarEnvioWhatsapp('texto');
 }
-function enviarPorWhatsapp(tipo, doc) {
-  let telefono = doc.cliente ? doc.cliente.telefono : null;
-  if (!telefono) telefono = prompt('Número de WhatsApp del cliente (con característica, sin 0 ni 15):');
-  if (!telefono) return;
+function enviarImagenWhatsapp() {
+  if (!ultimoDocumentoParaTicket) return;
+  iniciarEnvioWhatsapp('imagen');
+}
+function iniciarEnvioWhatsapp(modo) {
+  const { tipo, data: doc } = ultimoDocumentoParaTicket;
+  const telefono = doc.cliente ? doc.cliente.telefono : null;
+  if (telefono) {
+    ejecutarEnvioWhatsapp(modo, tipo, doc, telefono);
+    return;
+  }
+  whatsappPendiente = { modo, tipo, doc };
+  document.getElementById('whatsappTelefonoInput').value = '';
+  document.getElementById('whatsappTelefonoModal').classList.add('open');
+  document.getElementById('whatsappTelefonoInput').focus();
+}
+function closeWhatsappTelefono() {
+  document.getElementById('whatsappTelefonoModal').classList.remove('open');
+  whatsappPendiente = null;
+}
+document.getElementById('whatsappTelefonoInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btnConfirmarWhatsapp').click();
+});
+document.getElementById('btnConfirmarWhatsapp').addEventListener('click', () => {
+  const telefono = document.getElementById('whatsappTelefonoInput').value.trim();
+  if (!telefono || !whatsappPendiente) return;
+  const { modo, tipo, doc } = whatsappPendiente;
+  document.getElementById('whatsappTelefonoModal').classList.remove('open');
+  whatsappPendiente = null;
+  ejecutarEnvioWhatsapp(modo, tipo, doc, telefono);
+});
+
+function telefonoWhatsappCompleto(telefono) {
   const soloNumeros = telefono.replace(/\D/g, '');
-  const telFull = soloNumeros.startsWith('54') ? soloNumeros : '549' + soloNumeros;
-  const texto = formatearTextoTicket(tipo, doc);
-  window.open(`https://wa.me/${telFull}?text=${encodeURIComponent(texto)}`, '_blank');
+  return soloNumeros.startsWith('54') ? soloNumeros : '549' + soloNumeros;
+}
+
+function ejecutarEnvioWhatsapp(modo, tipo, doc, telefono) {
+  if (modo === 'texto') {
+    const texto = formatearTextoTicket(tipo, doc);
+    window.open(`https://wa.me/${telefonoWhatsappCompleto(telefono)}?text=${encodeURIComponent(texto)}`, '_blank');
+  } else {
+    enviarImagenTicketPorWhatsapp(telefono);
+  }
+}
+
+// WhatsApp no deja adjuntar una imagen por link (wa.me solo permite texto
+// precargado); es una limitación de WhatsApp, no de esta app. Por eso: si el
+// navegador soporta compartir archivos (navigator.share, típico en celulares),
+// se abre el selector nativo con la imagen ya lista para elegir WhatsApp. Si
+// no, se descarga la imagen del ticket y se abre el chat para adjuntarla a mano.
+async function enviarImagenTicketPorWhatsapp(telefono) {
+  const el = document.getElementById('ticketContenido');
+  let canvas;
+  try {
+    canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
+  } catch (err) {
+    alert('No se pudo generar la imagen del ticket: ' + err.message);
+    return;
+  }
+  canvas.toBlob(async (blob) => {
+    if (!blob) {
+      alert('No se pudo generar la imagen del ticket.');
+      return;
+    }
+    const archivo = new File([blob], `ticket-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+      try {
+        await navigator.share({ files: [archivo], title: 'Ticket', text: 'Te envío el ticket.' });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // el usuario canceló el selector, no hacer nada más
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = archivo.name;
+    a.click();
+    URL.revokeObjectURL(url);
+    window.open(`https://wa.me/${telefonoWhatsappCompleto(telefono)}?text=${encodeURIComponent('Te envío el ticket adjunto 📎')}`, '_blank');
+    alert('Se descargó la imagen del ticket. WhatsApp no permite adjuntarla sola desde el navegador: adjuntala manualmente en el chat que se acaba de abrir (clip 📎 → Galería/Archivo → elegí el ticket recién descargado).');
+  }, 'image/jpeg', 0.92);
 }
 
 // ============================================================
