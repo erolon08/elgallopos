@@ -1376,7 +1376,7 @@ document.getElementById('rkProductoBuscar').addEventListener('input', buscarProd
 document.getElementById('rkProductoBuscar').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    document.querySelector('#rkProductoResultados .search-result-item')?.click();
+    elegirResultadoConEnter('rkProductoResultados');
   }
 });
 document.addEventListener('click', (e) => {
@@ -2229,12 +2229,20 @@ async function buscarProductoVenta() {
   });
   cont.style.display = 'block';
 }
+// Con Enter selecciona el resultado sobre el que está el cursor del mouse
+// (te desplazás con el mouse y confirmás con el teclado); si no hay ninguno
+// bajo el cursor, toma el primero de la lista.
+function elegirResultadoConEnter(contenedorId) {
+  const cont = document.getElementById(contenedorId);
+  (cont.querySelector('.search-result-item:hover') || cont.querySelector('.search-result-item'))?.click();
+}
+
 document.getElementById('ventaBuscar').addEventListener('input', buscarProductoVenta);
 document.getElementById('ventaBuscar').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') document.getElementById('ventaBuscarResultados').style.display = 'none';
   if (e.key === 'Enter') {
     e.preventDefault();
-    document.querySelector('#ventaBuscarResultados .search-result-item')?.click();
+    elegirResultadoConEnter('ventaBuscarResultados');
   }
 });
 document.addEventListener('click', (e) => {
@@ -2600,7 +2608,7 @@ document.getElementById('ventaClienteBuscar').addEventListener('keydown', (e) =>
   if (e.key === 'Escape') document.getElementById('ventaClienteResultados').style.display = 'none';
   if (e.key === 'Enter') {
     e.preventDefault();
-    document.querySelector('#ventaClienteResultados .search-result-item')?.click();
+    elegirResultadoConEnter('ventaClienteResultados');
   }
 });
 document.addEventListener('click', (e) => {
