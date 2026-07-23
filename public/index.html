@@ -283,8 +283,8 @@
         <div class="card" style="margin-top:14px">
           <div class="section-title"><h3>Historial de rendiciones</h3></div>
           <div class="toolbar">
-            <div class="field"><label>Cerrajero</label><select id="rendHistCerrajero"><option value="">Todos</option></select></div>
-            <div class="field"><label>Estado</label><select id="rendHistEstado"><option value="">Todos</option><option value="generada">Generada</option><option value="pagada">Pagada</option></select></div>
+            <div class="field"><label>Cerrajero</label><select id="rendHistCerrajero" onchange="cargarRendiciones()"><option value="">Todos</option></select></div>
+            <div class="field"><label>Estado</label><select id="rendHistEstado" onchange="cargarRendiciones()"><option value="">Todos</option><option value="generada">Generada</option><option value="pagada">Pagada</option></select></div>
             <button class="btn primary" onclick="cargarRendiciones()">Buscar</button>
           </div>
           <div class="table-wrap">

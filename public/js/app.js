@@ -204,9 +204,7 @@ function actualizarFilaEnVivo(producto) {
 }
 
 document.getElementById('btnBuscarStock').addEventListener('click', cargarStock);
-document.getElementById('stockSearch').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') cargarStock();
-});
+document.getElementById('stockSearch').addEventListener('input', cargarStock);
 document.getElementById('stockFamilia').addEventListener('change', cargarStock);
 document.getElementById('stockSoloBajoMinimo').addEventListener('change', cargarStock);
 
@@ -511,9 +509,7 @@ async function eliminarProducto() {
 }
 
 document.getElementById('btnBuscarProd').addEventListener('click', cargarProductos);
-document.getElementById('prodSearch').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') cargarProductos();
-});
+document.getElementById('prodSearch').addEventListener('input', cargarProductos);
 ['prodFamilia', 'prodProveedor', 'prodStock', 'prodIncompletos'].forEach((id) =>
   document.getElementById(id).addEventListener('change', cargarProductos)
 );
@@ -3171,6 +3167,12 @@ function filaVentaHistorial(v) {
   return tr;
 }
 document.getElementById('btnBuscarVentas').addEventListener('click', cargarVentasHistorial);
+['ventasDesde', 'ventasHasta', 'ventasCerrajero'].forEach((id) =>
+  document.getElementById(id).addEventListener('change', cargarVentasHistorial)
+);
+['ventasNumero', 'ventasPatente'].forEach((id) =>
+  document.getElementById(id).addEventListener('input', cargarVentasHistorial)
+);
 
 function descargarExcelVentas() {
   const desde = document.getElementById('ventasDesde').value;
