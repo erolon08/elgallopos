@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS productos (
   stock_actual REAL NOT NULL DEFAULT 0,
   stock_minimo REAL NOT NULL DEFAULT 0,
   favorito INTEGER NOT NULL DEFAULT 0,  -- aparece en la botonera rápida de Venta
+  orden_botonera INTEGER NOT NULL DEFAULT 0,  -- posición manual dentro de la botonera de favoritos
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))

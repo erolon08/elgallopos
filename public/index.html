@@ -458,7 +458,10 @@
             <div class="card sale-card">
               <div class="section-title">
                 <h3>⭐ Botonera rápida</h3>
-                <button class="btn light" onclick="cargarBotoneraVenta()" title="Actualizar">↻</button>
+                <div>
+                  <button class="btn light" id="btnOrdenarBotonera" onclick="toggleOrdenarBotonera()" title="Mover productos de lugar">✎ Ordenar</button>
+                  <button class="btn light" onclick="cargarBotoneraVenta()" title="Actualizar">↻</button>
+                </div>
               </div>
               <div class="botonera-tabs" id="ventaBotoneraTabs"></div>
               <div class="botonera-grid" id="ventaBotonera"></div>

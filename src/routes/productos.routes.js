@@ -43,6 +43,15 @@ router.post('/', (req, res) => {
   }
 });
 
+router.put('/orden-botonera', (req, res) => {
+  const { orden } = req.body;
+  if (!Array.isArray(orden) || !orden.length) {
+    return res.status(400).json({ error: 'Falta el orden de productos' });
+  }
+  productosService.guardarOrdenBotonera(orden);
+  res.status(204).end();
+});
+
 router.put('/:id', (req, res) => {
   try {
     const producto = productosService.actualizar(Number(req.params.id), req.body);

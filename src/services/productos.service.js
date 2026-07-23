@@ -28,6 +28,8 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
   if (q) {
     sql += ' AND (p.codigo LIKE @q OR p.descripcion LIKE @q)';
     params.q = `%${q}%`;
+    params.qPrefix = `${q}%`;
+    params.qExacto = q;
   }
   if (familia_id) {
     sql += ' AND p.familia_id = @familia_id';
@@ -40,11 +42,26 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
   if (favorito === 'true') {
     sql += ' AND p.favorito = 1';
   }
-  sql += ' ORDER BY p.descripcion';
+  // Con búsqueda de texto, prioriza coincidencias de código (empieza con, o
+  // en cualquier parte) antes que las de descripción, para que no queden
+  // tapadas por productos alfabéticamente anteriores que solo matchean
+  // por descripción (ej: buscar "805" debe traer primero el código CRZ805).
+  sql += q
+    ? ` ORDER BY
+          CASE
+            WHEN p.codigo = @qExacto THEN 0
+            WHEN p.codigo LIKE @qPrefix THEN 1
+            WHEN p.codigo LIKE @q THEN 2
+            WHEN p.descripcion LIKE @qPrefix THEN 3
+            ELSE 4
+          END,
+          p.orden_botonera, p.descripcion`
+    : ' ORDER BY p.orden_botonera, p.descripcion';
 
   let rows = db.prepare(sql).all(params).map(enriquecer);
   if (stock === 'bajo_minimo') rows = rows.filter((r) => r.estado_stock !== 'correcto');
   if (incompletos === 'true') rows = rows.filter((r) => r.incompleto === 1);
+  if (q) rows = rows.slice(0, 20);
   return rows;
 }
 
@@ -185,4 +202,12 @@ function toggleFavorito(id) {
   return obtener(id);
 }
 
-module.exports = { listar, obtener, crear, actualizar, desactivar, toggleFavorito };
+// Recibe el orden completo (array de ids) que el usuario armó a mano en la
+// botonera y lo graba como posición (0, 1, 2...) de cada producto. Así evita
+// depender de comparar valores previos, que arrancan todos en 0.
+const guardarOrdenBotonera = db.transaction((idsEnOrden) => {
+  const stmt = db.prepare('UPDATE productos SET orden_botonera = ? WHERE id = ?');
+  idsEnOrden.forEach((id, i) => stmt.run(i, Number(id)));
+});
+
+module.exports = { listar, obtener, crear, actualizar, desactivar, toggleFavorito, guardarOrdenBotonera };

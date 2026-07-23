@@ -12,4 +12,16 @@ db.pragma('foreign_keys = ON');
 const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 db.exec(schema);
 
+// CREATE TABLE IF NOT EXISTS no agrega columnas nuevas a tablas que ya existían
+// antes del cambio. Para que una base con datos reales (no recién sembrada)
+// también reciba las columnas agregadas en versiones posteriores, se completan
+// acá con ALTER TABLE — sin tocar los datos existentes.
+function ensureColumn(tabla, columna, definicion) {
+  const columnas = db.prepare(`PRAGMA table_info(${tabla})`).all();
+  if (!columnas.some((c) => c.name === columna)) {
+    db.exec(`ALTER TABLE ${tabla} ADD COLUMN ${columna} ${definicion}`);
+  }
+}
+ensureColumn('productos', 'orden_botonera', 'INTEGER NOT NULL DEFAULT 0');
+
 module.exports = db;

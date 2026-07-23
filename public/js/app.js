@@ -2190,7 +2190,7 @@ async function buscarProductoVenta() {
     return;
   }
   const res = await fetch('/api/productos?q=' + encodeURIComponent(q));
-  const rows = (await res.json()).slice(0, 12);
+  const rows = await res.json();
   if (!rows.length) {
     cont.innerHTML = '<div class="small">Sin resultados.</div>';
     cont.style.display = 'block';
@@ -2210,32 +2210,18 @@ async function buscarProductoVenta() {
         agregarProductoACarrito(p);
         cerrar();
       };
-    } else if (p.usa_precio_rendicion) {
+    } else {
+      const stockTxt = `<span class="status ${filaStockClase(p)}">Stock: ${money.format(p.stock_actual)}</span>`;
+      const otrosPrecios = p.usa_precio_rendicion
+        ? ''
+        : `<span>Déb/Transf: $ ${money.format(p.precio_debito)}</span><span>Efectivo: $ ${money.format(p.precio_efectivo)}</span>`;
       div.innerHTML = `
-        <div><b>${p.codigo}</b> — ${p.descripcion}</div>
-        <div class="sr-precios">
-          <button type="button" data-tipo="final">$ ${money.format(p.precio_final)}</button>
-        </div>`;
-      div.querySelector('.sr-precios button').onclick = (e) => {
-        e.stopPropagation();
+        <div><b>${p.codigo}</b> — ${p.descripcion} — <b>$ ${money.format(p.precio_final)}</b></div>
+        <div class="sr-legend">${otrosPrecios}${stockTxt}</div>`;
+      div.onclick = () => {
         agregarProductoACarrito(p, 'final');
         cerrar();
       };
-    } else {
-      div.innerHTML = `
-        <div><b>${p.codigo}</b> — ${p.descripcion}</div>
-        <div class="sr-precios">
-          <button type="button" data-tipo="final">Final<br>$ ${money.format(p.precio_final)}</button>
-          <button type="button" data-tipo="debito">Déb/Transf<br>$ ${money.format(p.precio_debito)}</button>
-          <button type="button" data-tipo="efectivo">Efectivo<br>$ ${money.format(p.precio_efectivo)}</button>
-        </div>`;
-      div.querySelectorAll('.sr-precios button').forEach((btn) => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          agregarProductoACarrito(p, btn.dataset.tipo);
-          cerrar();
-        };
-      });
     }
     cont.appendChild(div);
   });
@@ -2285,6 +2271,15 @@ function cambiarBotoneraFamilia(f) {
   renderBotoneraVenta();
 }
 
+let botoneraOrdenando = false;
+
+function toggleOrdenarBotonera() {
+  botoneraOrdenando = !botoneraOrdenando;
+  document.getElementById('btnOrdenarBotonera').classList.toggle('active-ordenar', botoneraOrdenando);
+  document.getElementById('btnOrdenarBotonera').textContent = botoneraOrdenando ? '✔ Listo' : '✎ Ordenar';
+  renderBotoneraVenta();
+}
+
 function renderBotoneraVenta() {
   const cont = document.getElementById('ventaBotonera');
   if (!cont) return;
@@ -2294,13 +2289,42 @@ function renderBotoneraVenta() {
     cont.innerHTML = '<p class="small">Marcá productos como favoritos (⭐) desde Productos para que aparezcan acá.</p>';
     return;
   }
-  rows.forEach((p) => {
+  rows.forEach((p, i) => {
     const div = document.createElement('div');
     div.className = 'botonera-btn';
     const precioTxt = p.usa_mano_obra ? 'Servicio' : '$ ' + money.format(p.precio_final);
-    div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>${precioTxt}</small>`;
-    div.onclick = () => agregarProductoACarrito(p);
+    if (botoneraOrdenando) {
+      div.innerHTML = `
+        <b>${p.codigo}</b><span>${p.descripcion}</span><small>${precioTxt}</small>
+        <div class="botonera-mover">
+          <button type="button" ${i === 0 ? 'disabled' : ''} onclick="moverBotonera(${i}, -1)">◀</button>
+          <button type="button" ${i === rows.length - 1 ? 'disabled' : ''} onclick="moverBotonera(${i}, 1)">▶</button>
+        </div>`;
+    } else {
+      div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>${precioTxt}</small>`;
+      div.onclick = () => agregarProductoACarrito(p);
+    }
     cont.appendChild(div);
+  });
+}
+
+async function moverBotonera(indice, delta) {
+  const rows = botoneraFamiliaActiva === 'todas' ? botoneraCache : botoneraCache.filter((p) => p.familia === botoneraFamiliaActiva);
+  const otro = indice + delta;
+  if (otro < 0 || otro >= rows.length) return;
+  [rows[indice], rows[otro]] = [rows[otro], rows[indice]];
+  if (botoneraFamiliaActiva !== 'todas') {
+    // Reinserta el subconjunto reordenado en su lugar dentro de la lista completa.
+    const otras = botoneraCache.filter((p) => p.familia !== botoneraFamiliaActiva);
+    botoneraCache = [...otras, ...rows];
+  } else {
+    botoneraCache = rows;
+  }
+  renderBotoneraVenta();
+  await fetch('/api/productos/orden-botonera', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orden: rows.map((p) => p.id) }),
   });
 }
 
