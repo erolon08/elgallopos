@@ -1377,6 +1377,12 @@ async function buscarProductoRanking() {
   cont.style.display = 'block';
 }
 document.getElementById('rkProductoBuscar').addEventListener('input', buscarProductoRanking);
+document.getElementById('rkProductoBuscar').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.querySelector('#rkProductoResultados .search-result-item')?.click();
+  }
+});
 document.addEventListener('click', (e) => {
   const cont = document.getElementById('rkProductoResultados');
   if (cont && !e.target.closest('#rkObjetivoProducto')) cont.style.display = 'none';
@@ -2230,6 +2236,10 @@ async function buscarProductoVenta() {
 document.getElementById('ventaBuscar').addEventListener('input', buscarProductoVenta);
 document.getElementById('ventaBuscar').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') document.getElementById('ventaBuscarResultados').style.display = 'none';
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.querySelector('#ventaBuscarResultados .search-result-item')?.click();
+  }
 });
 document.addEventListener('click', (e) => {
   const cont = document.getElementById('ventaBuscarResultados');
@@ -2592,6 +2602,10 @@ async function buscarClienteVenta() {
 document.getElementById('ventaClienteBuscar').addEventListener('input', buscarClienteVenta);
 document.getElementById('ventaClienteBuscar').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') document.getElementById('ventaClienteResultados').style.display = 'none';
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.querySelector('#ventaClienteResultados .search-result-item')?.click();
+  }
 });
 document.addEventListener('click', (e) => {
   const cont = document.getElementById('ventaClienteResultados');
@@ -3157,6 +3171,15 @@ function filaVentaHistorial(v) {
   return tr;
 }
 document.getElementById('btnBuscarVentas').addEventListener('click', cargarVentasHistorial);
+
+function descargarExcelVentas() {
+  const desde = document.getElementById('ventasDesde').value;
+  const hasta = document.getElementById('ventasHasta').value;
+  const params = new URLSearchParams();
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  window.open('/api/ventas/exportar?' + params.toString(), '_blank');
+}
 
 let ventaDetalleActual = null;
 async function verDetalleVenta(id) {

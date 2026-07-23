@@ -66,7 +66,6 @@
       <button data-screen="rendicion">🔧 Rendición cerrajeros</button>
       <button data-screen="caja">💰 Caja y turnos</button>
       <button data-screen="ranking">🏆 Ranking</button>
-      <button disabled>🚚 Reposición <span class="tag">próximamente</span></button>
       <button data-screen="configuracion">⚙️ Configuración</button>
     </div>
   </aside>
@@ -525,6 +524,9 @@
             </table>
           </div>
           <div class="notice" style="margin-top:12px">Podés cambiar el cerrajero de una línea ya vendida o anular la venta (devuelve el stock) desde "Ver detalle".</div>
+          <div class="toolbar" style="margin-top:14px">
+            <button class="btn outline" onclick="descargarExcelVentas()">⬇️ Descargar Excel (usa las fechas Desde/Hasta de arriba)</button>
+          </div>
         </div>
       </section>
 

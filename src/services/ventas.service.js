@@ -124,6 +124,57 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, e
   return db.prepare(sql).all(params);
 }
 
+// Un renglón por línea de venta (no por venta), para exportar a Excel: permite
+// filtrar/pivotear en la planilla por producto, cerrajero, forma de pago, etc.
+// para armar una rendición puntual sin depender de este sistema.
+function exportarFilas({ desde, hasta }) {
+  const params = {};
+  let cond = "WHERE v.estado = 'cobrada'";
+  if (desde) {
+    cond += ' AND date(v.cobrado_en) >= date(@desde)';
+    params.desde = desde;
+  }
+  if (hasta) {
+    cond += ' AND date(v.cobrado_en) <= date(@hasta)';
+    params.hasta = hasta;
+  }
+
+  const pagosPorVenta = {};
+  db.prepare('SELECT venta_id, forma_pago, monto FROM venta_pagos').all().forEach((p) => {
+    const txt = `${p.forma_pago}: $${Math.round(p.monto)}`;
+    pagosPorVenta[p.venta_id] = pagosPorVenta[p.venta_id] ? `${pagosPorVenta[p.venta_id]} / ${txt}` : txt;
+  });
+
+  const items = db
+    .prepare(
+      `SELECT v.id AS venta_id, v.numero, v.cobrado_en, v.tipo_comprobante, v.total AS total_venta,
+              cl.nombre AS cliente, vi.descripcion, vi.cantidad, vi.precio_unitario, vi.descuento,
+              c.nombre AS cerrajero
+       FROM ventas v
+       LEFT JOIN clientes cl ON cl.id = v.cliente_id
+       JOIN venta_items vi ON vi.venta_id = v.id
+       LEFT JOIN cerrajeros c ON c.id = vi.cerrajero_id
+       ${cond}
+       ORDER BY v.cobrado_en, v.id`
+    )
+    .all(params);
+
+  return items.map((it) => ({
+    Fecha: it.cobrado_en,
+    'N° Venta': it.numero,
+    Cliente: it.cliente || 'Consumidor Final',
+    Comprobante: it.tipo_comprobante,
+    Producto: it.descripcion,
+    Cantidad: it.cantidad,
+    'Precio Unitario': Math.round(it.precio_unitario),
+    Descuento: Math.round(it.descuento || 0),
+    'Subtotal Línea': Math.round(it.precio_unitario * it.cantidad - (it.descuento || 0)),
+    Cerrajero: it.cerrajero || '',
+    'Formas de Pago': pagosPorVenta[it.venta_id] || '',
+    'Total Venta': Math.round(it.total_venta),
+  }));
+}
+
 const cobrar = db.transaction((id, datos) => {
   const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
   if (!venta) throw new Error('Venta no encontrada');
@@ -277,4 +328,4 @@ function actualizarCerrajeroLinea(venta_item_id, cerrajero_id) {
   return info.changes > 0;
 }
 
-module.exports = { crear, obtener, listar, cobrar, enviarACaja, anular, actualizar, actualizarCerrajeroLinea, generarNumero };
+module.exports = { crear, obtener, listar, exportarFilas, cobrar, enviarACaja, anular, actualizar, actualizarCerrajeroLinea, generarNumero };

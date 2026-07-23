@@ -20,8 +20,13 @@ const COL = {
 function normalizarFamilia(nombreRaw) {
   const trimmed = String(nombreRaw ?? '').trim();
   if (!trimmed || trimmed.toLowerCase() === 'sin especificar') return 'GENERAL';
-  if (trimmed.toUpperCase() === 'SERVICIO') return 'SERVICIOS'; // familia legacy de la planilla
-  return trimmed.toUpperCase();
+  const upper = trimmed.toUpperCase();
+  // Agrupa variantes de texto ("SERVICIO", "SERVICIOS CERRAJERO", etc.) en las
+  // familias especiales que ya existen, para no crear una familia nueva sin
+  // "usa_mano_obra"/"usa_precio_rendicion" y que el producto pierda esas reglas.
+  if (upper.includes('SERVICIO')) return 'SERVICIOS';
+  if (upper.includes('DUPLICADO')) return 'DUPLICADOS';
+  return upper;
 }
 
 // filas: array de arrays (una fila de la planilla = un array de celdas), sin la fila de encabezado.

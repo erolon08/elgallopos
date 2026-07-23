@@ -1,4 +1,5 @@
 const express = require('express');
+const XLSX = require('xlsx');
 const ventasService = require('../services/ventas.service');
 const { emitVentaEvent } = require('../sockets');
 
@@ -17,6 +18,19 @@ router.get('/', (req, res) => {
       numero,
     })
   );
+});
+
+router.get('/exportar', (req, res) => {
+  const { desde, hasta } = req.query;
+  const filas = ventasService.exportarFilas({ desde, hasta });
+  const hoja = XLSX.utils.json_to_sheet(filas);
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, 'Ventas');
+  const buffer = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  const nombre = `ventas_${desde || 'inicio'}_a_${hasta || 'hoy'}.xlsx`;
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
+  res.send(buffer);
 });
 
 router.get('/:id', (req, res) => {
