@@ -387,6 +387,14 @@ CREATE TABLE IF NOT EXISTS configuracion (
   ticket_pie TEXT,
   impresora_nombre TEXT,
   impresora_ancho_mm INTEGER NOT NULL DEFAULT 80,
+  -- Datos fiscales/identidad del negocio, solo se usan en el documento A4
+  -- (presupuesto/venta a página completa); todos opcionales.
+  responsable_nombre TEXT,
+  cuit_negocio TEXT,
+  domicilio_negocio TEXT,
+  condicion_fiscal_negocio TEXT,
+  inicio_actividades TEXT,
+  ingresos_brutos TEXT,
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 INSERT OR IGNORE INTO configuracion (id) VALUES (1);

@@ -1473,6 +1473,12 @@ async function cargarConfiguracion() {
   document.getElementById('cfgLogoPreview').src = configCache.logo_url || '/img/logo-badge.png';
   document.getElementById('cfgTicketEncabezado').value = configCache.ticket_encabezado || '';
   document.getElementById('cfgTicketPie').value = configCache.ticket_pie || '';
+  document.getElementById('cfgResponsableNombre').value = configCache.responsable_nombre || '';
+  document.getElementById('cfgCuitNegocio').value = configCache.cuit_negocio || '';
+  document.getElementById('cfgCondicionFiscalNegocio').value = configCache.condicion_fiscal_negocio || '';
+  document.getElementById('cfgDomicilioNegocio').value = configCache.domicilio_negocio || '';
+  document.getElementById('cfgInicioActividades').value = configCache.inicio_actividades || '';
+  document.getElementById('cfgIngresosBrutos').value = configCache.ingresos_brutos || '';
 }
 
 async function guardarImpresoraConfig() {
@@ -1501,6 +1507,20 @@ async function guardarDatosNegocioConfig() {
   await cargarConfiguracionGlobal();
   document.getElementById('cfgLogoPreview').src = configCache.logo_url || '/img/logo-badge.png';
   alert('Datos del negocio guardados.');
+}
+
+async function guardarDatosFiscalesConfig() {
+  const payload = {
+    responsable_nombre: document.getElementById('cfgResponsableNombre').value.trim(),
+    cuit_negocio: document.getElementById('cfgCuitNegocio').value.trim(),
+    condicion_fiscal_negocio: document.getElementById('cfgCondicionFiscalNegocio').value.trim(),
+    domicilio_negocio: document.getElementById('cfgDomicilioNegocio').value.trim(),
+    inicio_actividades: document.getElementById('cfgInicioActividades').value.trim(),
+    ingresos_brutos: document.getElementById('cfgIngresosBrutos').value.trim(),
+  };
+  await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  await cargarConfiguracionGlobal();
+  alert('Datos fiscales guardados.');
 }
 
 async function guardarNotasTicketConfig() {
@@ -3105,14 +3125,21 @@ function construirDocumentoA4Html(tipo, doc) {
   const logo = cfg.logo_url || '/img/logo-badge.png';
   const nombreNegocio = cfg.nombre_negocio || 'CERRAJERÍA EL GALLO';
   const esPresupuesto = tipo === 'presupuesto';
+  const cliente = doc.cliente;
   const fecha = new Date(doc.creado_en || doc.cobrado_en).toLocaleString('es-AR');
+  const condVenta = cliente && cliente.venta_a_credito ? 'CUENTA CORRIENTE' : 'CONTADO';
+  const cuartaFila = esPresupuesto
+    ? `<p><b>Vigencia:</b> ${doc.vigencia_dias} días</p>`
+    : `<p><b>Comprobante:</b> ${doc.tipo_comprobante}</p>`;
   const filas = doc.items
     .map(
       (it) => `
       <tr>
-        <td>${it.cantidad}</td>
+        <td>${it.producto_codigo || ''}</td>
+        <td class="a4-num">${it.cantidad}</td>
         <td>${it.descripcion}${it.cerrajero_nombre ? `<br><span class="a4-muted">Cerrajero: ${it.cerrajero_nombre}</span>` : ''}</td>
         <td class="a4-num">$${money.format(it.precio_unitario)}</td>
+        <td class="a4-num">$${money.format(it.descuento || 0)}</td>
         <td class="a4-num">$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}</td>
       </tr>`
     )
@@ -3121,28 +3148,45 @@ function construirDocumentoA4Html(tipo, doc) {
     ? `<p><b>Forma de pago:</b> ${doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`).join(' / ')}</p>`
     : '';
   return `
-    <div class="a4-header">
-      <img src="${logo}" alt="${nombreNegocio}">
-      <div>
+    <div class="a4-top">
+      <div class="a4-empresa">
         <h2>${nombreNegocio}</h2>
-        ${cfg.subtitulo ? `<div>${cfg.subtitulo}</div>` : ''}
-        ${cfg.ticket_encabezado ? `<div class="a4-muted">${cfg.ticket_encabezado.replace(/\n/g, '<br>')}</div>` : ''}
+        ${cfg.responsable_nombre ? `<div>${cfg.responsable_nombre}</div>` : ''}
+        ${cfg.domicilio_negocio ? `<div>Domicilio: ${cfg.domicilio_negocio}</div>` : ''}
+        ${cfg.condicion_fiscal_negocio ? `<div>${cfg.condicion_fiscal_negocio}</div>` : ''}
+        <img src="${logo}" alt="${nombreNegocio}">
+      </div>
+      <div class="a4-tipo-box">${esPresupuesto ? 'P' : 'V'}</div>
+      <div class="a4-doc-info">
+        <div class="a4-muted">No válido como factura</div>
+        <div class="a4-doc-numero">N° ${doc.numero}</div>
+        <div>Inicio de Actividades: ${cfg.inicio_actividades || '--'}</div>
+        <div>Fecha: ${fecha}</div>
+        <div>CUIT: ${cfg.cuit_negocio || '--'} / Ingresos Brutos: ${cfg.ingresos_brutos || '--'}</div>
       </div>
     </div>
-    <h1>${esPresupuesto ? 'PRESUPUESTO' : 'COMPROBANTE DE VENTA'} N° ${doc.numero}</h1>
     <div class="a4-datos">
-      <p><b>Fecha:</b> ${fecha}</p>
-      <p><b>Cliente:</b> ${doc.cliente ? doc.cliente.nombre : 'Consumidor Final'}</p>
-      ${esPresupuesto ? `<p><b>Válido por:</b> ${doc.vigencia_dias} días</p>` : `<p><b>Comprobante:</b> ${doc.tipo_comprobante}</p>`}
+      <p><b>Cliente:</b> ${cliente ? cliente.nombre : 'Consumidor Final'}</p>
+      <p><b>CUIT:</b> ${(cliente && cliente.cuit) || ''}</p>
+      <p><b>Localidad:</b> ${(cliente && cliente.localidad) || ''}</p>
+      <p><b>DNI:</b> ${(cliente && cliente.documento) || ''}</p>
+      <p><b>Situación:</b> ${(cliente && cliente.condicion_iva) || 'Consumidor Final'}</p>
+      <p><b>Cond. Venta:</b> ${condVenta}</p>
+      <p><b>Domicilio:</b> ${(cliente && cliente.direccion) || ''}</p>
+      ${cuartaFila}
     </div>
     <table class="a4-tabla">
-      <thead><tr><th>Cant.</th><th>Descripción</th><th>Precio unit.</th><th>Subtotal</th></tr></thead>
+      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Precio U.</th><th>Descuento</th><th>SubTotal</th></tr></thead>
       <tbody>${filas}</tbody>
     </table>
-    <div class="a4-total">TOTAL: $${money.format(doc.total)}</div>
+    <div class="a4-abajo">
+      <div class="a4-observaciones">Observaciones / Firma</div>
+      <div class="a4-total">TOTAL<br>$${money.format(doc.total)}</div>
+    </div>
     ${pagosHtml}
     ${esPresupuesto ? '<p class="a4-muted">Presupuesto sujeto a modificaciones.</p>' : ''}
     ${cfg.ticket_pie ? `<p class="a4-muted">${cfg.ticket_pie.replace(/\n/g, '<br>')}</p>` : ''}
+    <p class="a4-muted a4-impreso">Impreso: ${new Date().toLocaleDateString('es-AR')}</p>
   `;
 }
 

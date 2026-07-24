@@ -70,8 +70,10 @@ function obtener(id) {
   if (!venta) return null;
   const items = db
     .prepare(
-      `SELECT vi.*, c.nombre AS cerrajero_nombre
-       FROM venta_items vi LEFT JOIN cerrajeros c ON c.id = vi.cerrajero_id
+      `SELECT vi.*, c.nombre AS cerrajero_nombre, p.codigo AS producto_codigo
+       FROM venta_items vi
+       LEFT JOIN cerrajeros c ON c.id = vi.cerrajero_id
+       LEFT JOIN productos p ON p.id = vi.producto_id
        WHERE vi.venta_id = ? ORDER BY vi.id`
     )
     .all(id);

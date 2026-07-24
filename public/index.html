@@ -591,6 +591,22 @@
           </div>
         </div>
 
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Datos fiscales (solo para el documento A4)</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Responsable / titular</label><input id="cfgResponsableNombre" placeholder="Ej: Pablo Andrés Pellicer"></div>
+            <div class="field"><label>CUIT</label><input id="cfgCuitNegocio" placeholder="20304298655"></div>
+            <div class="field"><label>Condición fiscal</label><input id="cfgCondicionFiscalNegocio" placeholder="Responsable Inscripto"></div>
+          </div>
+          <div class="toolbar" style="margin-top:12px">
+            <div class="field" style="flex:1"><label>Domicilio del negocio</label><input id="cfgDomicilioNegocio" placeholder="Ej: 9 de Julio 2074, Corrientes"></div>
+            <div class="field"><label>Inicio de actividades</label><input id="cfgInicioActividades" placeholder="--"></div>
+            <div class="field"><label>Ingresos Brutos</label><input id="cfgIngresosBrutos" placeholder="--"></div>
+            <button class="btn primary" onclick="guardarDatosFiscalesConfig()">Guardar</button>
+          </div>
+          <div class="notice" style="margin-top:10px">Estos datos son opcionales y solo se muestran en el documento A4 (no en el ticket térmico). Este sistema no emite facturas electrónicas de AFIP — el documento A4 es un presupuesto/comprobante interno, no un comprobante fiscal válido.</div>
+        </div>
+
         <div class="card">
           <div class="section-title"><h3>Notas del ticket</h3></div>
           <div class="toolbar">

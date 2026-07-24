@@ -23,5 +23,11 @@ function ensureColumn(tabla, columna, definicion) {
   }
 }
 ensureColumn('productos', 'orden_botonera', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('configuracion', 'responsable_nombre', 'TEXT');
+ensureColumn('configuracion', 'cuit_negocio', 'TEXT');
+ensureColumn('configuracion', 'domicilio_negocio', 'TEXT');
+ensureColumn('configuracion', 'condicion_fiscal_negocio', 'TEXT');
+ensureColumn('configuracion', 'inicio_actividades', 'TEXT');
+ensureColumn('configuracion', 'ingresos_brutos', 'TEXT');
 
 module.exports = db;

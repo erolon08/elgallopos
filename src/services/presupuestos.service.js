@@ -48,7 +48,14 @@ const crear = db.transaction((datos) => {
 function obtener(id) {
   const presupuesto = db.prepare('SELECT * FROM presupuestos WHERE id = ?').get(id);
   if (!presupuesto) return null;
-  const items = db.prepare('SELECT * FROM presupuesto_items WHERE presupuesto_id = ? ORDER BY id').all(id);
+  const items = db
+    .prepare(
+      `SELECT pi.*, p.codigo AS producto_codigo
+       FROM presupuesto_items pi
+       LEFT JOIN productos p ON p.id = pi.producto_id
+       WHERE pi.presupuesto_id = ? ORDER BY pi.id`
+    )
+    .all(id);
   const cliente = presupuesto.cliente_id ? db.prepare('SELECT * FROM clientes WHERE id = ?').get(presupuesto.cliente_id) : null;
   return { ...presupuesto, items, cliente };
 }
