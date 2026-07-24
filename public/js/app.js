@@ -1590,7 +1590,7 @@ let session = null;
 const PANTALLAS_POR_ROL = {
   ADMIN: null, // null = todas
   CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'stock', 'caja'],
-  VENTA: ['venta', 'pendientes', 'clientes'],
+  VENTA: ['venta', 'pendientes', 'presupuestos', 'clientes'],
 };
 
 function cargarSesion() {
