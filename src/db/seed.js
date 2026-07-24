@@ -5,8 +5,9 @@ const bcrypt = require('bcryptjs');
 const db = require('./index');
 const { calcularPrecios } = require('../services/pricing.service');
 
-// Usuarios "de rol" para el login por terminal (ADMIN/CAJA/VENTA). Claves
-// demo, se cambian desde la base cuando el sistema entre en producción.
+// Usuarios "de rol" para el login por terminal (ADMIN/CAJA/VENTA/STOCK). Claves
+// demo, se cambian desde Configuración → Usuarios y claves cuando el sistema
+// entre en producción.
 const insertUsuario = db.prepare(`
   INSERT OR IGNORE INTO usuarios (nombre, usuario, password_hash, rol) VALUES (?, ?, ?, ?)
 `);
@@ -14,6 +15,7 @@ const insertUsuario = db.prepare(`
   ['Administrador', 'admin', '1111', 'ADMIN'],
   ['Caja', 'caja', '2222', 'CAJA'],
   ['Venta', 'venta', '3333', 'VENTA'],
+  ['Stock', 'stock', '4444', 'STOCK'],
 ].forEach(([nombre, usuario, clave, rol]) => insertUsuario.run(nombre, usuario, bcrypt.hashSync(clave, 8), rol));
 
 const insertFamilia = db.prepare(`

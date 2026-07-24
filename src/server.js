@@ -18,6 +18,7 @@ const rendicionesRoutes = require('./routes/rendiciones.routes');
 const cajaRoutes = require('./routes/caja.routes');
 const reportesRoutes = require('./routes/reportes.routes');
 const configuracionRoutes = require('./routes/configuracion.routes');
+const usuariosRoutes = require('./routes/usuarios.routes');
 
 const app = express();
 app.use(express.json());
@@ -36,6 +37,7 @@ app.use('/api/rendiciones', rendicionesRoutes);
 app.use('/api/caja', cajaRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/configuracion', configuracionRoutes);
+app.use('/api/usuarios', usuariosRoutes);
 
 const server = http.createServer(app);
 sockets.init(server);

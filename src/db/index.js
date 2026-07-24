@@ -30,4 +30,38 @@ ensureColumn('configuracion', 'condicion_fiscal_negocio', 'TEXT');
 ensureColumn('configuracion', 'inicio_actividades', 'TEXT');
 ensureColumn('configuracion', 'ingresos_brutos', 'TEXT');
 
+// El CHECK de la columna "rol" no se puede tocar con ALTER TABLE ADD COLUMN:
+// hay que recrear la tabla. Se evita renombrar la tabla "usuarios" original
+// (varias tablas tienen FK hacia ella y un RENAME reescribe esas referencias
+// al nombre viejo) — en cambio se arma la tabla nueva aparte, se copian los
+// datos, se borra la vieja y recién ahí se renombra la nueva a "usuarios".
+const usuariosDef = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios'").get();
+if (usuariosDef && !usuariosDef.sql.includes('STOCK')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE usuarios_nuevo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL,
+      usuario TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      rol TEXT NOT NULL CHECK (rol IN ('ADMIN','CAJA','VENTA','STOCK')),
+      activo INTEGER NOT NULL DEFAULT 1,
+      creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    INSERT INTO usuarios_nuevo (id, nombre, usuario, password_hash, rol, activo, creado_en)
+      SELECT id, nombre, usuario, password_hash, rol, activo, creado_en FROM usuarios;
+    DROP TABLE usuarios;
+    ALTER TABLE usuarios_nuevo RENAME TO usuarios;
+  `);
+  db.pragma('foreign_keys = ON');
+}
+
+const yaHayUsuarioStock = db.prepare("SELECT 1 FROM usuarios WHERE rol = 'STOCK'").get();
+if (!yaHayUsuarioStock) {
+  const bcrypt = require('bcryptjs');
+  db.prepare('INSERT INTO usuarios (nombre, usuario, password_hash, rol) VALUES (?, ?, ?, ?)').run(
+    'Stock', 'stock', bcrypt.hashSync('4444', 8), 'STOCK'
+  );
+}
+
 module.exports = db;

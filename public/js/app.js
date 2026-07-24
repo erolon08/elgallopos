@@ -36,7 +36,7 @@ function showScreen(id) {
   document.querySelector('.main').classList.toggle('venta-compacta', id === 'venta');
   if (id === 'dashboard') cargarDashboard();
   if (id === 'ranking') cargarRanking();
-  if (id === 'configuracion') { cargarCerrajerosAdmin(); cargarConfiguracion(); }
+  if (id === 'configuracion') { cargarCerrajerosAdmin(); cargarConfiguracion(); cargarUsuariosClaves(); }
   if (id === 'productos') cargarProductos();
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
@@ -1464,6 +1464,40 @@ async function cargarConfiguracionGlobal() {
   configCache = await (await fetch('/api/configuracion')).json();
 }
 
+async function cargarUsuariosClaves() {
+  const usuarios = await (await fetch('/api/usuarios')).json();
+  const tbody = document.getElementById('usuariosClavesBody');
+  tbody.innerHTML = usuarios
+    .map(
+      (u) => `
+      <tr>
+        <td><b>${u.rol}</b></td>
+        <td>${u.usuario}</td>
+        <td><input type="password" id="clave-${u.id}" placeholder="Nueva clave" style="width:140px"></td>
+        <td><button class="btn light" onclick="guardarClaveUsuario(${u.id})">Guardar</button></td>
+      </tr>`
+    )
+    .join('');
+}
+
+async function guardarClaveUsuario(id) {
+  const input = document.getElementById(`clave-${id}`);
+  const password = input.value.trim();
+  if (!password) return;
+  const res = await fetch(`/api/usuarios/${id}/password`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    alert(data.error || 'No se pudo guardar la clave.');
+    return;
+  }
+  input.value = '';
+  alert('Clave actualizada.');
+}
+
 async function cargarConfiguracion() {
   await cargarConfiguracionGlobal();
   document.getElementById('cfgImpresoraNombre').value = configCache.impresora_nombre || '';
@@ -1589,8 +1623,9 @@ socket.on('caja:actualizada', () => {
 let session = null;
 const PANTALLAS_POR_ROL = {
   ADMIN: null, // null = todas
-  CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'stock', 'caja'],
+  CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'caja'],
   VENTA: ['venta', 'pendientes', 'presupuestos', 'clientes'],
+  STOCK: ['stock'],
 };
 
 function cargarSesion() {
@@ -1643,7 +1678,7 @@ function aplicarSesion() {
   document.querySelectorAll('.nav button[data-screen]').forEach((b) => {
     b.style.display = !permitidas || permitidas.includes(b.dataset.screen) ? 'block' : 'none';
   });
-  const inicio = session.rol === 'VENTA' ? 'venta' : session.rol === 'CAJA' ? 'pendientes' : 'dashboard';
+  const inicio = session.rol === 'VENTA' ? 'venta' : session.rol === 'CAJA' ? 'pendientes' : session.rol === 'STOCK' ? 'stock' : 'dashboard';
   showScreen(inicio);
 }
 

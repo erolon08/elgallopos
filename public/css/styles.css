@@ -147,11 +147,11 @@ table{width:100%;border-collapse:collapse;min-width:640px} th,td{padding:10px 11
 
 /* Login */
 .login-screen{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#171717,#3a3a3a 55%,#8d0d12);padding:24px}
-.login-panel{width:min(760px,100%);background:var(--card);border-radius:22px;padding:30px;box-shadow:0 28px 80px rgba(0,0,0,.5)}
+.login-panel{width:min(920px,100%);background:var(--card);border-radius:22px;padding:30px;box-shadow:0 28px 80px rgba(0,0,0,.5)}
 .login-head{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:24px}
 .login-head .mark{width:70px;height:70px;object-fit:contain}
 .login-head h1{margin:0;font-size:30px} .login-head p{margin:4px 0 0;color:var(--muted)}
-.login-roles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.login-roles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 .login-role{border:2px solid var(--line);border-radius:16px;padding:18px;text-align:center;cursor:pointer;background:var(--card)}
 .login-role:hover,.login-role.selected{border-color:var(--red);background:var(--tint)}
 .login-role .icon{font-size:36px} .login-role h3{margin:8px 0 4px} .login-role p{font-size:12px;color:var(--muted)}

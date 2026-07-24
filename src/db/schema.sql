@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nombre TEXT NOT NULL,
   usuario TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  rol TEXT NOT NULL CHECK (rol IN ('ADMIN','CAJA','VENTA')),
+  rol TEXT NOT NULL CHECK (rol IN ('ADMIN','CAJA','VENTA','STOCK')),
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

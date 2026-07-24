@@ -20,8 +20,9 @@
     <div class="login-head"><img src="/img/logo-badge.png" class="mark" alt="El Gallo"><div><h1>EL GALLO POS</h1><p>Seleccioná el puesto de trabajo e ingresá la clave.</p></div></div>
     <div class="login-roles" id="loginRoles">
       <div class="login-role selected" data-rol="ADMIN"><div class="icon">⚙️</div><h3>ADMIN</h3><p>Control total: productos, stock, reportes y configuración.</p></div>
-      <div class="login-role" data-rol="CAJA"><div class="icon">💰</div><h3>CAJA</h3><p>Vende, cobra, ve stock y clientes.</p></div>
+      <div class="login-role" data-rol="CAJA"><div class="icon">💰</div><h3>CAJA</h3><p>Vende, cobra y ve clientes.</p></div>
       <div class="login-role" data-rol="VENTA"><div class="icon">🛒</div><h3>VENTA</h3><p>Arma pedidos y los envía a Caja. No cobra.</p></div>
+      <div class="login-role" data-rol="STOCK"><div class="icon">📦</div><h3>STOCK</h3><p>Único puesto que ajusta y controla el stock.</p></div>
     </div>
     <div class="login-password">
       <input id="loginPassword" type="password" placeholder="Clave de acceso">
@@ -553,6 +554,16 @@
       </section>
 
       <section class="screen" id="configuracion">
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Usuarios y claves</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Puesto</th><th>Usuario</th><th>Nueva clave</th><th></th></tr></thead>
+              <tbody id="usuariosClavesBody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="card" style="margin-bottom:14px">
           <div class="section-title"><h3>Cerrajeros</h3><button class="btn primary" onclick="openCerrajero()">+ Nuevo cerrajero</button></div>
           <div class="table-wrap">
