@@ -19,7 +19,7 @@
   <div class="login-panel">
     <div class="login-head"><img src="/img/logo-badge.png" class="mark" alt="El Gallo"><div><h1>EL GALLO POS</h1><p>Seleccioná el puesto de trabajo e ingresá la clave.</p></div></div>
     <div class="login-roles" id="loginRoles">
-      <div class="login-role selected" data-rol="ADMIN"><div class="icon">⚙️</div><h3>ADMIN</h3><p>Control total: productos, stock, reportes y configuración.</p></div>
+      <div class="login-role selected" data-rol="ADMIN"><div class="icon">⚙️</div><h3>ADMIN</h3><p>Control total: productos, ventas, reportes y configuración.</p></div>
       <div class="login-role" data-rol="CAJA"><div class="icon">💰</div><h3>CAJA</h3><p>Vende, cobra y ve clientes.</p></div>
       <div class="login-role" data-rol="VENTA"><div class="icon">🛒</div><h3>VENTA</h3><p>Arma pedidos y los envía a Caja. No cobra.</p></div>
       <div class="login-role" data-rol="STOCK"><div class="icon">📦</div><h3>STOCK</h3><p>Único puesto que ajusta y controla el stock.</p></div>
@@ -469,6 +469,13 @@
           </div>
           <div class="sale-footer">
             <div class="field" style="max-width:110px"><label style="color:#bbb;font-size:11px">Descuento gral. (%)</label><input id="ventaDescuentoGeneral" type="number" min="0" max="100" step="any" value="0" oninput="actualizarTotalVenta()" style="background:#222;color:#fff;border-color:#444"></div>
+            <div class="field" style="max-width:150px"><label style="color:#bbb;font-size:11px">Comprobante</label>
+              <select id="ventaTipoComprobante">
+                <option value="Eventual" selected>No fiscal</option>
+                <option value="Factura A">Factura A</option>
+                <option value="Factura B">Factura B</option>
+              </select>
+            </div>
             <div class="sale-footer-total"><div class="small" style="color:#bbb">TOTAL</div><div class="total">$ <span id="ventaTotal">0</span></div></div>
             <button class="btn dark" onclick="guardarPendiente()">💾 Pendiente <span class="key">F8</span></button>
             <button class="btn primary" onclick="cobrarOEnviar()">Cobrar / Enviar <span class="key">F10</span></button>

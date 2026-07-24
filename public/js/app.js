@@ -1622,7 +1622,8 @@ socket.on('caja:actualizada', () => {
 // ============================================================
 let session = null;
 const PANTALLAS_POR_ROL = {
-  ADMIN: null, // null = todas
+  // Stock queda reservado exclusivamente al puesto STOCK, ni ADMIN lo ve.
+  ADMIN: ['dashboard', 'ranking', 'configuracion', 'productos', 'familias', 'clientes', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja'],
   CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'caja'],
   VENTA: ['venta', 'pendientes', 'presupuestos', 'clientes'],
   STOCK: ['stock'],
@@ -2744,6 +2745,7 @@ function limpiarCarrito() {
   presupuestoOrigenId = null;
   document.getElementById('ventaClienteNombre').textContent = 'Consumidor Final';
   document.getElementById('ventaDescuentoGeneral').value = 0;
+  document.getElementById('ventaTipoComprobante').value = 'Eventual';
   document.getElementById('presupuestoOrigenAviso').textContent = '';
   actualizarDatosClienteVenta();
   renderVenta();
@@ -3006,10 +3008,11 @@ async function confirmarPagoCombinado() {
 }
 
 async function finalizarCobro(pagos) {
+  const tipoComprobante = modoEventual ? 'Eventual' : document.getElementById('ventaTipoComprobante').value;
   const res = await fetch(`/api/ventas/${ventaEnCobroId}/cobrar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pagos, tipo_comprobante: modoEventual ? 'Eventual' : undefined, usuario_id: session.id, terminal: session.rol }),
+    body: JSON.stringify({ pagos, tipo_comprobante: tipoComprobante, usuario_id: session.id, terminal: session.rol }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -3160,6 +3163,12 @@ function construirDocumentoA4Html(tipo, doc) {
   const logo = cfg.logo_url || '/img/logo-badge.png';
   const nombreNegocio = cfg.nombre_negocio || 'CERRAJERÍA EL GALLO';
   const esPresupuesto = tipo === 'presupuesto';
+  // Los datos fiscales (CUIT, Ingresos Brutos, etc.) solo se muestran cuando
+  // el comprobante es una Factura A o B real; un presupuesto o una venta no
+  // fiscal (Eventual) nunca deben llevarlos, para no confundirlos con una
+  // factura válida cuando en realidad no lo son.
+  const esFiscal = !esPresupuesto && (doc.tipo_comprobante === 'Factura A' || doc.tipo_comprobante === 'Factura B');
+  const letraTipo = esPresupuesto ? 'P' : esFiscal ? doc.tipo_comprobante.slice(-1) : 'V';
   const cliente = doc.cliente;
   const fecha = new Date(doc.creado_en || doc.cobrado_en).toLocaleString('es-AR');
   const condVenta = cliente && cliente.venta_a_credito ? 'CUENTA CORRIENTE' : 'CONTADO';
@@ -3191,13 +3200,15 @@ function construirDocumentoA4Html(tipo, doc) {
         ${cfg.condicion_fiscal_negocio ? `<div>${cfg.condicion_fiscal_negocio}</div>` : ''}
         <img src="${logo}" alt="${nombreNegocio}">
       </div>
-      <div class="a4-tipo-box">${esPresupuesto ? 'P' : 'V'}</div>
+      <div class="a4-tipo-box">${letraTipo}</div>
       <div class="a4-doc-info">
-        <div class="a4-muted">No válido como factura</div>
+        ${esFiscal ? '' : '<div class="a4-muted">No válido como factura</div>'}
         <div class="a4-doc-numero">N° ${doc.numero}</div>
-        <div>Inicio de Actividades: ${cfg.inicio_actividades || '--'}</div>
         <div>Fecha: ${fecha}</div>
-        <div>CUIT: ${cfg.cuit_negocio || '--'} / Ingresos Brutos: ${cfg.ingresos_brutos || '--'}</div>
+        ${esFiscal ? `
+          <div>Inicio de Actividades: ${cfg.inicio_actividades || '--'}</div>
+          <div>CUIT: ${cfg.cuit_negocio || '--'} / Ingresos Brutos: ${cfg.ingresos_brutos || '--'}</div>
+        ` : ''}
       </div>
     </div>
     <div class="a4-datos">
