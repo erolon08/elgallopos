@@ -2995,9 +2995,19 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
-  if (e.key === 'F10' && document.getElementById('venta').classList.contains('active')) {
-    e.preventDefault();
-    cobrarOEnviar();
+  if (document.getElementById('venta').classList.contains('active')) {
+    const atajosVenta = {
+      F10: cobrarOEnviar,
+      F9: guardarComoPresupuesto,
+      F8: guardarPendiente,
+      F6: cancelarVenta,
+      F4: aplicarCerrajeroATodas,
+      F2: nuevoClienteDesdeVenta,
+    };
+    if (atajosVenta[e.key]) {
+      e.preventDefault();
+      atajosVenta[e.key]();
+    }
   }
 });
 
