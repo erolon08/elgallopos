@@ -226,6 +226,21 @@ table{width:100%;border-collapse:collapse;min-width:640px} th,td{padding:10px 11
 .ticket h4{text-align:center;margin:2px} .ticket .center{text-align:center} .ticket hr{border:0;border-top:1px dashed #777;margin:8px 0}
 .ticket-logo{display:block;width:70px;height:70px;object-fit:contain;margin:0 auto 4px}
 .ticket-total{border:2px solid #000;border-radius:4px;padding:6px 4px;margin:8px 0;text-align:center;font-size:16px;font-weight:900;letter-spacing:.5px}
+
+/* Documento en A4 (presupuesto/venta a página completa, para impresora común) */
+.ticket-a4{display:none;width:100%;max-width:800px;margin:auto;background:#fff;padding:20px;font-family:Arial,Segoe UI,sans-serif;color:#111}
+.ticket-a4 .a4-header{display:flex;align-items:center;gap:16px;margin-bottom:12px}
+.ticket-a4 .a4-header img{width:70px;height:70px;object-fit:contain}
+.ticket-a4 .a4-header h2{margin:0 0 4px}
+.ticket-a4 h1{font-size:20px;border-bottom:2px solid #000;padding-bottom:6px;margin:18px 0 10px}
+.ticket-a4 .a4-datos p{margin:2px 0}
+.ticket-a4 .a4-tabla{width:100%;border-collapse:collapse;margin:16px 0}
+.ticket-a4 .a4-tabla th,.ticket-a4 .a4-tabla td{border:1px solid #999;padding:6px 8px;text-align:left;font-size:13px}
+.ticket-a4 .a4-tabla th{background:#eee}
+.ticket-a4 .a4-tabla .a4-num{text-align:right;white-space:nowrap}
+.ticket-a4 .a4-total{text-align:right;font-size:20px;font-weight:800;border-top:2px solid #000;padding-top:8px;margin-bottom:10px}
+.ticket-a4 .a4-muted{color:#555;font-size:12px}
+
 @media print{
   .sidebar,.topbar,.no-print{display:none!important}
   .app{display:block}
@@ -238,4 +253,6 @@ table{width:100%;border-collapse:collapse;min-width:640px} th,td{padding:10px 11
   }
   .ticket hr{border-top:1.5px dashed #000}
   .ticket-total{font-size:20px;border-width:3px;padding:8px 4px}
+  body.modo-impresion-a4 .ticket{display:none!important}
+  body.modo-impresion-a4 .ticket-a4{display:block!important;max-width:100%}
 }

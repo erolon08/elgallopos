@@ -1082,7 +1082,9 @@ function construirTicketCierreHtml(t) {
 async function mostrarTicketCierre(t) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
-  document.querySelector('#ticket-screen .btn.green').style.display = 'none';
+  document.getElementById('btnEnviarTextoWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = '';
   document.getElementById('ticketContenido').innerHTML = construirTicketCierreHtml(t);
@@ -2115,7 +2117,9 @@ async function mostrarTicketRendicion(id) {
   await cargarConfiguracionGlobal();
   const r = await (await fetch(`/api/rendiciones/${id}`)).json();
   ultimoDocumentoParaTicket = { tipo: 'rendicion', data: r };
-  document.querySelector('#ticket-screen .btn.green').style.display = 'none';
+  document.getElementById('btnEnviarTextoWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = r.estado === 'generada' ? '' : 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
 
@@ -3043,7 +3047,9 @@ function formatearTextoTicket(tipo, doc) {
 async function mostrarTicket(venta) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
-  document.querySelector('#ticket-screen .btn.green').style.display = '';
+  document.getElementById('btnEnviarTextoWhatsapp').style.display = '';
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = '';
+  document.getElementById('btnImprimirA4').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
@@ -3067,7 +3073,9 @@ async function mostrarTicket(venta) {
 async function mostrarTicketPresupuesto(presupuesto) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'presupuesto', data: presupuesto };
-  document.querySelector('#ticket-screen .btn.green').style.display = '';
+  document.getElementById('btnEnviarTextoWhatsapp').style.display = '';
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = '';
+  document.getElementById('btnImprimirA4').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
@@ -3086,6 +3094,72 @@ async function mostrarTicketPresupuesto(presupuesto) {
     ${ticketPieHtml()}
   `;
   showScreen('ticket-screen');
+}
+
+// Formato de página completa (A4), pensado para imprimir en una impresora
+// común de oficina en vez de la comandera térmica de 80mm: mismo contenido
+// que el ticket, pero con una tabla prolija y letra normal (no monoespaciada
+// ni forzada a negrita, que en A4 no hace falta para que se vea nítido).
+function construirDocumentoA4Html(tipo, doc) {
+  const cfg = configCache || {};
+  const logo = cfg.logo_url || '/img/logo-badge.png';
+  const nombreNegocio = cfg.nombre_negocio || 'CERRAJERÍA EL GALLO';
+  const esPresupuesto = tipo === 'presupuesto';
+  const fecha = new Date(doc.creado_en || doc.cobrado_en).toLocaleString('es-AR');
+  const filas = doc.items
+    .map(
+      (it) => `
+      <tr>
+        <td>${it.cantidad}</td>
+        <td>${it.descripcion}${it.cerrajero_nombre ? `<br><span class="a4-muted">Cerrajero: ${it.cerrajero_nombre}</span>` : ''}</td>
+        <td class="a4-num">$${money.format(it.precio_unitario)}</td>
+        <td class="a4-num">$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}</td>
+      </tr>`
+    )
+    .join('');
+  const pagosHtml = !esPresupuesto && doc.pagos && doc.pagos.length
+    ? `<p><b>Forma de pago:</b> ${doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`).join(' / ')}</p>`
+    : '';
+  return `
+    <div class="a4-header">
+      <img src="${logo}" alt="${nombreNegocio}">
+      <div>
+        <h2>${nombreNegocio}</h2>
+        ${cfg.subtitulo ? `<div>${cfg.subtitulo}</div>` : ''}
+        ${cfg.ticket_encabezado ? `<div class="a4-muted">${cfg.ticket_encabezado.replace(/\n/g, '<br>')}</div>` : ''}
+      </div>
+    </div>
+    <h1>${esPresupuesto ? 'PRESUPUESTO' : 'COMPROBANTE DE VENTA'} N° ${doc.numero}</h1>
+    <div class="a4-datos">
+      <p><b>Fecha:</b> ${fecha}</p>
+      <p><b>Cliente:</b> ${doc.cliente ? doc.cliente.nombre : 'Consumidor Final'}</p>
+      ${esPresupuesto ? `<p><b>Válido por:</b> ${doc.vigencia_dias} días</p>` : `<p><b>Comprobante:</b> ${doc.tipo_comprobante}</p>`}
+    </div>
+    <table class="a4-tabla">
+      <thead><tr><th>Cant.</th><th>Descripción</th><th>Precio unit.</th><th>Subtotal</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div class="a4-total">TOTAL: $${money.format(doc.total)}</div>
+    ${pagosHtml}
+    ${esPresupuesto ? '<p class="a4-muted">Presupuesto sujeto a modificaciones.</p>' : ''}
+    ${cfg.ticket_pie ? `<p class="a4-muted">${cfg.ticket_pie.replace(/\n/g, '<br>')}</p>` : ''}
+  `;
+}
+
+let volverAlModoTicketNormal = null;
+function imprimirEnA4() {
+  if (!ultimoDocumentoParaTicket) return;
+  const { tipo, data } = ultimoDocumentoParaTicket;
+  if (tipo !== 'venta' && tipo !== 'presupuesto') return;
+  document.getElementById('ticketA4Contenido').innerHTML = construirDocumentoA4Html(tipo, data);
+  document.body.classList.add('modo-impresion-a4');
+  volverAlModoTicketNormal = () => {
+    document.body.classList.remove('modo-impresion-a4');
+    window.removeEventListener('afterprint', volverAlModoTicketNormal);
+    volverAlModoTicketNormal = null;
+  };
+  window.addEventListener('afterprint', volverAlModoTicketNormal);
+  window.print();
 }
 
 // Pedir el teléfono con un prompt() nativo funciona para el texto (todo pasa
