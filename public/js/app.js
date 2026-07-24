@@ -3142,22 +3142,34 @@ function ejecutarEnvioWhatsapp(modo, tipo, doc, telefono) {
 // 2) Clipboard API (requiere HTTPS): se copia la imagen al portapapeles y se
 //    abre el chat, para pegarla con Ctrl+V directo en el cuadro de mensaje.
 // 3) Descarga + adjuntar a mano (único camino posible sin HTTPS).
+//
+// La ventana de WhatsApp se abre ACÁ, de entrada, en el mismo instante del
+// clic: generar la imagen (html2canvas + toBlob) tarda un poco, y si se
+// llama a window.open() recién después de esa espera, el navegador ya no lo
+// considera un gesto directo del usuario y lo bloquea como popup (pasaba
+// siempre en algunas PC, nunca en otras, según qué tan estricto sea cada
+// Chrome). Abriendo la ventana ya mismo y rellenándola después evita el
+// bloqueo en cualquier navegador.
 async function enviarImagenTicketPorWhatsapp(telefono) {
+  const ventana = window.open('', '_blank');
   const el = document.getElementById('ticketContenido');
   let canvas;
   try {
     canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
   } catch (err) {
+    if (ventana) ventana.close();
     alert('No se pudo generar la imagen del ticket: ' + err.message);
     return;
   }
   canvas.toBlob(async (blob) => {
     if (!blob) {
+      if (ventana) ventana.close();
       alert('No se pudo generar la imagen del ticket.');
       return;
     }
     const archivo = new File([blob], `ticket-${Date.now()}.jpg`, { type: 'image/jpeg' });
     if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+      if (ventana) ventana.close();
       try {
         await navigator.share({ files: [archivo], title: 'Ticket', text: 'Te envío el ticket.' });
         return;
@@ -3168,7 +3180,7 @@ async function enviarImagenTicketPorWhatsapp(telefono) {
     if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
       try {
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': await convertirAPng(blob) })]);
-        window.open(`https://wa.me/${telefonoWhatsappCompleto(telefono)}?text=${encodeURIComponent('Te envío el ticket 📎')}`, '_blank');
+        abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket 📎');
         alert('Se copió la imagen del ticket al portapapeles. En el chat que se acaba de abrir, hacé clic en el cuadro de mensaje y pegala con Ctrl+V.');
         return;
       } catch (err) {
@@ -3181,9 +3193,15 @@ async function enviarImagenTicketPorWhatsapp(telefono) {
     a.download = archivo.name;
     a.click();
     URL.revokeObjectURL(url);
-    window.open(`https://wa.me/${telefonoWhatsappCompleto(telefono)}?text=${encodeURIComponent('Te envío el ticket adjunto 📎')}`, '_blank');
+    abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket adjunto 📎');
     alert('Se descargó la imagen del ticket. WhatsApp no permite adjuntarla sola desde el navegador: adjuntala manualmente en el chat que se acaba de abrir (clip 📎 → Galería/Archivo → elegí el ticket recién descargado).');
   }, 'image/jpeg', 0.92);
+}
+
+function abrirVentanaWhatsapp(ventanaPreabierta, telefono, texto) {
+  const url = `https://wa.me/${telefonoWhatsappCompleto(telefono)}?text=${encodeURIComponent(texto)}`;
+  if (ventanaPreabierta) ventanaPreabierta.location.href = url;
+  else window.open(url, '_blank');
 }
 
 // El portapapeles del navegador solo acepta PNG, y el ticket se genera en JPEG
