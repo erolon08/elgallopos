@@ -26,7 +26,16 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
   `;
   const params = {};
   if (q) {
-    sql += ' AND (p.codigo LIKE @q OR p.descripcion LIKE @q)';
+    // Cada palabra buscada puede estar en cualquier parte del código o la
+    // descripción, no necesariamente pegadas ni en ese orden (ej: "sekur 50"
+    // debe encontrar "SEKUR CANDADO 50"), así que se exige que TODAS las
+    // palabras aparezcan, cada una en cualquier lugar de código o descripción.
+    const palabras = q.trim().split(/\s+/).filter(Boolean);
+    const condiciones = palabras.map((_, i) => `(p.codigo LIKE @qPalabra${i} OR p.descripcion LIKE @qPalabra${i})`).join(' AND ');
+    sql += ` AND (${condiciones})`;
+    palabras.forEach((palabra, i) => {
+      params[`qPalabra${i}`] = `%${palabra}%`;
+    });
     params.q = `%${q}%`;
     params.qPrefix = `${q}%`;
     params.qExacto = q;
@@ -53,7 +62,8 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
             WHEN p.codigo LIKE @qPrefix THEN 1
             WHEN p.codigo LIKE @q THEN 2
             WHEN p.descripcion LIKE @qPrefix THEN 3
-            ELSE 4
+            WHEN p.descripcion LIKE @q THEN 4
+            ELSE 5
           END,
           p.orden_botonera, p.descripcion`
     : ' ORDER BY p.orden_botonera, p.descripcion';
