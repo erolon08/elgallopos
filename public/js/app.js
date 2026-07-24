@@ -3135,10 +3135,13 @@ function ejecutarEnvioWhatsapp(modo, tipo, doc, telefono) {
 }
 
 // WhatsApp no deja adjuntar una imagen por link (wa.me solo permite texto
-// precargado); es una limitación de WhatsApp, no de esta app. Por eso: si el
-// navegador soporta compartir archivos (navigator.share, típico en celulares),
-// se abre el selector nativo con la imagen ya lista para elegir WhatsApp. Si
-// no, se descarga la imagen del ticket y se abre el chat para adjuntarla a mano.
+// precargado); es una limitación de WhatsApp, no de esta app. Por eso hay 3
+// niveles, de mejor a peor, según lo que permita el navegador:
+// 1) navigator.share con archivos (típico en celulares): se abre el selector
+//    nativo con la imagen ya lista para elegir WhatsApp.
+// 2) Clipboard API (requiere HTTPS): se copia la imagen al portapapeles y se
+//    abre el chat, para pegarla con Ctrl+V directo en el cuadro de mensaje.
+// 3) Descarga + adjuntar a mano (único camino posible sin HTTPS).
 async function enviarImagenTicketPorWhatsapp(telefono) {
   const el = document.getElementById('ticketContenido');
   let canvas;
@@ -3162,6 +3165,16 @@ async function enviarImagenTicketPorWhatsapp(telefono) {
         if (err.name === 'AbortError') return; // el usuario canceló el selector, no hacer nada más
       }
     }
+    if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': await convertirAPng(blob) })]);
+        window.open(`https://wa.me/${telefonoWhatsappCompleto(telefono)}?text=${encodeURIComponent('Te envío el ticket 📎')}`, '_blank');
+        alert('Se copió la imagen del ticket al portapapeles. En el chat que se acaba de abrir, hacé clic en el cuadro de mensaje y pegala con Ctrl+V.');
+        return;
+      } catch (err) {
+        // si falla el portapapeles, seguir con la descarga como último recurso
+      }
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -3171,6 +3184,23 @@ async function enviarImagenTicketPorWhatsapp(telefono) {
     window.open(`https://wa.me/${telefonoWhatsappCompleto(telefono)}?text=${encodeURIComponent('Te envío el ticket adjunto 📎')}`, '_blank');
     alert('Se descargó la imagen del ticket. WhatsApp no permite adjuntarla sola desde el navegador: adjuntala manualmente en el chat que se acaba de abrir (clip 📎 → Galería/Archivo → elegí el ticket recién descargado).');
   }, 'image/jpeg', 0.92);
+}
+
+// El portapapeles del navegador solo acepta PNG, y el ticket se genera en JPEG
+// para que pese menos al descargarlo; esta función convierte on-the-fly.
+function convertirAPng(blobJpeg) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      canvas.toBlob((blobPng) => (blobPng ? resolve(blobPng) : reject(new Error('No se pudo convertir a PNG'))), 'image/png');
+    };
+    img.onerror = () => reject(new Error('No se pudo cargar la imagen del ticket'));
+    img.src = URL.createObjectURL(blobJpeg);
+  });
 }
 
 // ============================================================
