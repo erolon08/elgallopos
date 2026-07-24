@@ -3056,7 +3056,8 @@ async function mostrarTicket(venta) {
     Fecha: ${fecha}<br>N°: ${venta.numero} · ${venta.tipo_comprobante}<br>
     Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}<hr>
     ${lineasHtml}<hr>
-    TOTAL: <b>$${money.format(venta.total)}</b><br>${pagosHtml}<hr>
+    <div class="ticket-total">TOTAL: $${money.format(venta.total)}</div>
+    ${pagosHtml}<hr>
     <div class="center">¡Gracias por su compra!</div>
     ${ticketPieHtml()}
   `;
@@ -3079,7 +3080,8 @@ async function mostrarTicketPresupuesto(presupuesto) {
     Fecha: ${fecha}<br>N°: ${presupuesto.numero}<br>Válido por ${presupuesto.vigencia_dias} días<br>
     Cliente: ${presupuesto.cliente ? presupuesto.cliente.nombre : 'Consumidor Final'}<hr>
     ${lineasHtml}<hr>
-    TOTAL: <b>$${money.format(presupuesto.total)}</b><hr>
+    <div class="ticket-total">TOTAL: $${money.format(presupuesto.total)}</div>
+    <hr>
     <div class="center">Presupuesto sujeto a modificaciones.</div>
     ${ticketPieHtml()}
   `;
