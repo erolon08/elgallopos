@@ -2801,16 +2801,40 @@ function actualizarDatosClienteVenta() {
   const el = document.getElementById('ventaClienteDatos');
   if (el) el.textContent = datosClienteVentaTexto(clienteVentaActual);
 }
+
+// Comprobante automático según la situación fiscal del cliente: Responsable
+// Inscripto y Monotributista facturan A, Consumidor Final y Exento facturan
+// B. Sin cliente elegido (o con una situación que no matchea ninguna regla)
+// queda "No fiscal", igual que antes.
+function comprobanteAutomaticoSegunCliente(cliente) {
+  const situacion = ((cliente && cliente.condicion_iva) || '').toLowerCase();
+  if (situacion.includes('responsable inscripto') || situacion.includes('monotributista')) return 'Factura A';
+  if (situacion.includes('consumidor final') || situacion.includes('exento')) return 'Factura B';
+  return 'Eventual';
+}
+
+// La Cuenta Corriente como condición de venta solo se puede elegir si el
+// cliente tiene esa opción habilitada en su ficha.
+function actualizarComprobanteYCondicionSegunCliente() {
+  document.getElementById('ventaTipoComprobante').value = comprobanteAutomaticoSegunCliente(clienteVentaActual);
+  const habilitado = !!(clienteVentaActual && clienteVentaActual.venta_a_credito);
+  const opcionCtaCte = document.getElementById('ventaCondicionCtaCte');
+  opcionCtaCte.disabled = !habilitado;
+  if (!habilitado) document.getElementById('ventaCondicionVenta').value = 'Contado';
+}
+
 async function elegirClienteParaVenta(id) {
   const cliente = await (await fetch(`/api/clientes/${id}`)).json();
   clienteVentaActual = cliente;
   document.getElementById('ventaClienteNombre').textContent = cliente.nombre;
   actualizarDatosClienteVenta();
+  actualizarComprobanteYCondicionSegunCliente();
   showScreen('venta');
 }
 
 function elegirClienteEnVenta(cliente) {
   clienteVentaActual = cliente;
+  actualizarComprobanteYCondicionSegunCliente();
   document.getElementById('ventaClienteNombre').textContent = cliente.nombre;
   actualizarDatosClienteVenta();
   const cont = document.getElementById('ventaClienteResultados');
@@ -2881,8 +2905,8 @@ function limpiarCarrito() {
   presupuestoOrigenId = null;
   document.getElementById('ventaClienteNombre').textContent = 'Consumidor Final';
   document.getElementById('ventaDescuentoGeneral').value = 0;
-  document.getElementById('ventaTipoComprobante').value = 'Eventual';
   document.getElementById('presupuestoOrigenAviso').textContent = '';
+  actualizarComprobanteYCondicionSegunCliente();
   actualizarDatosClienteVenta();
   renderVenta();
 }
@@ -3009,6 +3033,12 @@ function abrirCobro(ventaId, total) {
   document.getElementById('cobroTotal').textContent = money.format(total);
   volverAMetodos();
   document.getElementById('cobroModal').classList.add('open');
+  // Si en la pantalla de Venta ya se eligió "Cuenta Corriente" como
+  // condición, se salta directo a esa confirmación en vez de mostrar los
+  // botones de forma de pago — ya se sabe que no se cobra en el momento.
+  if (document.getElementById('ventaCondicionVenta').value === 'Cuenta Corriente') {
+    elegirFormaPago('Cuenta Corriente');
+  }
 }
 function closeCobro() {
   document.getElementById('cobroModal').classList.remove('open');
@@ -3247,10 +3277,23 @@ function esFacturaFiscal(tipo, doc) {
   return tipo === 'venta' && (doc.tipo_comprobante === 'Factura A' || doc.tipo_comprobante === 'Factura B');
 }
 
-function datosFiscalesClienteHtmlTicket(cliente) {
+// En una venta ya cobrada, la condición real es la forma de pago que
+// efectivamente se usó (si fue "Cuenta Corriente", quedó a cuenta; cualquier
+// otra forma es contado). Un presupuesto todavía no tiene pagos, así que se
+// estima según si el cliente tiene la Cuenta Corriente habilitada.
+function condicionVentaTexto(tipo, doc) {
+  if (tipo === 'venta') {
+    return doc.pagos && doc.pagos.some((p) => p.forma_pago === 'Cuenta Corriente') ? 'CUENTA CORRIENTE' : 'CONTADO';
+  }
+  return doc.cliente && doc.cliente.venta_a_credito ? 'CUENTA CORRIENTE' : 'CONTADO';
+}
+
+function datosFiscalesClienteHtmlTicket(tipo, doc) {
+  const cliente = doc.cliente;
   let html = `Situación: ${(cliente && cliente.condicion_iva) || 'Consumidor Final'}<br>`;
   if (cliente && cliente.cuit) html += `CUIT: ${cliente.cuit}<br>`;
   if (cliente && cliente.direccion) html += `Domicilio: ${cliente.direccion}<br>`;
+  html += `Cond. Venta: ${condicionVentaTexto(tipo, doc)}<br>`;
   return html;
 }
 
@@ -3279,7 +3322,7 @@ async function mostrarTicket(venta) {
     ${datosFiscalesNegocioHtmlTicket(esFiscal)}
     Fecha: ${fecha}<br>N°: ${venta.numero} · ${venta.tipo_comprobante}<br>
     Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}<br>
-    ${datosFiscalesClienteHtmlTicket(venta.cliente)}<hr>
+    ${datosFiscalesClienteHtmlTicket('venta', venta)}<hr>
     ${lineasHtml}<hr>
     <div class="ticket-total">TOTAL: $${money.format(venta.total)}</div>
     ${pagosHtml}<hr>
@@ -3307,7 +3350,7 @@ async function mostrarTicketPresupuesto(presupuesto) {
     <div class="center">PRESUPUESTO</div><hr>
     Fecha: ${fecha}<br>N°: ${presupuesto.numero}<br>Válido por ${presupuesto.vigencia_dias} días<br>
     Cliente: ${presupuesto.cliente ? presupuesto.cliente.nombre : 'Consumidor Final'}<br>
-    ${datosFiscalesClienteHtmlTicket(presupuesto.cliente)}<hr>
+    ${datosFiscalesClienteHtmlTicket('presupuesto', presupuesto)}<hr>
     ${lineasHtml}<hr>
     <div class="ticket-total">TOTAL: $${money.format(presupuesto.total)}</div>
     <hr>
@@ -3334,7 +3377,7 @@ function construirDocumentoA4Html(tipo, doc) {
   const letraTipo = esPresupuesto ? 'P' : esFiscal ? doc.tipo_comprobante.slice(-1) : 'V';
   const cliente = doc.cliente;
   const fecha = new Date(doc.creado_en || doc.cobrado_en).toLocaleString('es-AR');
-  const condVenta = cliente && cliente.venta_a_credito ? 'CUENTA CORRIENTE' : 'CONTADO';
+  const condVenta = condicionVentaTexto(tipo, doc);
   const cuartaFila = esPresupuesto
     ? `<p><b>Vigencia:</b> ${doc.vigencia_dias} días</p>`
     : `<p><b>Comprobante:</b> ${doc.tipo_comprobante}</p>`;
@@ -3615,6 +3658,7 @@ async function abrirPendienteParaEditar(id) {
   if (venta.cliente) {
     clienteVentaActual = venta.cliente;
     document.getElementById('ventaClienteNombre').textContent = venta.cliente.nombre;
+    actualizarComprobanteYCondicionSegunCliente();
   }
   actualizarDatosClienteVenta();
   for (const it of venta.items) {
@@ -3843,6 +3887,7 @@ async function convertirPresupuestoEnVenta(id) {
   if (presupuesto.cliente) {
     clienteVentaActual = presupuesto.cliente;
     document.getElementById('ventaClienteNombre').textContent = presupuesto.cliente.nombre;
+    actualizarComprobanteYCondicionSegunCliente();
   }
   actualizarDatosClienteVenta();
   for (const it of presupuesto.items) {

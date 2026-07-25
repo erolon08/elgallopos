@@ -477,6 +477,12 @@
                 <option value="Factura B">Factura B</option>
               </select>
             </div>
+            <div class="field" style="max-width:150px"><label style="color:#bbb;font-size:11px">Condición</label>
+              <select id="ventaCondicionVenta">
+                <option value="Contado" selected>Contado</option>
+                <option value="Cuenta Corriente" id="ventaCondicionCtaCte">Cuenta Corriente</option>
+              </select>
+            </div>
             <div class="sale-footer-total"><div class="small" style="color:#bbb">TOTAL</div><div class="total">$ <span id="ventaTotal">0</span></div></div>
             <button class="btn dark" onclick="guardarPendiente()">💾 Pendiente <span class="key">F8</span></button>
             <button class="btn primary" onclick="cobrarOEnviar()">Cobrar / Enviar <span class="key">F10</span></button>
