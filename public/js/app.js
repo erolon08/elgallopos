@@ -3238,6 +3238,28 @@ function formatearTextoTicket(tipo, doc) {
   return lineasTexto.join('\n');
 }
 
+// Un comprobante es "fiscal" solo si es Factura A o B; los presupuestos
+// nunca lo son (son solo un presupuesto, no una venta facturada). Los datos
+// fiscales del CLIENTE (CUIT, situación) se muestran siempre, sea o no
+// fiscal el comprobante; los del NEGOCIO (CUIT, Ingresos Brutos, Inicio de
+// Actividades) solo cuando sí lo es — tanto en el ticket térmico como en A4.
+function esFacturaFiscal(tipo, doc) {
+  return tipo === 'venta' && (doc.tipo_comprobante === 'Factura A' || doc.tipo_comprobante === 'Factura B');
+}
+
+function datosFiscalesClienteHtmlTicket(cliente) {
+  let html = `Situación: ${(cliente && cliente.condicion_iva) || 'Consumidor Final'}<br>`;
+  if (cliente && cliente.cuit) html += `CUIT: ${cliente.cuit}<br>`;
+  if (cliente && cliente.direccion) html += `Domicilio: ${cliente.direccion}<br>`;
+  return html;
+}
+
+function datosFiscalesNegocioHtmlTicket(esFiscal) {
+  const cfg = configCache || {};
+  if (!esFiscal) return 'No válido como factura<br>';
+  return `CUIT: ${cfg.cuit_negocio || '--'}<br>Ingresos Brutos: ${cfg.ingresos_brutos || '--'}<br>Inicio de Actividades: ${cfg.inicio_actividades || '--'}<br>`;
+}
+
 async function mostrarTicket(venta) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
@@ -3246,6 +3268,7 @@ async function mostrarTicket(venta) {
   document.getElementById('btnImprimirA4').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  const esFiscal = esFacturaFiscal('venta', venta);
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}${it.cerrajero_nombre ? '<br><span style="font-size:11px">&nbsp;&nbsp;Cerrajero: ' + it.cerrajero_nombre + '</span>' : ''}<br>`)
@@ -3253,8 +3276,10 @@ async function mostrarTicket(venta) {
   const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
   document.getElementById('ticketContenido').innerHTML = `
     ${ticketEncabezadoHtml()}<hr>
+    ${datosFiscalesNegocioHtmlTicket(esFiscal)}
     Fecha: ${fecha}<br>N°: ${venta.numero} · ${venta.tipo_comprobante}<br>
-    Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}<hr>
+    Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}<br>
+    ${datosFiscalesClienteHtmlTicket(venta.cliente)}<hr>
     ${lineasHtml}<hr>
     <div class="ticket-total">TOTAL: $${money.format(venta.total)}</div>
     ${pagosHtml}<hr>
@@ -3278,9 +3303,11 @@ async function mostrarTicketPresupuesto(presupuesto) {
     .join('');
   document.getElementById('ticketContenido').innerHTML = `
     ${ticketEncabezadoHtml()}
+    ${datosFiscalesNegocioHtmlTicket(false)}
     <div class="center">PRESUPUESTO</div><hr>
     Fecha: ${fecha}<br>N°: ${presupuesto.numero}<br>Válido por ${presupuesto.vigencia_dias} días<br>
-    Cliente: ${presupuesto.cliente ? presupuesto.cliente.nombre : 'Consumidor Final'}<hr>
+    Cliente: ${presupuesto.cliente ? presupuesto.cliente.nombre : 'Consumidor Final'}<br>
+    ${datosFiscalesClienteHtmlTicket(presupuesto.cliente)}<hr>
     ${lineasHtml}<hr>
     <div class="ticket-total">TOTAL: $${money.format(presupuesto.total)}</div>
     <hr>
@@ -3303,7 +3330,7 @@ function construirDocumentoA4Html(tipo, doc) {
   // el comprobante es una Factura A o B real; un presupuesto o una venta no
   // fiscal (Eventual) nunca deben llevarlos, para no confundirlos con una
   // factura válida cuando en realidad no lo son.
-  const esFiscal = !esPresupuesto && (doc.tipo_comprobante === 'Factura A' || doc.tipo_comprobante === 'Factura B');
+  const esFiscal = esFacturaFiscal(tipo, doc);
   const letraTipo = esPresupuesto ? 'P' : esFiscal ? doc.tipo_comprobante.slice(-1) : 'V';
   const cliente = doc.cliente;
   const fecha = new Date(doc.creado_en || doc.cobrado_en).toLocaleString('es-AR');

@@ -151,11 +151,13 @@ function exportarFilas({ desde, hasta }) {
     .prepare(
       `SELECT v.id AS venta_id, v.numero, v.cobrado_en, v.tipo_comprobante, v.total AS total_venta,
               cl.nombre AS cliente, vi.descripcion, vi.cantidad, vi.precio_unitario, vi.descuento,
-              c.nombre AS cerrajero
+              c.nombre AS cerrajero, f.nombre AS familia
        FROM ventas v
        LEFT JOIN clientes cl ON cl.id = v.cliente_id
        JOIN venta_items vi ON vi.venta_id = v.id
        LEFT JOIN cerrajeros c ON c.id = vi.cerrajero_id
+       LEFT JOIN productos p ON p.id = vi.producto_id
+       LEFT JOIN familias f ON f.id = p.familia_id
        ${cond}
        ORDER BY v.cobrado_en, v.id`
     )
@@ -167,6 +169,7 @@ function exportarFilas({ desde, hasta }) {
     Cliente: it.cliente || 'Consumidor Final',
     Comprobante: it.tipo_comprobante,
     Producto: it.descripcion,
+    Familia: it.familia || '',
     Cantidad: it.cantidad,
     'Precio Unitario': Math.round(it.precio_unitario),
     Descuento: Math.round(it.descuento || 0),
