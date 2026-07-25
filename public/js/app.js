@@ -156,7 +156,10 @@ function filaStock(r) {
     <td class="celda-actual">${money.format(r.stock_actual)}</td>
     <td>${money.format(r.stock_minimo)}</td>
     <td class="celda-estado"><span class="status ${estado.cls}">${estado.text}</span></td>
-    <td><button class="btn light" onclick="openAjuste(${r.id}, '${r.descripcion.replace(/'/g, "\\'")}')">Ajustar</button></td>
+    <td>
+      <button class="btn light" onclick="openAjuste(${r.id}, '${r.descripcion.replace(/'/g, "\\'")}')">Ajustar</button>
+      <button class="btn outline" onclick="abrirHistorialStock(${r.id}, '${r.descripcion.replace(/'/g, "\\'")}')">Historial</button>
+    </td>
   `;
   return tr;
 }
@@ -174,6 +177,59 @@ function closeAjuste() {
   ajusteProductoId = null;
 }
 
+let historialStockProductoId = null;
+const TIPO_MOVIMIENTO_STOCK_LABEL = { venta: 'Venta', compra: 'Compra', ajuste: 'Ajuste', nota_credito: 'Nota de crédito' };
+
+function abrirHistorialStock(producto_id, descripcion) {
+  historialStockProductoId = producto_id;
+  document.getElementById('historialStockTitulo').textContent = 'Historial de stock: ' + descripcion;
+  document.getElementById('historialStockDesde').value = '';
+  document.getElementById('historialStockHasta').value = '';
+  document.getElementById('historialStockModal').classList.add('open');
+  cargarHistorialStock();
+}
+
+function closeHistorialStock() {
+  document.getElementById('historialStockModal').classList.remove('open');
+  historialStockProductoId = null;
+}
+
+async function cargarHistorialStock() {
+  const desde = document.getElementById('historialStockDesde').value;
+  const hasta = document.getElementById('historialStockHasta').value;
+  const params = new URLSearchParams();
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  const rows = await (await fetch(`/api/stock/${historialStockProductoId}/movimientos?` + params.toString())).json();
+
+  document.getElementById('historialStockActual').textContent = rows.length
+    ? `Stock actual: ${money.format(rows[0].stock_resultante)}`
+    : 'Sin movimientos en el rango seleccionado.';
+
+  document.getElementById('historialStockBody').innerHTML = rows
+    .map((m) => {
+      let descripcion = TIPO_MOVIMIENTO_STOCK_LABEL[m.tipo] || m.tipo;
+      if (m.tipo === 'venta' && m.venta_numero) descripcion += `: ${m.venta_numero}`;
+      else if (m.tipo === 'compra' && m.compra_numero) descripcion += `: ${m.compra_numero}`;
+      if (m.motivo) descripcion += ` (${m.motivo})`;
+      const fecha = new Date(m.creado_en).toLocaleString('es-AR');
+      const cantidadClase = m.cantidad < 0 ? 'text-red' : 'text-green';
+      return `
+        <tr>
+          <td>${fecha}</td>
+          <td>${descripcion}</td>
+          <td class="${cantidadClase}">${m.cantidad > 0 ? '+' : ''}${money.format(m.cantidad)}</td>
+          <td>${money.format(m.stock_resultante)}</td>
+          <td>${m.usuario_nombre || m.terminal || '—'}</td>
+        </tr>`;
+    })
+    .join('');
+}
+
+['historialStockDesde', 'historialStockHasta'].forEach((id) =>
+  document.getElementById(id).addEventListener('change', cargarHistorialStock)
+);
+
 async function confirmarAjuste() {
   const cantidad = Number(document.getElementById('ajusteCantidad').value);
   const motivo = document.getElementById('ajusteMotivo').value.trim();
@@ -184,7 +240,7 @@ async function confirmarAjuste() {
   const res = await fetch(`/api/stock/${ajusteProductoId}/ajuste`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cantidad, motivo, terminal: 'ADMIN' }),
+    body: JSON.stringify({ cantidad, motivo, terminal: session.rol, usuario_id: session.id }),
   });
   if (!res.ok) {
     const err = await res.json();

@@ -15,7 +15,8 @@ router.get('/', (req, res) => {
 });
 
 router.get('/:id/movimientos', (req, res) => {
-  const rows = stockService.movimientos(Number(req.params.id));
+  const { desde, hasta } = req.query;
+  const rows = stockService.movimientos(Number(req.params.id), { desde, hasta });
   res.json(rows);
 });
 

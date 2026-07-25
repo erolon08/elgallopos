@@ -32,12 +32,26 @@ function listarStock({ q, familia_id, soloBajoMinimo } = {}) {
   return soloBajoMinimo ? withEstado.filter((r) => r.estado !== 'correcto') : withEstado;
 }
 
-function movimientos(producto_id, limit = 50) {
-  return db
-    .prepare(
-      `SELECT * FROM stock_movimientos WHERE producto_id = ? ORDER BY creado_en DESC, id DESC LIMIT ?`
-    )
-    .all(producto_id, limit);
+function movimientos(producto_id, { desde, hasta } = {}) {
+  let sql = `
+    SELECT sm.*, v.numero AS venta_numero, c.numero AS compra_numero, u.nombre AS usuario_nombre
+    FROM stock_movimientos sm
+    LEFT JOIN ventas v ON sm.referencia_tipo = 'venta' AND sm.referencia_id = v.id
+    LEFT JOIN compras c ON sm.referencia_tipo = 'compra' AND sm.referencia_id = c.id
+    LEFT JOIN usuarios u ON sm.usuario_id = u.id
+    WHERE sm.producto_id = @producto_id
+  `;
+  const params = { producto_id };
+  if (desde) {
+    sql += ' AND date(sm.creado_en) >= date(@desde)';
+    params.desde = desde;
+  }
+  if (hasta) {
+    sql += ' AND date(sm.creado_en) <= date(@hasta)';
+    params.hasta = hasta;
+  }
+  sql += ' ORDER BY sm.creado_en DESC, sm.id DESC LIMIT 500';
+  return db.prepare(sql).all(params);
 }
 
 // Movimiento de stock atómico: aplica la cantidad (positiva o negativa) al

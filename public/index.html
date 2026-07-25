@@ -695,6 +695,26 @@
   </div>
 </div>
 
+<div class="modal" id="historialStockModal">
+  <div class="modal-box" style="max-width:820px">
+    <div class="section-title"><h3 id="historialStockTitulo">Historial de stock</h3><button class="btn light" onclick="closeHistorialStock()">✕</button></div>
+    <p class="small" id="historialStockActual" style="margin-top:-6px"></p>
+    <div class="toolbar">
+      <div class="field"><label>Desde</label><input id="historialStockDesde" type="date"></div>
+      <div class="field"><label>Hasta</label><input id="historialStockHasta" type="date"></div>
+    </div>
+    <div class="table-wrap" style="max-height:400px;overflow:auto">
+      <table>
+        <thead><tr><th>Fecha</th><th>Descripción</th><th>Cantidad</th><th>Stock</th><th>Usuario</th></tr></thead>
+        <tbody id="historialStockBody"></tbody>
+      </table>
+    </div>
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn outline" onclick="closeHistorialStock()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="productoModal">
   <div class="modal-box" style="max-width:640px">
     <div class="section-title"><h3 id="productoTitulo">Nuevo producto</h3><button class="btn light" onclick="closeProducto()">✕</button></div>
