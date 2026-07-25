@@ -1626,7 +1626,7 @@ const PANTALLAS_POR_ROL = {
   ADMIN: ['dashboard', 'ranking', 'configuracion', 'productos', 'familias', 'clientes', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja'],
   CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'caja'],
   VENTA: ['venta', 'pendientes', 'presupuestos', 'clientes'],
-  STOCK: ['stock'],
+  STOCK: ['stock', 'productos'],
 };
 
 function cargarSesion() {
