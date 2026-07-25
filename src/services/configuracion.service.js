@@ -14,6 +14,7 @@ function actualizar(datos) {
        responsable_nombre = @responsable_nombre, cuit_negocio = @cuit_negocio,
        domicilio_negocio = @domicilio_negocio, condicion_fiscal_negocio = @condicion_fiscal_negocio,
        inicio_actividades = @inicio_actividades, ingresos_brutos = @ingresos_brutos,
+       telefono_recuperacion = @telefono_recuperacion,
        actualizado_en = datetime('now','localtime')
      WHERE id = 1`
   ).run({
@@ -30,6 +31,7 @@ function actualizar(datos) {
     condicion_fiscal_negocio: datos.condicion_fiscal_negocio !== undefined ? datos.condicion_fiscal_negocio : actual.condicion_fiscal_negocio,
     inicio_actividades: datos.inicio_actividades !== undefined ? datos.inicio_actividades : actual.inicio_actividades,
     ingresos_brutos: datos.ingresos_brutos !== undefined ? datos.ingresos_brutos : actual.ingresos_brutos,
+    telefono_recuperacion: datos.telefono_recuperacion !== undefined ? datos.telefono_recuperacion : actual.telefono_recuperacion,
   });
   return obtener();
 }

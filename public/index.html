@@ -29,6 +29,7 @@
       <button class="btn primary" onclick="doLogin()">Ingresar</button>
     </div>
     <div class="login-error" id="loginError"></div>
+    <p style="text-align:center;margin-top:10px"><a href="#" id="linkOlvideClave" style="color:var(--muted);font-size:13px" onclick="abrirOlvideClave(event)">¿Olvidaste tu clave?</a></p>
   </div>
 </div>
 
@@ -565,10 +566,15 @@
           <div class="section-title"><h3>Usuarios y claves</h3></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Puesto</th><th>Usuario</th><th>Nueva clave</th><th></th></tr></thead>
+              <thead><tr><th>Puesto</th><th>Usuario</th><th>Clave actual</th><th>Nueva clave</th><th></th></tr></thead>
               <tbody id="usuariosClavesBody"></tbody>
             </table>
           </div>
+          <div class="toolbar" style="margin-top:12px">
+            <div class="field" style="flex:1"><label>Teléfono de recuperación (WhatsApp, con característica sin 0 ni 15)</label><input id="cfgTelefonoRecuperacion" placeholder="Ej: 3794123456"></div>
+            <button class="btn primary" onclick="guardarTelefonoRecuperacionConfig()">Guardar</button>
+          </div>
+          <div class="notice" style="margin-top:10px">Si alguien olvida una clave, desde la pantalla de login puede pedir un código que se manda por WhatsApp a este número.</div>
         </div>
 
         <div class="card" style="margin-bottom:14px">
@@ -662,6 +668,27 @@
       <button class="btn primary" id="btnConfirmarWhatsapp">Enviar</button>
       <button class="btn outline" onclick="closeWhatsappTelefono()">Cancelar</button>
     </div>
+  </div>
+</div>
+
+<div class="modal" id="olvideClaveModal">
+  <div class="modal-box" style="max-width:420px">
+    <div class="section-title"><h3>Recuperar clave</h3><button class="btn light" onclick="closeOlvideClave()">✕</button></div>
+    <p class="small" id="olvideClavePuesto"></p>
+    <div id="olvideClavePaso1">
+      <p class="small">Se va a generar un código y se va a abrir WhatsApp para que se lo mandes al teléfono de recuperación configurado.</p>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn primary" onclick="enviarCodigoOlvideClave()">Enviar código por WhatsApp</button>
+      </div>
+    </div>
+    <div id="olvideClavePaso2" style="display:none">
+      <div class="field"><label>Código recibido</label><input id="olvideClaveCodigo" placeholder="000000"></div>
+      <div class="field" style="margin-top:10px"><label>Nueva clave</label><input id="olvideClaveNueva" type="password"></div>
+      <div class="toolbar" style="margin-top:14px">
+        <button class="btn primary" onclick="confirmarOlvideClave()">Cambiar clave</button>
+      </div>
+    </div>
+    <div class="login-error" id="olvideClaveError" style="margin-top:10px"></div>
   </div>
 </div>
 

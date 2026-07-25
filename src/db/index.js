@@ -29,6 +29,9 @@ ensureColumn('configuracion', 'domicilio_negocio', 'TEXT');
 ensureColumn('configuracion', 'condicion_fiscal_negocio', 'TEXT');
 ensureColumn('configuracion', 'inicio_actividades', 'TEXT');
 ensureColumn('configuracion', 'ingresos_brutos', 'TEXT');
+ensureColumn('configuracion', 'telefono_recuperacion', 'TEXT');
+ensureColumn('usuarios', 'reset_codigo', 'TEXT');
+ensureColumn('usuarios', 'reset_expira', 'TEXT');
 
 // El CHECK de la columna "rol" no se puede tocar con ALTER TABLE ADD COLUMN:
 // hay que recrear la tabla. Se evita renombrar la tabla "usuarios" original

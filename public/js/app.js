@@ -1529,6 +1529,7 @@ async function cargarUsuariosClaves() {
       <tr>
         <td><b>${u.rol}</b></td>
         <td>${u.usuario}</td>
+        <td><input type="password" id="claveActual-${u.id}" placeholder="Clave actual" style="width:140px"></td>
         <td><input type="password" id="clave-${u.id}" placeholder="Nueva clave" style="width:140px"></td>
         <td><button class="btn light" onclick="guardarClaveUsuario(${u.id})">Guardar</button></td>
       </tr>`
@@ -1537,13 +1538,18 @@ async function cargarUsuariosClaves() {
 }
 
 async function guardarClaveUsuario(id) {
+  const passwordActual = document.getElementById(`claveActual-${id}`).value.trim();
   const input = document.getElementById(`clave-${id}`);
   const password = input.value.trim();
+  if (!passwordActual) {
+    alert('Ingresá la clave actual de ese puesto para poder cambiarla.');
+    return;
+  }
   if (!password) return;
   const res = await fetch(`/api/usuarios/${id}/password`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ password, passwordActual }),
   });
   if (!res.ok) {
     const data = await res.json();
@@ -1551,6 +1557,7 @@ async function guardarClaveUsuario(id) {
     return;
   }
   input.value = '';
+  document.getElementById(`claveActual-${id}`).value = '';
   alert('Clave actualizada.');
 }
 
@@ -1569,6 +1576,14 @@ async function cargarConfiguracion() {
   document.getElementById('cfgDomicilioNegocio').value = configCache.domicilio_negocio || '';
   document.getElementById('cfgInicioActividades').value = configCache.inicio_actividades || '';
   document.getElementById('cfgIngresosBrutos').value = configCache.ingresos_brutos || '';
+  document.getElementById('cfgTelefonoRecuperacion').value = configCache.telefono_recuperacion || '';
+}
+
+async function guardarTelefonoRecuperacionConfig() {
+  const payload = { telefono_recuperacion: document.getElementById('cfgTelefonoRecuperacion').value.trim() };
+  await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  await cargarConfiguracionGlobal();
+  alert('Teléfono de recuperación guardado.');
 }
 
 async function guardarImpresoraConfig() {
@@ -1720,6 +1735,71 @@ async function doLogin() {
   document.getElementById('loginPassword').value = '';
   document.getElementById('loginError').textContent = '';
   aplicarSesion();
+}
+
+// Recuperar clave sin conocer la vieja: como el sistema no tiene integración
+// con la API de WhatsApp Business (paga, requiere aprobación de Meta), no
+// puede enviar mensajes por sí solo. En cambio genera un código y abre
+// WhatsApp con el texto ya armado para que quien esté en la PC se lo mande
+// al teléfono de recuperación configurado en Configuración — mismo truco que
+// ya se usa para mandar los tickets.
+function abrirOlvideClave(event) {
+  event.preventDefault();
+  const rolEl = document.querySelector('.login-role.selected');
+  document.getElementById('olvideClavePuesto').textContent = 'Puesto: ' + rolEl.dataset.rol;
+  document.getElementById('olvideClavePaso1').style.display = 'block';
+  document.getElementById('olvideClavePaso2').style.display = 'none';
+  document.getElementById('olvideClaveCodigo').value = '';
+  document.getElementById('olvideClaveNueva').value = '';
+  document.getElementById('olvideClaveError').textContent = '';
+  document.getElementById('olvideClaveModal').classList.add('open');
+}
+
+function closeOlvideClave() {
+  document.getElementById('olvideClaveModal').classList.remove('open');
+}
+
+async function enviarCodigoOlvideClave() {
+  const rol = document.querySelector('.login-role.selected').dataset.rol;
+  const cfg = await (await fetch('/api/configuracion')).json();
+  if (!cfg.telefono_recuperacion) {
+    document.getElementById('olvideClaveError').textContent = 'No hay un teléfono de recuperación configurado. Pedile al admin que lo cargue en Configuración → Usuarios y claves.';
+    return;
+  }
+  const res = await fetch('/api/usuarios/recuperar/solicitar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rol }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById('olvideClaveError').textContent = data.error;
+    return;
+  }
+  const texto = `Código para recuperar la clave de ${rol} en EL GALLO POS: ${data.codigo} (vale por 15 minutos)`;
+  window.open(`https://wa.me/${telefonoWhatsappCompleto(cfg.telefono_recuperacion)}?text=${encodeURIComponent(texto)}`, '_blank');
+  document.getElementById('olvideClavePaso1').style.display = 'none';
+  document.getElementById('olvideClavePaso2').style.display = 'block';
+  document.getElementById('olvideClaveError').textContent = '';
+}
+
+async function confirmarOlvideClave() {
+  const rol = document.querySelector('.login-role.selected').dataset.rol;
+  const codigo = document.getElementById('olvideClaveCodigo').value.trim();
+  const password = document.getElementById('olvideClaveNueva').value.trim();
+  if (!codigo || !password) return;
+  const res = await fetch('/api/usuarios/recuperar/confirmar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rol, codigo, password }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    document.getElementById('olvideClaveError').textContent = data.error;
+    return;
+  }
+  closeOlvideClave();
+  alert('Clave actualizada. Ya podés ingresar con la clave nueva.');
 }
 
 function logout() {
