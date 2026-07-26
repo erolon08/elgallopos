@@ -2850,7 +2850,7 @@ async function buscarClienteVenta() {
     return;
   }
   const res = await fetch('/api/clientes?q=' + encodeURIComponent(q));
-  const rows = (await res.json()).slice(0, 12);
+  const rows = (await res.json()).slice(0, 20);
   cont.innerHTML = rows.length
     ? rows
         .map((c) => {

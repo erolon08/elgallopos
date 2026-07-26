@@ -43,8 +43,24 @@ function listar({ q } = {}) {
       params[`qPalabra${i}`] = `%${palabra}%`;
       params[`qPatente${i}`] = `%${normalizarPatente(palabra)}%`;
     });
+    params.qCompletoPrefix = `${q}%`;
+    params.qCompleto = `%${q}%`;
   }
-  sql += ' ORDER BY c.nombre LIMIT 200';
+  // Con base real de ~18.000 clientes, sin ordenar por relevancia una
+  // coincidencia exacta de nombre podía quedar tapada por decenas de otras
+  // que matchean por teléfono/dirección/etc. y son alfabéticamente
+  // anteriores. Prioriza nombre-empieza-con y nombre-contiene por sobre el
+  // resto antes de ordenar alfabéticamente.
+  sql += q
+    ? ` ORDER BY
+          CASE
+            WHEN c.nombre LIKE @qCompletoPrefix THEN 0
+            WHEN c.nombre LIKE @qCompleto THEN 1
+            ELSE 2
+          END,
+          c.nombre
+        LIMIT 200`
+    : ' ORDER BY c.nombre LIMIT 200';
   return db.prepare(sql).all(params);
 }
 
