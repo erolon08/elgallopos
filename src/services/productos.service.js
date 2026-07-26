@@ -55,6 +55,9 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
   // en cualquier parte) antes que las de descripción, para que no queden
   // tapadas por productos alfabéticamente anteriores que solo matchean
   // por descripción (ej: buscar "805" debe traer primero el código CRZ805).
+  // Dentro de cada nivel de relevancia, el que más se vendió va primero
+  // (ej: si hay dos productos que matchean igual de bien, el que más se usa
+  // sale arriba).
   sql += q
     ? ` ORDER BY
           CASE
@@ -65,6 +68,7 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
             WHEN p.descripcion LIKE @q THEN 4
             ELSE 5
           END,
+          (SELECT COUNT(*) FROM venta_items vi JOIN ventas v ON v.id = vi.venta_id WHERE vi.producto_id = p.id AND v.estado = 'cobrada') DESC,
           p.orden_botonera, p.descripcion`
     : ' ORDER BY p.orden_botonera, p.descripcion';
 

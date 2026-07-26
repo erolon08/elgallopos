@@ -261,6 +261,7 @@ CREATE TABLE IF NOT EXISTS venta_items (
 );
 CREATE INDEX IF NOT EXISTS idx_ventaitems_venta ON venta_items(venta_id);
 CREATE INDEX IF NOT EXISTS idx_ventaitems_cerrajero ON venta_items(cerrajero_id);
+CREATE INDEX IF NOT EXISTS idx_ventaitems_producto ON venta_items(producto_id);
 
 -- Detalle de cobro. Una venta con un solo medio de pago tiene una fila acá;
 -- "Pago Combinado" reparte el total en varias filas (ej. mitad efectivo,

@@ -50,7 +50,7 @@ function listar({ q } = {}) {
   // coincidencia exacta de nombre podía quedar tapada por decenas de otras
   // que matchean por teléfono/dirección/etc. y son alfabéticamente
   // anteriores. Prioriza nombre-empieza-con y nombre-contiene por sobre el
-  // resto antes de ordenar alfabéticamente.
+  // resto, y dentro de cada nivel el cliente que más compró va primero.
   sql += q
     ? ` ORDER BY
           CASE
@@ -58,6 +58,7 @@ function listar({ q } = {}) {
             WHEN c.nombre LIKE @qCompleto THEN 1
             ELSE 2
           END,
+          (SELECT COUNT(*) FROM ventas v WHERE v.cliente_id = c.id AND v.estado = 'cobrada') DESC,
           c.nombre
         LIMIT 200`
     : ' ORDER BY c.nombre LIMIT 200';
