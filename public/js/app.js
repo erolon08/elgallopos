@@ -3103,12 +3103,20 @@ function elegirFormaPago(forma) {
     // Transferencia | Cuenta Corriente
     document.getElementById('cobroPasoMetodos').style.display = 'none';
     document.getElementById('cobroPasoSimple').style.display = 'block';
+    const btnConfirmar = document.getElementById('btnConfirmarSimple');
+    const btnIrAClientes = document.getElementById('btnIrAClientesCtaCte');
+    btnConfirmar.style.display = '';
+    btnIrAClientes.style.display = 'none';
     let texto = `Confirmar ${forma} por $ ${money.format(ventaEnCobroTotal)}.`;
     if (forma === 'Cuenta Corriente') {
-      if (!clienteVentaActual) {
-        texto = 'No hay cliente seleccionado. La Cuenta Corriente requiere un cliente habilitado.';
-      } else if (!clienteVentaActual.venta_a_credito) {
-        texto = `⚠ ${clienteVentaActual.nombre} no está habilitado para Cuenta Corriente. Podés continuar de todas formas si lo autorizás.`;
+      if (!clienteVentaActual || !clienteVentaActual.venta_a_credito) {
+        // Sin el cliente habilitado no se puede facturar a Cuenta Corriente
+        // bajo ningún concepto — no hay botón de "igual continuar".
+        texto = clienteVentaActual
+          ? `${clienteVentaActual.nombre} no tiene la Cuenta Corriente habilitada. Andá a Clientes y habilitala antes de facturar así.`
+          : 'No hay cliente seleccionado. La Cuenta Corriente requiere un cliente habilitado.';
+        btnConfirmar.style.display = 'none';
+        btnIrAClientes.style.display = clienteVentaActual ? '' : 'none';
       } else if (ventaEnCobroTotal > clienteVentaActual.limite_credito) {
         texto = `⚠ Esta venta ($ ${money.format(ventaEnCobroTotal)}) supera el límite de crédito de ${clienteVentaActual.nombre} ($ ${money.format(clienteVentaActual.limite_credito)}).`;
       } else {
@@ -3116,8 +3124,16 @@ function elegirFormaPago(forma) {
       }
     }
     document.getElementById('cobroSimpleTexto').textContent = texto;
-    document.getElementById('btnConfirmarSimple').onclick = () => confirmarPagoSimple(forma);
+    btnConfirmar.onclick = () => confirmarPagoSimple(forma);
   }
+}
+
+function irAHabilitarCtaCte() {
+  if (!clienteVentaActual) return;
+  const clienteId = clienteVentaActual.id;
+  closeCobro();
+  showScreen('clientes');
+  openCliente(clienteId);
 }
 
 function calcularVuelto() {

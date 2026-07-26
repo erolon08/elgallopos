@@ -18,8 +18,12 @@ function listarStock({ q, familia_id, soloBajoMinimo } = {}) {
   `;
   const params = {};
   if (q) {
-    sql += ' AND (p.codigo LIKE @q OR p.descripcion LIKE @q)';
-    params.q = `%${q}%`;
+    const palabras = q.trim().split(/\s+/).filter(Boolean);
+    const condiciones = palabras.map((_, i) => `(p.codigo LIKE @qPalabra${i} OR p.descripcion LIKE @qPalabra${i})`).join(' AND ');
+    sql += ` AND (${condiciones})`;
+    palabras.forEach((palabra, i) => {
+      params[`qPalabra${i}`] = `%${palabra}%`;
+    });
   }
   if (familia_id) {
     sql += ' AND p.familia_id = @familia_id';

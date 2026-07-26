@@ -22,13 +22,27 @@ function listar({ q } = {}) {
   `;
   const params = {};
   if (q) {
-    sql += ` AND (
-      c.nombre LIKE @q OR c.codigo LIKE @q OR c.telefono LIKE @q OR c.documento LIKE @q OR c.cuit LIKE @q
-      OR c.direccion LIKE @q OR c.localidad LIKE @q
-      OR EXISTS (SELECT 1 FROM vehiculos v WHERE v.cliente_id = c.id AND v.patente LIKE @qPatente)
-    )`;
-    params.q = `%${q}%`;
-    params.qPatente = `%${normalizarPatente(q)}%`;
+    // Cada palabra buscada puede estar en cualquier parte de cualquiera de
+    // estos campos, sin importar el orden ni si están separadas por otro
+    // texto (ej: "angela llano" tiene que encontrar "HOSPITAL ANGELA I.
+    // LLANO"), así que se exige que TODAS las palabras aparezcan en algún
+    // lado, cada una por su cuenta.
+    const palabras = q.trim().split(/\s+/).filter(Boolean);
+    const condiciones = palabras
+      .map(
+        (_, i) => `(
+          c.nombre LIKE @qPalabra${i} OR c.codigo LIKE @qPalabra${i} OR c.telefono LIKE @qPalabra${i}
+          OR c.documento LIKE @qPalabra${i} OR c.cuit LIKE @qPalabra${i}
+          OR c.direccion LIKE @qPalabra${i} OR c.localidad LIKE @qPalabra${i}
+          OR EXISTS (SELECT 1 FROM vehiculos v WHERE v.cliente_id = c.id AND v.patente LIKE @qPatente${i})
+        )`
+      )
+      .join(' AND ');
+    sql += ` AND (${condiciones})`;
+    palabras.forEach((palabra, i) => {
+      params[`qPalabra${i}`] = `%${palabra}%`;
+      params[`qPatente${i}`] = `%${normalizarPatente(palabra)}%`;
+    });
   }
   sql += ' ORDER BY c.nombre LIMIT 200';
   return db.prepare(sql).all(params);
