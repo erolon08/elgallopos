@@ -3475,13 +3475,11 @@ function imprimirEnA4() {
 }
 
 // Pedir el teléfono con un prompt() nativo funciona para el texto (todo pasa
-// en la misma cadena síncrona del click), pero cuando WhatsApp abre después
-// de un prompt(), varios navegadores ya no consideran que el window.open()
-// venga de un click del usuario y lo bloquean como popup. Por eso, si no hay
-// teléfono guardado, se pide en un modal propio: el botón "Enviar" de ESE
-// modal es un click nuevo y genuino, así que el popup nunca se bloquea.
-let whatsappPendiente = null; // { modo: 'texto' | 'imagen', tipo, doc }
-
+// Si el cliente tiene teléfono guardado, se abre su chat directo. Si no,
+// en vez de pedirlo en un cuadro propio (paso extra e inútil: al final hay
+// que elegir el contacto a mano en WhatsApp igual), se abre WhatsApp sin
+// destinatario — ahí adentro se elige el contacto y el mensaje ya viene
+// escrito, listo para mandar.
 function enviarTicketWhatsapp() {
   if (!ultimoDocumentoParaTicket) return;
   iniciarEnvioWhatsapp('texto');
@@ -3493,40 +3491,23 @@ function enviarImagenWhatsapp() {
 function iniciarEnvioWhatsapp(modo) {
   const { tipo, data: doc } = ultimoDocumentoParaTicket;
   const telefono = doc.cliente ? doc.cliente.telefono : null;
-  if (telefono) {
-    ejecutarEnvioWhatsapp(modo, tipo, doc, telefono);
-    return;
-  }
-  whatsappPendiente = { modo, tipo, doc };
-  document.getElementById('whatsappTelefonoInput').value = '';
-  document.getElementById('whatsappTelefonoModal').classList.add('open');
-  document.getElementById('whatsappTelefonoInput').focus();
-}
-function closeWhatsappTelefono() {
-  document.getElementById('whatsappTelefonoModal').classList.remove('open');
-  whatsappPendiente = null;
-}
-document.getElementById('whatsappTelefonoInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('btnConfirmarWhatsapp').click();
-});
-document.getElementById('btnConfirmarWhatsapp').addEventListener('click', () => {
-  const telefono = document.getElementById('whatsappTelefonoInput').value.trim();
-  if (!telefono || !whatsappPendiente) return;
-  const { modo, tipo, doc } = whatsappPendiente;
-  document.getElementById('whatsappTelefonoModal').classList.remove('open');
-  whatsappPendiente = null;
   ejecutarEnvioWhatsapp(modo, tipo, doc, telefono);
-});
+}
 
 function telefonoWhatsappCompleto(telefono) {
   const soloNumeros = telefono.replace(/\D/g, '');
   return soloNumeros.startsWith('54') ? soloNumeros : '549' + soloNumeros;
 }
 
+function urlWhatsapp(telefono, texto) {
+  const destino = telefono ? telefonoWhatsappCompleto(telefono) : '';
+  return `https://wa.me/${destino}?text=${encodeURIComponent(texto)}`;
+}
+
 function ejecutarEnvioWhatsapp(modo, tipo, doc, telefono) {
   if (modo === 'texto') {
     const texto = formatearTextoTicket(tipo, doc);
-    window.open(`https://wa.me/${telefonoWhatsappCompleto(telefono)}?text=${encodeURIComponent(texto)}`, '_blank');
+    window.open(urlWhatsapp(telefono, texto), '_blank');
   } else {
     enviarImagenTicketPorWhatsapp(telefono);
   }
@@ -3597,7 +3578,7 @@ async function enviarImagenTicketPorWhatsapp(telefono) {
 }
 
 function abrirVentanaWhatsapp(ventanaPreabierta, telefono, texto) {
-  const url = `https://wa.me/${telefonoWhatsappCompleto(telefono)}?text=${encodeURIComponent(texto)}`;
+  const url = urlWhatsapp(telefono, texto);
   if (ventanaPreabierta) ventanaPreabierta.location.href = url;
   else window.open(url, '_blank');
 }
@@ -3682,6 +3663,7 @@ async function abrirPendienteParaEditar(id) {
       const producto = await (await fetch(`/api/productos/${it.producto_id}`)).json();
       agregarProductoACarrito(producto);
       const linea = carritoVenta[carritoVenta.length - 1];
+      linea.descripcion = it.descripcion;
       linea.cantidad = it.cantidad;
       linea.cerrajero_id = it.cerrajero_id || null;
       const bruto = it.precio_unitario * it.cantidad;
@@ -3913,6 +3895,7 @@ async function convertirPresupuestoEnVenta(id) {
       const producto = await (await fetch(`/api/productos/${it.producto_id}`)).json();
       agregarProductoACarrito(producto);
       const linea = carritoVenta[carritoVenta.length - 1];
+      linea.descripcion = it.descripcion;
       linea.cantidad = it.cantidad;
       linea.descuento_pct = descuentoPctGuardado;
       if (linea.es_servicio) {
