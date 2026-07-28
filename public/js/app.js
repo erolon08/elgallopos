@@ -3364,13 +3364,12 @@ function calcularPreciosPresupuestoItem(it) {
     efectivo: base.efectivo * factor,
   };
 }
-// Si el presupuesto mezcla productos y servicios no se muestra el precio de
-// cada línea individual (tienen distinta cantidad de tipos de precio), solo
-// el total combinado en las 3 columnas.
+// El precio no se repite por línea (productos y servicios tienen distinta
+// cantidad de tipos de precio, y ya queda todo en el total): cada línea es
+// solo cantidad + descripción, y el desglose por forma de pago va únicamente
+// en el total combinado de abajo.
 function calcularDesglosePresupuesto(presupuesto) {
   const lineas = presupuesto.items.map((it) => ({ ...it, ...calcularPreciosPresupuestoItem(it) }));
-  const hayProducto = lineas.some((l) => !l.esServicio);
-  const hayServicio = lineas.some((l) => l.esServicio);
   const totales = lineas.reduce(
     (acc, l) => {
       acc.final += l.final;
@@ -3380,13 +3379,7 @@ function calcularDesglosePresupuesto(presupuesto) {
     },
     { final: 0, debito: 0, efectivo: 0 }
   );
-  return { mezclado: hayProducto && hayServicio, lineas, totales, hayDebito: lineas.some((l) => l.tieneDebito) };
-}
-// Por línea solo se muestra Final y Efectivo (el desglose de Débito o
-// Transferencia queda únicamente en el total, para no repetir el mismo dato
-// dos veces en presupuestos con pocos ítems).
-function lineaPrecioPresupuestoTexto(l) {
-  return `Final: $${money.format(l.final)}  ·  Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`;
+  return { lineas, totales, hayDebito: lineas.some((l) => l.tieneDebito) };
 }
 // Solo el monto de Débito/Transferencia y Efectivo va en *negrita* (WhatsApp
 // interpreta un asterisco a cada lado como negrita) y un poco más grande en
@@ -3397,9 +3390,6 @@ function totalesPresupuestoTexto(desglose) {
   if (desglose.hayDebito) partes.push(`TOTAL Débito o Transferencia: *$${money.format(t.debito)}*`);
   partes.push(`TOTAL Efectivo (sin factura, solo efectivo): *$${money.format(t.efectivo)}*`);
   return partes;
-}
-function lineaPrecioPresupuestoHtml(l) {
-  return `Final: $${money.format(l.final)}&nbsp;&nbsp;·&nbsp;&nbsp;Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`;
 }
 function totalesPresupuestoHtml(desglose) {
   const t = desglose.totales;
@@ -3415,9 +3405,7 @@ function formatearTextoTicket(tipo, doc) {
   const desglose = esVenta ? null : calcularDesglosePresupuesto(doc);
   const lineas = esVenta
     ? doc.items.map((it) => `${it.cantidad} x ${it.descripcion}${it.cerrajero_nombre ? ' (Cerrajero: ' + it.cerrajero_nombre + ')' : ''}  $${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}`)
-    : desglose.mezclado
-    ? desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}`)
-    : desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}\n   ${lineaPrecioPresupuestoTexto(l)}`);
+    : desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}`);
   const totalTexto = esVenta ? [`TOTAL: $${money.format(doc.total)}`] : totalesPresupuestoTexto(desglose);
   const pagos = esVenta ? doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`) : [];
   const cfg = configCache || {};
@@ -3513,11 +3501,7 @@ async function mostrarTicketPresupuesto(presupuesto) {
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
   const desglose = calcularDesglosePresupuesto(presupuesto);
-  const lineasHtml = desglose.mezclado
-    ? desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}<br>`).join('')
-    : desglose.lineas
-        .map((l) => `${l.cantidad} x ${l.descripcion}<br><span style="font-size:11px">&nbsp;&nbsp;${lineaPrecioPresupuestoHtml(l)}</span><br>`)
-        .join('');
+  const lineasHtml = desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}<br>`).join('');
   document.getElementById('ticketContenido').innerHTML = `
     ${ticketEncabezadoHtml()}
     ${datosFiscalesNegocioHtmlTicket(false)}
@@ -3534,29 +3518,10 @@ async function mostrarTicketPresupuesto(presupuesto) {
   showScreen('ticket-screen');
 }
 
-// En A4 el presupuesto usa una tabla propia con columnas de precio por forma
-// de pago (mismo criterio que el ticket térmico): si se mezclan productos y
-// servicios, sin precio por línea, solo código/cantidad/descripción y el
-// total combinado abajo.
+// El presupuesto no repite el precio en cada línea (queda solo en el total
+// de abajo, que ya lo desglosa por forma de pago): la tabla es únicamente
+// código/cantidad/descripción.
 function tablaPresupuestoA4Html(desglose) {
-  if (desglose.mezclado) {
-    const filas = desglose.lineas
-      .map(
-        (l) => `
-      <tr>
-        <td>${l.producto_codigo || ''}</td>
-        <td class="a4-num">${l.cantidad}</td>
-        <td>${l.descripcion}${l.cerrajero_nombre ? `<br><span class="a4-muted">Cerrajero: ${l.cerrajero_nombre}</span>` : ''}</td>
-      </tr>`
-      )
-      .join('');
-    return `
-    <table class="a4-tabla">
-      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th></tr></thead>
-      <tbody>${filas}</tbody>
-    </table>
-    <p class="a4-muted">Este presupuesto combina productos y servicios: el precio por forma de pago se muestra en el total.</p>`;
-  }
   const filas = desglose.lineas
     .map(
       (l) => `
@@ -3564,14 +3529,12 @@ function tablaPresupuestoA4Html(desglose) {
         <td>${l.producto_codigo || ''}</td>
         <td class="a4-num">${l.cantidad}</td>
         <td>${l.descripcion}${l.cerrajero_nombre ? `<br><span class="a4-muted">Cerrajero: ${l.cerrajero_nombre}</span>` : ''}</td>
-        <td class="a4-num">$${money.format(l.final)}</td>
-        <td class="a4-num">$${money.format(l.efectivo)}${l.esServicio ? '<br><span class="a4-muted">(sin factura, solo efectivo)</span>' : ''}</td>
       </tr>`
     )
     .join('');
   return `
     <table class="a4-tabla">
-      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Final</th><th>Efectivo</th></tr></thead>
+      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th></tr></thead>
       <tbody>${filas}</tbody>
     </table>`;
 }
