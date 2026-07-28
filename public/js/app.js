@@ -1138,8 +1138,8 @@ function construirTicketCierreHtml(t) {
 async function mostrarTicketCierre(t) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
-  document.getElementById('btnEnviarTextoWhatsapp').style.display = 'none';
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = '';
@@ -2365,8 +2365,8 @@ async function mostrarTicketRendicion(id) {
   await cargarConfiguracionGlobal();
   const r = await (await fetch(`/api/rendiciones/${id}`)).json();
   ultimoDocumentoParaTicket = { tipo: 'rendicion', data: r };
-  document.getElementById('btnEnviarTextoWhatsapp').style.display = 'none';
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = r.estado === 'generada' ? '' : 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
@@ -3381,16 +3381,6 @@ function calcularDesglosePresupuesto(presupuesto) {
   );
   return { lineas, totales, hayDebito: lineas.some((l) => l.tieneDebito) };
 }
-// Solo el monto de Débito/Transferencia y Efectivo va en *negrita* (WhatsApp
-// interpreta un asterisco a cada lado como negrita) y un poco más grande en
-// el ticket térmico, no la frase entera.
-function totalesPresupuestoTexto(desglose) {
-  const t = desglose.totales;
-  const partes = [`TOTAL Final: $${money.format(t.final)}`];
-  if (desglose.hayDebito) partes.push(`TOTAL Débito o Transferencia: *$${money.format(t.debito)}*`);
-  partes.push(`TOTAL Efectivo (sin factura, solo efectivo): *$${money.format(t.efectivo)}*`);
-  return partes;
-}
 // Los 3 totales van en una tabla (label a la izquierda, monto a la derecha)
 // para que los montos queden alineados entre sí aunque las etiquetas tengan
 // distinto largo ("TOTAL Final" vs "TOTAL Efectivo (sin factura...)").
@@ -3402,34 +3392,6 @@ function totalesPresupuestoHtml(desglose) {
   html += `<tr><td>TOTAL Efectivo (sin factura, solo efectivo)</td><td class="ticket-total-sub">$${money.format(t.efectivo)}</td></tr>`;
   html += '</table>';
   return html;
-}
-
-function formatearTextoTicket(tipo, doc) {
-  const esVenta = tipo === 'venta';
-  const fecha = new Date(doc.cobrado_en || doc.creado_en).toLocaleString('es-AR');
-  const desglose = esVenta ? null : calcularDesglosePresupuesto(doc);
-  const lineas = esVenta
-    ? doc.items.map((it) => `${it.cantidad} x ${it.descripcion}${it.cerrajero_nombre ? ' (Cerrajero: ' + it.cerrajero_nombre + ')' : ''}  $${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}`)
-    : desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}`);
-  const totalTexto = esVenta ? [`TOTAL: $${money.format(doc.total)}`] : totalesPresupuestoTexto(desglose);
-  const pagos = esVenta ? doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`) : [];
-  const cfg = configCache || {};
-  const lineasTexto = [
-    cfg.nombre_negocio || 'CERRAJERÍA EL GALLO',
-    ...(cfg.subtitulo ? [cfg.subtitulo] : []),
-    ...(cfg.ticket_encabezado ? [cfg.ticket_encabezado] : []),
-    esVenta ? `Fecha: ${fecha}` : `Presupuesto — válido ${doc.vigencia_dias} días desde ${fecha}`,
-    esVenta ? `N°: ${doc.numero}  ·  ${doc.tipo_comprobante}` : `N°: ${doc.numero}`,
-    `Cliente: ${doc.cliente ? doc.cliente.nombre : 'Consumidor Final'}`,
-    '--------------------------',
-    ...lineas,
-    '--------------------------',
-    ...totalTexto,
-    ...pagos,
-    esVenta ? '¡Gracias por su compra!' : 'Presupuesto sujeto a modificaciones.',
-    ...(cfg.ticket_pie ? [cfg.ticket_pie] : []),
-  ];
-  return lineasTexto.join('\n');
 }
 
 // Un comprobante es "fiscal" solo si es Factura A o B; los presupuestos
@@ -3470,8 +3432,8 @@ function datosFiscalesNegocioHtmlTicket(esFiscal) {
 async function mostrarTicket(venta) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
-  document.getElementById('btnEnviarTextoWhatsapp').style.display = '';
   document.getElementById('btnEnviarImagenWhatsapp').style.display = '';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
   document.getElementById('btnImprimirA4').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
@@ -3499,8 +3461,8 @@ async function mostrarTicket(venta) {
 async function mostrarTicketPresupuesto(presupuesto) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'presupuesto', data: presupuesto };
-  document.getElementById('btnEnviarTextoWhatsapp').style.display = '';
   document.getElementById('btnEnviarImagenWhatsapp').style.display = '';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
   document.getElementById('btnImprimirA4').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
@@ -3656,24 +3618,22 @@ function imprimirEnA4() {
   window.print();
 }
 
-// Pedir el teléfono con un prompt() nativo funciona para el texto (todo pasa
 // Si el cliente tiene teléfono guardado, se abre su chat directo. Si no,
 // en vez de pedirlo en un cuadro propio (paso extra e inútil: al final hay
 // que elegir el contacto a mano en WhatsApp igual), se abre WhatsApp sin
 // destinatario — ahí adentro se elige el contacto y el mensaje ya viene
 // escrito, listo para mandar.
-function enviarTicketWhatsapp() {
-  if (!ultimoDocumentoParaTicket) return;
-  iniciarEnvioWhatsapp('texto');
-}
 function enviarImagenWhatsapp() {
   if (!ultimoDocumentoParaTicket) return;
-  iniciarEnvioWhatsapp('imagen');
+  enviarImagenPorWhatsapp('ticketContenido', 'ticket');
 }
-function iniciarEnvioWhatsapp(modo) {
-  const { tipo, data: doc } = ultimoDocumentoParaTicket;
-  const telefono = doc.cliente ? doc.cliente.telefono : null;
-  ejecutarEnvioWhatsapp(modo, tipo, doc, telefono);
+// El A4 normalmente solo se arma al imprimir; acá se genera igual pero sin
+// disparar el diálogo de impresión, para poder capturarlo como imagen.
+function enviarImagenA4Whatsapp() {
+  if (!ultimoDocumentoParaTicket) return;
+  const { tipo, data } = ultimoDocumentoParaTicket;
+  document.getElementById('ticketA4Contenido').innerHTML = construirDocumentoA4Html(tipo, data);
+  enviarImagenPorWhatsapp('ticketA4Contenido', 'presupuesto-a4');
 }
 
 function telefonoWhatsappCompleto(telefono) {
@@ -3686,12 +3646,34 @@ function urlWhatsapp(telefono, texto) {
   return `https://wa.me/${destino}?text=${encodeURIComponent(texto)}`;
 }
 
-function ejecutarEnvioWhatsapp(modo, tipo, doc, telefono) {
-  if (modo === 'texto') {
-    const texto = formatearTextoTicket(tipo, doc);
-    window.open(urlWhatsapp(telefono, texto), '_blank');
-  } else {
-    enviarImagenTicketPorWhatsapp(telefono);
+function abrirVentanaWhatsapp(ventanaPreabierta, telefono, texto) {
+  const url = urlWhatsapp(telefono, texto);
+  if (ventanaPreabierta) ventanaPreabierta.location.href = url;
+  else window.open(url, '_blank');
+}
+
+// El A4 (igual que la rendición/cierre) normalmente está oculto (display:none,
+// solo se muestra al imprimir); para poder capturarlo con html2canvas hay que
+// mostrarlo un instante, pero fuera de la vista (position:fixed a la
+// izquierda de la pantalla) para que no se note el flash en el ticket visible.
+async function generarCanvasElemento(elId) {
+  const el = document.getElementById(elId);
+  const estabaOculto = getComputedStyle(el).display === 'none';
+  if (estabaOculto) {
+    el.style.position = 'fixed';
+    el.style.left = '-9999px';
+    el.style.top = '0';
+    el.style.display = 'block';
+  }
+  try {
+    return await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
+  } finally {
+    if (estabaOculto) {
+      el.style.position = '';
+      el.style.left = '';
+      el.style.top = '';
+      el.style.display = '';
+    }
   }
 }
 
@@ -3711,24 +3693,25 @@ function ejecutarEnvioWhatsapp(modo, tipo, doc, telefono) {
 // siempre en algunas PC, nunca en otras, según qué tan estricto sea cada
 // Chrome). Abriendo la ventana ya mismo y rellenándola después evita el
 // bloqueo en cualquier navegador.
-async function enviarImagenTicketPorWhatsapp(telefono) {
+async function enviarImagenPorWhatsapp(elId, prefijoArchivo) {
+  const doc = ultimoDocumentoParaTicket.data;
+  const telefono = doc.cliente ? doc.cliente.telefono : null;
   const ventana = window.open('', '_blank');
-  const el = document.getElementById('ticketContenido');
   let canvas;
   try {
-    canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
+    canvas = await generarCanvasElemento(elId);
   } catch (err) {
     if (ventana) ventana.close();
-    alert('No se pudo generar la imagen del ticket: ' + err.message);
+    alert('No se pudo generar la imagen: ' + err.message);
     return;
   }
   canvas.toBlob(async (blob) => {
     if (!blob) {
       if (ventana) ventana.close();
-      alert('No se pudo generar la imagen del ticket.');
+      alert('No se pudo generar la imagen.');
       return;
     }
-    const archivo = new File([blob], `ticket-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    const archivo = new File([blob], `${prefijoArchivo}-${Date.now()}.jpg`, { type: 'image/jpeg' });
     if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
       if (ventana) ventana.close();
       try {
@@ -3742,7 +3725,7 @@ async function enviarImagenTicketPorWhatsapp(telefono) {
       try {
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': await convertirAPng(blob) })]);
         abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket 📎');
-        alert('Se copió la imagen del ticket al portapapeles. En el chat que se acaba de abrir, hacé clic en el cuadro de mensaje y pegala con Ctrl+V.');
+        alert('Se copió la imagen al portapapeles. En el chat que se acaba de abrir, hacé clic en el cuadro de mensaje y pegala con Ctrl+V.');
         return;
       } catch (err) {
         // si falla el portapapeles, seguir con la descarga como último recurso
@@ -3755,14 +3738,8 @@ async function enviarImagenTicketPorWhatsapp(telefono) {
     a.click();
     URL.revokeObjectURL(url);
     abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket adjunto 📎');
-    alert('Se descargó la imagen del ticket. WhatsApp no permite adjuntarla sola desde el navegador: adjuntala manualmente en el chat que se acaba de abrir (clip 📎 → Galería/Archivo → elegí el ticket recién descargado).');
+    alert('Se descargó la imagen. WhatsApp no permite adjuntarla sola desde el navegador: adjuntala manualmente en el chat que se acaba de abrir (clip 📎 → Galería/Archivo → elegí el archivo recién descargado).');
   }, 'image/jpeg', 0.92);
-}
-
-function abrirVentanaWhatsapp(ventanaPreabierta, telefono, texto) {
-  const url = urlWhatsapp(telefono, texto);
-  if (ventanaPreabierta) ventanaPreabierta.location.href = url;
-  else window.open(url, '_blank');
 }
 
 // El portapapeles del navegador solo acepta PNG, y el ticket se genera en JPEG
