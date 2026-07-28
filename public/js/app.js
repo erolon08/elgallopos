@@ -1135,6 +1135,26 @@ function construirTicketCierreHtml(t) {
   `;
 }
 
+// El ticket térmico y el A4 comparten la misma pantalla (#ticket-screen);
+// según el tipo de documento se muestra uno u otro, ocultando y vaciando el
+// que no corresponde para no dejar contenido viejo pisado atrás.
+function mostrarTicketComoTermico(html) {
+  const elA4 = document.getElementById('ticketA4Contenido');
+  elA4.style.display = 'none';
+  elA4.innerHTML = '';
+  const el = document.getElementById('ticketContenido');
+  el.style.display = '';
+  el.innerHTML = html;
+}
+function mostrarTicketComoA4(html) {
+  const el = document.getElementById('ticketContenido');
+  el.style.display = 'none';
+  el.innerHTML = '';
+  const elA4 = document.getElementById('ticketA4Contenido');
+  elA4.style.display = 'block';
+  elA4.innerHTML = html;
+}
+
 async function mostrarTicketCierre(t) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
@@ -1143,7 +1163,7 @@ async function mostrarTicketCierre(t) {
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = '';
-  document.getElementById('ticketContenido').innerHTML = construirTicketCierreHtml(t);
+  mostrarTicketComoTermico(construirTicketCierreHtml(t));
   showScreen('ticket-screen');
 }
 
@@ -2381,15 +2401,15 @@ function editarRendicionDesdeTicket() {
   verDetalleRendicion(id);
 }
 
-async function mostrarTicketRendicion(id) {
-  await cargarConfiguracionGlobal();
-  const r = await (await fetch(`/api/rendiciones/${id}`)).json();
-  ultimoDocumentoParaTicket = { tipo: 'rendicion', data: r };
-  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
-  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
-  document.getElementById('btnImprimirA4').style.display = 'none';
-  document.getElementById('btnEditarTicketRendicion').style.display = r.estado === 'generada' ? '' : 'none';
-  document.getElementById('btnEditarTicketCierre').style.display = 'none';
+// La rendición tiene tablas con bastantes columnas (código, base, %, rinde);
+// en el ticket térmico angosto (80mm) se desbordaba y perdía los márgenes,
+// así que siempre se muestra en formato A4 (como una hoja de comprobante),
+// nunca como ticket térmico.
+function construirRendicionA4Html(r) {
+  const cfg = configCache || {};
+  const logo = cfg.logo_url || '/img/logo-badge.png';
+  const nombreNegocio = cfg.nombre_negocio || 'CERRAJERÍA EL GALLO';
+  const fecha = new Date(r.creado_en).toLocaleString('es-AR');
 
   const duplicados = r.detalle.filter((d) => d.tipo === 'duplicado');
   const servicios = r.detalle.filter((d) => d.tipo === 'servicio');
@@ -2400,36 +2420,96 @@ async function mostrarTicketRendicion(id) {
     grupos[d.descripcion].cantidad += Number(d.cantidad) || 0;
     grupos[d.descripcion].monto_rendido += d.monto_rendido;
   });
-  const duplicadosHtml = Object.values(grupos)
+  const filasDuplicados = Object.values(grupos)
     .map((g) => {
       const base = g.cantidad ? Math.round(g.monto_rendido / g.cantidad) : g.monto_rendido;
-      return `${g.cantidad} x ${g.descripcion}&nbsp;&nbsp;base $${money.format(base)}&nbsp;&nbsp;total $${money.format(g.monto_rendido)}<br>`;
+      return `<tr><td>${g.descripcion}</td><td class="a4-num">${g.cantidad}</td><td class="a4-num">$${money.format(base)}</td><td class="a4-num">$${money.format(g.monto_rendido)}</td></tr>`;
     })
     .join('');
 
-  const serviciosHtml = servicios
+  const filasServicios = servicios
     .map(
       (d) =>
-        `${d.codigo ? d.codigo + ' — ' : ''}${d.descripcion}&nbsp;&nbsp;$${money.format(d.monto_base)}&nbsp;&nbsp;${d.porcentaje}%&nbsp;&nbsp;$${money.format(d.monto_rendido)}<br>`
+        `<tr><td>${d.codigo || ''}</td><td>${d.descripcion}</td><td class="a4-num">$${money.format(d.monto_base)}</td><td class="a4-num">${d.porcentaje}%</td><td class="a4-num">$${money.format(d.monto_rendido)}</td></tr>`
     )
     .join('');
 
-  const descuentosHtml = r.descuentos
-    .map((d) => `${TIPO_DESCUENTO_LABEL[d.tipo]}${d.descripcion ? ' (' + d.descripcion + ')' : ''}: $${money.format(d.monto)}<br>`)
+  const filasDescuentos = r.descuentos
+    .map(
+      (d) =>
+        `<tr><td>${TIPO_DESCUENTO_LABEL[d.tipo]}</td><td>${d.descripcion || ''}</td><td class="a4-num">$${money.format(d.monto)}</td></tr>`
+    )
     .join('');
 
-  document.getElementById('ticketContenido').innerHTML = `
-    ${ticketEncabezadoHtml()}
-    <div class="center">RENDICIÓN DE CERRAJERO</div><hr>
-    Cerrajero: <b>${r.cerrajero_nombre}</b><br>
-    Período: ${r.fecha_desde} a ${r.fecha_hasta}<hr>
-    ${duplicadosHtml ? '<b>DUPLICADOS</b><br>' + duplicadosHtml + '<hr>' : ''}
-    ${serviciosHtml ? '<b>SERVICIOS</b><br>' + serviciosHtml + '<hr>' : ''}
-    Total bruto: $${money.format(r.total_bruto)}<br>
-    ${descuentosHtml}
-    <div style="font-size:14px;margin-top:4px">TOTAL A PAGAR: <b>$${money.format(r.total_pagar)}</b></div>
-    ${ticketPieHtml()}
+  return `
+    <div class="a4-top">
+      <div class="a4-empresa">
+        <h2>${nombreNegocio}</h2>
+        ${cfg.responsable_nombre ? `<div>${cfg.responsable_nombre}</div>` : ''}
+        ${cfg.domicilio_negocio ? `<div>Domicilio: ${cfg.domicilio_negocio}</div>` : ''}
+        <img src="${logo}" alt="${nombreNegocio}">
+      </div>
+      <div class="a4-tipo-box">R</div>
+      <div class="a4-doc-info">
+        <div class="a4-muted">${r.estado === 'pagada' ? 'PAGADA' : 'GENERADA'}</div>
+        <div class="a4-doc-numero">Rendición N° ${r.id}</div>
+        <div>Fecha: ${fecha}</div>
+      </div>
+    </div>
+    <div class="a4-datos">
+      <p><b>Cerrajero:</b> ${r.cerrajero_nombre}</p>
+      <p><b>Período:</b> ${r.fecha_desde} a ${r.fecha_hasta}</p>
+    </div>
+    ${
+      filasDuplicados
+        ? `<h3 style="margin:14px 0 6px;font-size:13px">Duplicados</h3>
+    <table class="a4-tabla">
+      <thead><tr><th>Descripción</th><th>Cant.</th><th>Base</th><th>Total</th></tr></thead>
+      <tbody>${filasDuplicados}</tbody>
+    </table>`
+        : ''
+    }
+    ${
+      filasServicios
+        ? `<h3 style="margin:14px 0 6px;font-size:13px">Servicios</h3>
+    <table class="a4-tabla">
+      <thead><tr><th>Código</th><th>Descripción</th><th>Base</th><th>%</th><th>Rinde</th></tr></thead>
+      <tbody>${filasServicios}</tbody>
+    </table>`
+        : ''
+    }
+    ${
+      filasDescuentos
+        ? `<h3 style="margin:14px 0 6px;font-size:13px">Descuentos</h3>
+    <table class="a4-tabla">
+      <thead><tr><th>Tipo</th><th>Descripción</th><th>Monto</th></tr></thead>
+      <tbody>${filasDescuentos}</tbody>
+    </table>`
+        : ''
+    }
+    <div class="a4-abajo">
+      <div class="a4-observaciones">Observaciones / Firma</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="a4-total">TOTAL BRUTO<br>$${money.format(r.total_bruto)}</div>
+        <div class="a4-total">TOTAL DESCUENTOS<br>$${money.format(r.total_descuentos)}</div>
+        <div class="a4-total">TOTAL A PAGAR<br>$${money.format(r.total_pagar)}</div>
+      </div>
+    </div>
+    ${cfg.ticket_pie ? `<p class="a4-muted">${cfg.ticket_pie.replace(/\n/g, '<br>')}</p>` : ''}
+    <p class="a4-muted a4-impreso">Impreso: ${new Date().toLocaleDateString('es-AR')}</p>
   `;
+}
+
+async function mostrarTicketRendicion(id) {
+  await cargarConfiguracionGlobal();
+  const r = await (await fetch(`/api/rendiciones/${id}`)).json();
+  ultimoDocumentoParaTicket = { tipo: 'rendicion', data: r };
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
+  document.getElementById('btnImprimirA4').style.display = 'none';
+  document.getElementById('btnEditarTicketRendicion').style.display = r.estado === 'generada' ? '' : 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  mostrarTicketComoA4(construirRendicionA4Html(r));
   showScreen('ticket-screen');
 }
 
@@ -3463,7 +3543,7 @@ async function mostrarTicket(venta) {
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}${it.cerrajero_nombre ? '<br><span style="font-size:11px">&nbsp;&nbsp;Cerrajero: ' + it.cerrajero_nombre + '</span>' : ''}<br>`)
     .join('');
   const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
-  document.getElementById('ticketContenido').innerHTML = `
+  mostrarTicketComoTermico(`
     ${ticketEncabezadoHtml()}<hr>
     ${datosFiscalesNegocioHtmlTicket(esFiscal)}
     Fecha: ${fecha}<br>N°: ${venta.numero} · ${venta.tipo_comprobante}<br>
@@ -3474,7 +3554,7 @@ async function mostrarTicket(venta) {
     ${pagosHtml}<hr>
     <div class="center">¡Gracias por su compra!</div>
     ${ticketPieHtml()}
-  `;
+  `);
   showScreen('ticket-screen');
 }
 
@@ -3489,7 +3569,7 @@ async function mostrarTicketPresupuesto(presupuesto) {
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
   const desglose = calcularDesglosePresupuesto(presupuesto);
   const lineasHtml = desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}<br>`).join('');
-  document.getElementById('ticketContenido').innerHTML = `
+  mostrarTicketComoTermico(`
     ${ticketEncabezadoHtml()}
     ${datosFiscalesNegocioHtmlTicket(false)}
     <div class="center">PRESUPUESTO</div><hr>
@@ -3501,7 +3581,7 @@ async function mostrarTicketPresupuesto(presupuesto) {
     <hr>
     <div class="center">Presupuesto sujeto a modificaciones.</div>
     ${ticketPieHtml()}
-  `;
+  `);
   showScreen('ticket-screen');
 }
 
@@ -3652,8 +3732,14 @@ function enviarImagenWhatsapp() {
 function enviarImagenA4Whatsapp() {
   if (!ultimoDocumentoParaTicket) return;
   const { tipo, data } = ultimoDocumentoParaTicket;
-  document.getElementById('ticketA4Contenido').innerHTML = construirDocumentoA4Html(tipo, data);
-  enviarImagenPorWhatsapp('ticketA4Contenido', 'presupuesto-a4');
+  // La rendición ya se muestra siempre en A4 (mostrarTicketComoA4), así que
+  // el contenido a capturar ya está armado; venta/presupuesto en cambio
+  // muestran el ticket térmico por defecto, así que hay que generar el A4
+  // recién en este momento (no se arma de entrada).
+  if (tipo === 'venta' || tipo === 'presupuesto') {
+    document.getElementById('ticketA4Contenido').innerHTML = construirDocumentoA4Html(tipo, data);
+  }
+  enviarImagenPorWhatsapp('ticketA4Contenido', tipo === 'rendicion' ? 'rendicion-a4' : 'presupuesto-a4');
 }
 
 function telefonoWhatsappCompleto(telefono) {
