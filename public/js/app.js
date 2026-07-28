@@ -2668,23 +2668,23 @@ function renderVenta() {
            <button class="${it.tipo_precio === 'debito' ? 'active' : ''}" onclick="elegirPrecioServicioLinea(${i},'debito')">D</button>
            <button class="${it.tipo_precio === 'efectivo' ? 'active' : ''}" onclick="elegirPrecioServicioLinea(${i},'efectivo')">E</button>
          </div>
-         <input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioServicioLinea(${i}, this.value)">
+         <input type="number" step="any" value="${it.precio_unitario}" style="width:70px" oninput="cambiarPrecioServicioLinea(${i}, this.value)">
          ${it.tipo_precio === 'manual' ? `<button class="btn light btn-reset-precio" style="padding:2px 5px;font-size:10px;margin-top:3px" title="Recalcular desde mano de obra" onclick="resetPrecioServicioLinea(${i})">↺ auto</button>` : ''}`
       : it.precio_unico
-      ? `<input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioLinea(${i}, this.value)">`
+      ? `<input type="number" step="any" value="${it.precio_unitario}" style="width:70px" oninput="cambiarPrecioLinea(${i}, this.value)">`
       : `<div class="line-price-choice">
            <button class="${it.tipo_precio === 'final' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'final')">F</button>
            <button class="${it.tipo_precio === 'debito' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'debito')">D</button>
            <button class="${it.tipo_precio === 'efectivo' ? 'active' : ''}" onclick="elegirPrecioLinea(${i},'efectivo')">E</button>
          </div>
-         <input type="number" step="any" value="${it.precio_unitario}" style="width:100px" oninput="cambiarPrecioLinea(${i}, this.value)">`;
+         <input type="number" step="any" value="${it.precio_unitario}" style="width:70px" oninput="cambiarPrecioLinea(${i}, this.value)">`;
     tr.innerHTML = `
-      <td><input type="number" min="1" value="${it.cantidad}" style="width:60px" oninput="cambiarCantidadLinea(${i}, this.value)"></td>
+      <td><input type="number" min="1" value="${it.cantidad}" style="width:38px" oninput="cambiarCantidadLinea(${i}, this.value)"></td>
       <td data-col="descripcion">${descripcionCell}${it.es_servicio ? ' <span class="status s-blue">servicio</span>' : ''}</td>
       <td><select onchange="cambiarCerrajeroLineaVenta(${i}, this.value)">${opcionesCerrajero(it.cerrajero_id)}</select></td>
       <td data-col="precio">${precioCell}</td>
-      <td><input type="number" min="0" max="100" step="any" value="${it.descuento_pct || 0}" style="width:60px" title="Descuento sobre esta línea" oninput="cambiarDescuentoLineaPct(${i}, this.value)"></td>
-      <td>${it.es_servicio ? `<input type="number" step="any" value="${it.monto_mano_obra}" style="width:100px" oninput="cambiarManoObraLinea(${i}, this.value)">` : '—'}</td>
+      <td><input type="number" min="0" max="100" step="any" value="${it.descuento_pct || 0}" style="width:38px" title="Descuento sobre esta línea" oninput="cambiarDescuentoLineaPct(${i}, this.value)"></td>
+      <td>${it.es_servicio ? `<input type="number" step="any" value="${it.monto_mano_obra}" style="width:70px" oninput="cambiarManoObraLinea(${i}, this.value)">` : '—'}</td>
       <td data-col="subtotal"><b>$ ${money.format(subtotal)}</b></td>
       <td><button class="btn light" onclick="quitarLineaVenta(${i})">🗑</button></td>
     `;
@@ -3326,11 +3326,11 @@ function calcularDesglosePresupuesto(presupuesto) {
   );
   return { mezclado: hayProducto && hayServicio, lineas, totales, hayDebito: lineas.some((l) => l.tieneDebito) };
 }
+// Por línea solo se muestra Final y Efectivo (el desglose de Débito o
+// Transferencia queda únicamente en el total, para no repetir el mismo dato
+// dos veces en presupuestos con pocos ítems).
 function lineaPrecioPresupuestoTexto(l) {
-  const partes = [`Final: $${money.format(l.final)}`];
-  if (l.tieneDebito) partes.push(`Déb/Transf: $${money.format(l.debito)}`);
-  partes.push(`Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`);
-  return partes.join('  ·  ');
+  return `Final: $${money.format(l.final)}  ·  Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`;
 }
 function totalesPresupuestoTexto(desglose) {
   const t = desglose.totales;
@@ -3340,10 +3340,7 @@ function totalesPresupuestoTexto(desglose) {
   return partes;
 }
 function lineaPrecioPresupuestoHtml(l) {
-  const partes = [`Final: $${money.format(l.final)}`];
-  if (l.tieneDebito) partes.push(`Déb/Transf: $${money.format(l.debito)}`);
-  partes.push(`Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`);
-  return partes.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+  return `Final: $${money.format(l.final)}&nbsp;&nbsp;·&nbsp;&nbsp;Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`;
 }
 function totalesPresupuestoHtml(desglose) {
   const t = desglose.totales;
@@ -3509,14 +3506,13 @@ function tablaPresupuestoA4Html(desglose) {
         <td class="a4-num">${l.cantidad}</td>
         <td>${l.descripcion}${l.cerrajero_nombre ? `<br><span class="a4-muted">Cerrajero: ${l.cerrajero_nombre}</span>` : ''}</td>
         <td class="a4-num">$${money.format(l.final)}</td>
-        <td class="a4-num">${l.tieneDebito ? '$' + money.format(l.debito) : '—'}</td>
         <td class="a4-num">$${money.format(l.efectivo)}${l.esServicio ? '<br><span class="a4-muted">(sin factura, solo efectivo)</span>' : ''}</td>
       </tr>`
     )
     .join('');
   return `
     <table class="a4-tabla">
-      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Final</th><th>Déb/Transf</th><th>Efectivo</th></tr></thead>
+      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Final</th><th>Efectivo</th></tr></thead>
       <tbody>${filas}</tbody>
     </table>`;
 }
