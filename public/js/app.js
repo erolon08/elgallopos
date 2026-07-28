@@ -2061,6 +2061,10 @@ async function calcularRendicionPreview() {
   renderRendicionDescuentos();
 }
 
+// Cada gasto se confirma con "Guardar gasto" y pasa a la lista de abajo (ya
+// cargado, con su ✕ para sacarlo); el formulario queda vacío y listo para
+// cargar el siguiente sin perder los anteriores. Recién al final, "Generar
+// rendición" manda todos los gastos ya cargados junto con el resto.
 function renderRendicionDescuentos() {
   const cont = document.getElementById('rendDescuentosBody');
   cont.innerHTML = '';
@@ -2072,27 +2076,37 @@ function renderRendicionDescuentos() {
     div.textContent = `Aporte fijo: $ ${money.format(aporte)}`;
     cont.appendChild(div);
   }
+  if (!rendicionDescuentosExtra.length) {
+    const div = document.createElement('div');
+    div.className = 'small';
+    div.style.marginBottom = '4px';
+    div.textContent = 'Sin gastos cargados todavía.';
+    cont.appendChild(div);
+  }
   rendicionDescuentosExtra.forEach((d, i) => {
     const row = document.createElement('div');
     row.className = 'toolbar';
     row.style.marginBottom = '4px';
     row.innerHTML = `
-      <select style="flex:0 0 110px" onchange="rendicionDescuentosExtra[${i}].tipo=this.value">
-        <option value="repuesto" ${d.tipo === 'repuesto' ? 'selected' : ''}>Repuesto</option>
-        <option value="adelanto" ${d.tipo === 'adelanto' ? 'selected' : ''}>Adelanto</option>
-        <option value="otro" ${d.tipo === 'otro' ? 'selected' : ''}>Otro</option>
-      </select>
-      <input placeholder="Descripción" value="${d.descripcion || ''}" style="flex:1" oninput="rendicionDescuentosExtra[${i}].descripcion=this.value">
-      <input type="number" step="any" placeholder="Monto" value="${d.monto || ''}" style="flex:0 0 110px" oninput="rendicionDescuentosExtra[${i}].monto=Number(this.value)||0; actualizarTotalesRendicionPreview()">
-      <button class="btn light" onclick="rendicionDescuentosExtra.splice(${i},1); renderRendicionDescuentos(); actualizarTotalesRendicionPreview()">✕</button>
+      <span class="small" style="flex:1">${TIPO_DESCUENTO_LABEL[d.tipo]}${d.descripcion ? ' — ' + d.descripcion : ''}: <b>$ ${money.format(d.monto)}</b></span>
+      <button class="btn light" onclick="rendicionDescuentosExtra.splice(${i},1); renderRendicionDescuentos()">✕</button>
     `;
     cont.appendChild(row);
   });
   actualizarTotalesRendicionPreview();
 }
 
-function agregarDescuentoExtra() {
-  rendicionDescuentosExtra.push({ tipo: 'repuesto', descripcion: '', monto: 0 });
+function guardarGastoExtraRendicion() {
+  const tipo = document.getElementById('rendGastoTipo').value;
+  const descripcion = document.getElementById('rendGastoDescripcion').value.trim();
+  const monto = Number(document.getElementById('rendGastoMonto').value) || 0;
+  if (monto <= 0) {
+    alert('El monto tiene que ser mayor a 0.');
+    return;
+  }
+  rendicionDescuentosExtra.push({ tipo, descripcion, monto });
+  document.getElementById('rendGastoDescripcion').value = '';
+  document.getElementById('rendGastoMonto').value = '';
   renderRendicionDescuentos();
 }
 

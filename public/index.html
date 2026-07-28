@@ -266,8 +266,18 @@
             </div>
             <div class="grid g2" style="margin-top:12px">
               <div>
-                <div class="section-title"><h3 style="font-size:14px">Descuentos</h3><button class="btn light" onclick="agregarDescuentoExtra()">+ Agregar</button></div>
+                <div class="section-title"><h3 style="font-size:14px">Descuentos / gastos</h3></div>
                 <div id="rendDescuentosBody"></div>
+                <div class="toolbar" style="margin-top:6px">
+                  <select id="rendGastoTipo" style="flex:0 0 110px">
+                    <option value="repuesto">Repuesto</option>
+                    <option value="adelanto">Adelanto</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                  <input id="rendGastoDescripcion" placeholder="Descripción" style="flex:1">
+                  <input id="rendGastoMonto" type="number" step="any" placeholder="Monto" style="flex:0 0 110px">
+                  <button class="btn primary" onclick="guardarGastoExtraRendicion()">Guardar gasto</button>
+                </div>
               </div>
               <div class="small" style="text-align:right;align-self:end">
                 <div>Total bruto: <b id="rendTotalBruto">$ 0</b></div>
