@@ -918,12 +918,14 @@ function moneyStr(v) {
   return FORMATO_MONEDA_CAJA.format(Number(v) || 0);
 }
 
+// La caja es una sola compartida por todo el negocio (no una por rol/terminal):
+// da lo mismo si es ADMIN o CAJA quien mira esta pantalla, siempre se ve el
+// mismo turno abierto (o la falta de uno) y el mismo historial completo.
 async function cargarCaja() {
-  document.getElementById('cajaTerminalLabel').textContent = session.rol;
-  const res = await fetch(`/api/caja/turno-activo?terminal=${session.rol}`);
+  const res = await fetch('/api/caja/turno-activo');
   cajaTurnoActual = await res.json();
   if (!cajaTurnoActual) {
-    const sugRes = await fetch(`/api/caja/fondo-sugerido?terminal=${session.rol}`);
+    const sugRes = await fetch('/api/caja/fondo-sugerido');
     const { fondo_sugerido } = await sugRes.json();
     document.getElementById('cajaFondoInicial').value = fondo_sugerido;
   }
@@ -1212,8 +1214,7 @@ async function confirmarModificarCierre() {
 }
 
 async function cargarHistorialCaja() {
-  const filtroTerminal = session.rol === 'ADMIN' ? '' : `?terminal=${session.rol}`;
-  const res = await fetch(`/api/caja${filtroTerminal}`);
+  const res = await fetch('/api/caja');
   const turnos = await res.json();
   const body = document.getElementById('cajaHistorialBody');
   body.innerHTML = turnos.length

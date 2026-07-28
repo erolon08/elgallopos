@@ -1,11 +1,16 @@
 const db = require('../db');
 
-function turnoAbiertoDe(terminal) {
-  return db.prepare("SELECT * FROM caja_turnos WHERE terminal = ? AND estado = 'abierto'").get(terminal);
+// La caja es una sola para todo el negocio, no una por terminal/rol: no
+// importa si es ADMIN, CAJA u otro el que abrió el turno, solo puede haber
+// un turno abierto a la vez y todos lo comparten. "terminal" se sigue
+// guardando en cada turno solo como dato informativo (quién/desde dónde se
+// abrió), nunca para buscar "el turno de esta terminal" por separado.
+function turnoAbierto() {
+  return db.prepare("SELECT * FROM caja_turnos WHERE estado = 'abierto' LIMIT 1").get();
 }
 
 function turnoAbiertoOCrear(terminal) {
-  let turno = turnoAbiertoDe(terminal);
+  let turno = turnoAbierto();
   if (!turno) {
     const info = db
       .prepare("INSERT INTO caja_turnos (numero, terminal, fondo_inicial) VALUES (?, ?, 0)")
@@ -17,7 +22,7 @@ function turnoAbiertoOCrear(terminal) {
 
 function abrirTurno({ terminal, usuario_id, fondo_inicial }) {
   if (!terminal) throw new Error('Falta terminal');
-  if (turnoAbiertoDe(terminal)) throw new Error('Ya hay un turno abierto en esta terminal');
+  if (turnoAbierto()) throw new Error('Ya hay un turno de caja abierto');
   const info = db
     .prepare('INSERT INTO caja_turnos (numero, terminal, usuario_id, fondo_inicial) VALUES (?, ?, ?, ?)')
     .run('T-' + Date.now(), terminal, usuario_id || null, Number(fondo_inicial) || 0);
@@ -176,15 +181,15 @@ const editarCierre = db.transaction((id, datos = {}) => {
   return obtener(id);
 });
 
-function fondoSugerido(terminal) {
+function fondoSugerido() {
   const ultimo = db
-    .prepare("SELECT fondo_turno_siguiente FROM caja_turnos WHERE terminal = ? AND estado = 'cerrado' ORDER BY cerrado_en DESC LIMIT 1")
-    .get(terminal);
+    .prepare("SELECT fondo_turno_siguiente FROM caja_turnos WHERE estado = 'cerrado' ORDER BY cerrado_en DESC LIMIT 1")
+    .get();
   return ultimo && ultimo.fondo_turno_siguiente != null ? ultimo.fondo_turno_siguiente : 0;
 }
 
 module.exports = {
-  turnoAbiertoDe,
+  turnoAbierto,
   turnoAbiertoOCrear,
   abrirTurno,
   obtener,

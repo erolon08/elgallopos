@@ -5,16 +5,12 @@ const { emitVentaEvent } = require('../sockets');
 const router = express.Router();
 
 router.get('/turno-activo', (req, res) => {
-  const { terminal } = req.query;
-  if (!terminal) return res.status(400).json({ error: 'Falta terminal' });
-  const turno = cajaService.turnoAbiertoDe(terminal);
+  const turno = cajaService.turnoAbierto();
   res.json(turno ? cajaService.obtener(turno.id) : null);
 });
 
 router.get('/fondo-sugerido', (req, res) => {
-  const { terminal } = req.query;
-  if (!terminal) return res.status(400).json({ error: 'Falta terminal' });
-  res.json({ fondo_sugerido: cajaService.fondoSugerido(terminal) });
+  res.json({ fondo_sugerido: cajaService.fondoSugerido() });
 });
 
 router.get('/', (req, res) => {
