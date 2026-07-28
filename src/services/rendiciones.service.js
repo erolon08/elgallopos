@@ -97,6 +97,17 @@ function previsualizar({ cerrajero_id, fecha_desde, fecha_hasta }) {
 
 const TIPOS_DESCUENTO_EXTRA = ['repuesto', 'otro', 'adelanto'];
 
+// El aporte fijo se descuenta a valor completo (ya es la parte del cerrajero,
+// se le resta directo). Los gastos (repuesto/adelanto/otro) en cambio reducen
+// la base ANTES de aplicar el % de rendición: como monto_rendido ya viene
+// multiplicado por ese %, restar el gasto "escalado" al mismo % (en vez de a
+// valor completo) es matemáticamente lo mismo que restarlo de la base antes
+// de aplicar el %. Ej: base 229.000, gasto 50.000, % 30 ->
+// (229.000-50.000)*0.30 = 53.700, que es lo mismo que 229.000*0.30 - 50.000*0.30.
+function calcularTotalDescuentos(descuentos, porcentaje_rendicion) {
+  return descuentos.reduce((s, d) => s + (d.tipo === 'aporte' ? d.monto : d.monto * (porcentaje_rendicion / 100)), 0);
+}
+
 function generar({ cerrajero_id, fecha_desde, fecha_hasta, descuentos_extra = [] }) {
   const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(cerrajero_id);
   if (!cerrajero) throw new Error('Cerrajero no encontrado');
@@ -116,7 +127,7 @@ function generar({ cerrajero_id, fecha_desde, fecha_hasta, descuentos_extra = []
     if (monto <= 0) continue;
     descuentos.push({ tipo: d.tipo, descripcion: d.descripcion || '', monto });
   }
-  const total_descuentos = descuentos.reduce((s, d) => s + d.monto, 0);
+  const total_descuentos = calcularTotalDescuentos(descuentos, cerrajero.porcentaje_rendicion);
   const total_pagar = roundUpTo100(total_bruto - total_descuentos);
 
   const tx = db.transaction(() => {
@@ -171,8 +182,12 @@ function obtener(id) {
 }
 
 function recalcularTotales(rendicion_id) {
+  const cerrajero = db
+    .prepare('SELECT c.porcentaje_rendicion FROM rendiciones r JOIN cerrajeros c ON c.id = r.cerrajero_id WHERE r.id = ?')
+    .get(rendicion_id);
   const total_bruto = db.prepare('SELECT COALESCE(SUM(monto_rendido),0) AS s FROM rendicion_detalle WHERE rendicion_id = ?').get(rendicion_id).s;
-  const total_descuentos = db.prepare('SELECT COALESCE(SUM(monto),0) AS s FROM rendicion_descuentos WHERE rendicion_id = ?').get(rendicion_id).s;
+  const descuentos = db.prepare('SELECT tipo, monto FROM rendicion_descuentos WHERE rendicion_id = ?').all(rendicion_id);
+  const total_descuentos = calcularTotalDescuentos(descuentos, cerrajero.porcentaje_rendicion);
   const total_pagar = roundUpTo100(total_bruto - total_descuentos);
   db.prepare('UPDATE rendiciones SET total_bruto = ?, total_descuentos = ?, total_pagar = ? WHERE id = ?').run(
     total_bruto,
