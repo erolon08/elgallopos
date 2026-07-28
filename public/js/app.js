@@ -3391,11 +3391,16 @@ function totalesPresupuestoTexto(desglose) {
   partes.push(`TOTAL Efectivo (sin factura, solo efectivo): *$${money.format(t.efectivo)}*`);
   return partes;
 }
+// Los 3 totales van en una tabla (label a la izquierda, monto a la derecha)
+// para que los montos queden alineados entre sí aunque las etiquetas tengan
+// distinto largo ("TOTAL Final" vs "TOTAL Efectivo (sin factura...)").
 function totalesPresupuestoHtml(desglose) {
   const t = desglose.totales;
-  let html = `<div class="ticket-total">TOTAL Final: $${money.format(t.final)}</div>`;
-  if (desglose.hayDebito) html += `<div>TOTAL Débito o Transferencia: <span class="ticket-total-sub">$${money.format(t.debito)}</span></div>`;
-  html += `<div>TOTAL Efectivo (sin factura, solo efectivo): <span class="ticket-total-sub">$${money.format(t.efectivo)}</span></div>`;
+  let html = `<div class="ticket-total"><span>TOTAL Final</span><span>$${money.format(t.final)}</span></div>`;
+  html += '<table class="ticket-totales-tabla">';
+  if (desglose.hayDebito) html += `<tr><td>TOTAL Débito o Transferencia</td><td class="ticket-total-sub">$${money.format(t.debito)}</td></tr>`;
+  html += `<tr><td>TOTAL Efectivo (sin factura, solo efectivo)</td><td class="ticket-total-sub">$${money.format(t.efectivo)}</td></tr>`;
+  html += '</table>';
   return html;
 }
 
