@@ -1826,6 +1826,62 @@ function actualizarHintVenta() {
     session.rol === 'VENTA'
       ? 'En esta terminal, F10 envía la venta a Caja por LAN. No se muestran formas de pago.'
       : 'En esta terminal, F10 abre el cobro directamente.';
+  // ADMIN puede cobrar en el momento, pero también puede mandar la venta a
+  // Caja por LAN (igual que hace VENTA), en vez de cobrarla ahí mismo.
+  const btnEnviarACaja = document.getElementById('btnEnviarACajaVenta');
+  if (btnEnviarACaja) btnEnviarACaja.style.display = session.rol === 'ADMIN' ? '' : 'none';
+}
+
+async function enviarACajaDesdeVenta() {
+  if (!carritoVenta.length) {
+    alert('Agregá al menos un producto.');
+    return;
+  }
+  if (ventaPendienteIdEnCurso) {
+    const payload = {
+      cliente_id: clienteVentaActual ? clienteVentaActual.id : null,
+      descuento_general: calcularDescuentoGeneralMonto(),
+      items: itemsParaApi(),
+    };
+    const res = await fetch(`/api/ventas/${ventaPendienteIdEnCurso}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Error: ' + data.error);
+      return;
+    }
+    if (data.estado !== 'enviada_caja') {
+      const res2 = await fetch(`/api/ventas/${ventaPendienteIdEnCurso}/enviar-caja`, { method: 'POST' });
+      const data2 = await res2.json();
+      if (!res2.ok) {
+        alert('Error: ' + data2.error);
+        return;
+      }
+    }
+    alert('Venta enviada a Caja por LAN.');
+    limpiarCarrito();
+    return;
+  }
+  const payload = {
+    cliente_id: clienteVentaActual ? clienteVentaActual.id : null,
+    terminal_origen: session.rol,
+    usuario_id: session.id,
+    estado: 'enviada_caja',
+    descuento_general: calcularDescuentoGeneralMonto(),
+    items: itemsParaApi(),
+    presupuesto_id: presupuestoOrigenId,
+  };
+  const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  alert('Venta enviada a Caja por LAN.');
+  limpiarCarrito();
 }
 
 // ============================================================
@@ -3332,11 +3388,14 @@ function calcularDesglosePresupuesto(presupuesto) {
 function lineaPrecioPresupuestoTexto(l) {
   return `Final: $${money.format(l.final)}  ·  Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`;
 }
+// Débito/Transferencia y Efectivo van en *negrita* (WhatsApp interpreta un
+// asterisco a cada lado como negrita) y un poco más grandes en el ticket
+// térmico, para que se destaquen igual que el total Final.
 function totalesPresupuestoTexto(desglose) {
   const t = desglose.totales;
   const partes = [`TOTAL Final: $${money.format(t.final)}`];
-  if (desglose.hayDebito) partes.push(`TOTAL Débito o Transferencia: $${money.format(t.debito)}`);
-  partes.push(`TOTAL Efectivo (sin factura, solo efectivo): $${money.format(t.efectivo)}`);
+  if (desglose.hayDebito) partes.push(`*TOTAL Débito o Transferencia: $${money.format(t.debito)}*`);
+  partes.push(`*TOTAL Efectivo (sin factura, solo efectivo): $${money.format(t.efectivo)}*`);
   return partes;
 }
 function lineaPrecioPresupuestoHtml(l) {
@@ -3345,8 +3404,8 @@ function lineaPrecioPresupuestoHtml(l) {
 function totalesPresupuestoHtml(desglose) {
   const t = desglose.totales;
   let html = `<div class="ticket-total">TOTAL Final: $${money.format(t.final)}</div>`;
-  if (desglose.hayDebito) html += `<div>TOTAL Débito o Transferencia: $${money.format(t.debito)}</div>`;
-  html += `<div>TOTAL Efectivo (sin factura, solo efectivo): $${money.format(t.efectivo)}</div>`;
+  if (desglose.hayDebito) html += `<div class="ticket-total-sub">TOTAL Débito o Transferencia: $${money.format(t.debito)}</div>`;
+  html += `<div class="ticket-total-sub">TOTAL Efectivo (sin factura, solo efectivo): $${money.format(t.efectivo)}</div>`;
   return html;
 }
 
