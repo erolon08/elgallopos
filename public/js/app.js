@@ -3388,14 +3388,14 @@ function calcularDesglosePresupuesto(presupuesto) {
 function lineaPrecioPresupuestoTexto(l) {
   return `Final: $${money.format(l.final)}  ·  Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`;
 }
-// Débito/Transferencia y Efectivo van en *negrita* (WhatsApp interpreta un
-// asterisco a cada lado como negrita) y un poco más grandes en el ticket
-// térmico, para que se destaquen igual que el total Final.
+// Solo el monto de Débito/Transferencia y Efectivo va en *negrita* (WhatsApp
+// interpreta un asterisco a cada lado como negrita) y un poco más grande en
+// el ticket térmico, no la frase entera.
 function totalesPresupuestoTexto(desglose) {
   const t = desglose.totales;
   const partes = [`TOTAL Final: $${money.format(t.final)}`];
-  if (desglose.hayDebito) partes.push(`*TOTAL Débito o Transferencia: $${money.format(t.debito)}*`);
-  partes.push(`*TOTAL Efectivo (sin factura, solo efectivo): $${money.format(t.efectivo)}*`);
+  if (desglose.hayDebito) partes.push(`TOTAL Débito o Transferencia: *$${money.format(t.debito)}*`);
+  partes.push(`TOTAL Efectivo (sin factura, solo efectivo): *$${money.format(t.efectivo)}*`);
   return partes;
 }
 function lineaPrecioPresupuestoHtml(l) {
@@ -3404,8 +3404,8 @@ function lineaPrecioPresupuestoHtml(l) {
 function totalesPresupuestoHtml(desglose) {
   const t = desglose.totales;
   let html = `<div class="ticket-total">TOTAL Final: $${money.format(t.final)}</div>`;
-  if (desglose.hayDebito) html += `<div class="ticket-total-sub">TOTAL Débito o Transferencia: $${money.format(t.debito)}</div>`;
-  html += `<div class="ticket-total-sub">TOTAL Efectivo (sin factura, solo efectivo): $${money.format(t.efectivo)}</div>`;
+  if (desglose.hayDebito) html += `<div>TOTAL Débito o Transferencia: <span class="ticket-total-sub">$${money.format(t.debito)}</span></div>`;
+  html += `<div>TOTAL Efectivo (sin factura, solo efectivo): <span class="ticket-total-sub">$${money.format(t.efectivo)}</span></div>`;
   return html;
 }
 
