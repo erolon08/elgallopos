@@ -50,9 +50,13 @@ function obtener(id) {
   if (!presupuesto) return null;
   const items = db
     .prepare(
-      `SELECT pi.*, p.codigo AS producto_codigo
+      `SELECT pi.*, p.codigo AS producto_codigo, f.usa_mano_obra,
+              p.recargos_mano_obra, f.descuento_debito AS familia_descuento_debito,
+              p.precio_final AS producto_precio_final, p.precio_debito AS producto_precio_debito,
+              p.precio_efectivo AS producto_precio_efectivo
        FROM presupuesto_items pi
        LEFT JOIN productos p ON p.id = pi.producto_id
+       LEFT JOIN familias f ON f.id = p.familia_id
        WHERE pi.presupuesto_id = ? ORDER BY pi.id`
     )
     .all(id);

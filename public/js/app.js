@@ -3260,10 +3260,91 @@ document.addEventListener('keydown', (e) => {
 // ============================================================
 let ultimoDocumentoParaTicket = null; // { tipo: 'venta'|'presupuesto', data }
 
+// Desglose de precios por línea/total de un presupuesto: un producto tiene
+// los 3 tipos de precio (Final / Débito o Transferencia / Efectivo), un
+// servicio solo tiene 2 (Final / Efectivo, éste aclarando que es sin factura
+// y solo efectivo), salvo el código 1003 que también tiene los 3. El precio
+// "Débito o Transferencia" de un servicio sin ese tercer precio se toma
+// igual al Final (no tiene descuento por tarjeta/transferencia), para que el
+// TOTAL de esa columna siga sumando el presupuesto completo.
+function esCodigo1003Presupuesto(it) {
+  return it.producto_codigo === '1003';
+}
+function calcularPreciosPresupuestoItem(it) {
+  const esServicio = !!it.usa_mano_obra;
+  const base = esServicio
+    ? calcularPreciosServicio({
+        recargos_mano_obra: it.recargos_mano_obra || '',
+        monto_mano_obra: it.monto_mano_obra || 0,
+        descuento_debito_servicio: Number(it.familia_descuento_debito) || 0,
+      })
+    : { final: it.producto_precio_final, debito: it.producto_precio_debito, efectivo: it.producto_precio_efectivo };
+  const bruto = Number(it.precio_unitario) * Number(it.cantidad);
+  const descPct = bruto > 0 ? (Number(it.descuento || 0) / bruto) * 100 : 0;
+  const factor = Number(it.cantidad) * (1 - descPct / 100);
+  return {
+    esServicio,
+    tieneDebito: !esServicio || esCodigo1003Presupuesto(it),
+    final: base.final * factor,
+    debito: base.debito * factor,
+    efectivo: base.efectivo * factor,
+  };
+}
+// Si el presupuesto mezcla productos y servicios no se muestra el precio de
+// cada línea individual (tienen distinta cantidad de tipos de precio), solo
+// el total combinado en las 3 columnas.
+function calcularDesglosePresupuesto(presupuesto) {
+  const lineas = presupuesto.items.map((it) => ({ ...it, ...calcularPreciosPresupuestoItem(it) }));
+  const hayProducto = lineas.some((l) => !l.esServicio);
+  const hayServicio = lineas.some((l) => l.esServicio);
+  const totales = lineas.reduce(
+    (acc, l) => {
+      acc.final += l.final;
+      acc.debito += l.tieneDebito ? l.debito : l.final;
+      acc.efectivo += l.efectivo;
+      return acc;
+    },
+    { final: 0, debito: 0, efectivo: 0 }
+  );
+  return { mezclado: hayProducto && hayServicio, lineas, totales, hayDebito: lineas.some((l) => l.tieneDebito) };
+}
+function lineaPrecioPresupuestoTexto(l) {
+  const partes = [`Final: $${money.format(l.final)}`];
+  if (l.tieneDebito) partes.push(`Déb/Transf: $${money.format(l.debito)}`);
+  partes.push(`Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`);
+  return partes.join('  ·  ');
+}
+function totalesPresupuestoTexto(desglose) {
+  const t = desglose.totales;
+  const partes = [`TOTAL Final: $${money.format(t.final)}`];
+  if (desglose.hayDebito) partes.push(`TOTAL Débito o Transferencia: $${money.format(t.debito)}`);
+  partes.push(`TOTAL Efectivo (sin factura, solo efectivo): $${money.format(t.efectivo)}`);
+  return partes;
+}
+function lineaPrecioPresupuestoHtml(l) {
+  const partes = [`Final: $${money.format(l.final)}`];
+  if (l.tieneDebito) partes.push(`Déb/Transf: $${money.format(l.debito)}`);
+  partes.push(`Efectivo${l.esServicio ? ' (sin factura, solo efectivo)' : ''}: $${money.format(l.efectivo)}`);
+  return partes.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+}
+function totalesPresupuestoHtml(desglose) {
+  const t = desglose.totales;
+  let html = `<div class="ticket-total">TOTAL Final: $${money.format(t.final)}</div>`;
+  if (desglose.hayDebito) html += `<div>TOTAL Débito o Transferencia: $${money.format(t.debito)}</div>`;
+  html += `<div>TOTAL Efectivo (sin factura, solo efectivo): $${money.format(t.efectivo)}</div>`;
+  return html;
+}
+
 function formatearTextoTicket(tipo, doc) {
   const esVenta = tipo === 'venta';
   const fecha = new Date(doc.cobrado_en || doc.creado_en).toLocaleString('es-AR');
-  const lineas = doc.items.map((it) => `${it.cantidad} x ${it.descripcion}${it.cerrajero_nombre ? ' (Cerrajero: ' + it.cerrajero_nombre + ')' : ''}  $${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}`);
+  const desglose = esVenta ? null : calcularDesglosePresupuesto(doc);
+  const lineas = esVenta
+    ? doc.items.map((it) => `${it.cantidad} x ${it.descripcion}${it.cerrajero_nombre ? ' (Cerrajero: ' + it.cerrajero_nombre + ')' : ''}  $${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}`)
+    : desglose.mezclado
+    ? desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}`)
+    : desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}\n   ${lineaPrecioPresupuestoTexto(l)}`);
+  const totalTexto = esVenta ? [`TOTAL: $${money.format(doc.total)}`] : totalesPresupuestoTexto(desglose);
   const pagos = esVenta ? doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`) : [];
   const cfg = configCache || {};
   const lineasTexto = [
@@ -3276,7 +3357,7 @@ function formatearTextoTicket(tipo, doc) {
     '--------------------------',
     ...lineas,
     '--------------------------',
-    `TOTAL: $${money.format(doc.total)}`,
+    ...totalTexto,
     ...pagos,
     esVenta ? '¡Gracias por su compra!' : 'Presupuesto sujeto a modificaciones.',
     ...(cfg.ticket_pie ? [cfg.ticket_pie] : []),
@@ -3357,9 +3438,12 @@ async function mostrarTicketPresupuesto(presupuesto) {
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
-  const lineasHtml = presupuesto.items
-    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}<br>`)
-    .join('');
+  const desglose = calcularDesglosePresupuesto(presupuesto);
+  const lineasHtml = desglose.mezclado
+    ? desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}<br>`).join('')
+    : desglose.lineas
+        .map((l) => `${l.cantidad} x ${l.descripcion}<br><span style="font-size:11px">&nbsp;&nbsp;${lineaPrecioPresupuestoHtml(l)}</span><br>`)
+        .join('');
   document.getElementById('ticketContenido').innerHTML = `
     ${ticketEncabezadoHtml()}
     ${datosFiscalesNegocioHtmlTicket(false)}
@@ -3368,12 +3452,62 @@ async function mostrarTicketPresupuesto(presupuesto) {
     Cliente: ${presupuesto.cliente ? presupuesto.cliente.nombre : 'Consumidor Final'}<br>
     ${datosFiscalesClienteHtmlTicket('presupuesto', presupuesto)}<hr>
     ${lineasHtml}<hr>
-    <div class="ticket-total">TOTAL: $${money.format(presupuesto.total)}</div>
+    ${totalesPresupuestoHtml(desglose)}
     <hr>
     <div class="center">Presupuesto sujeto a modificaciones.</div>
     ${ticketPieHtml()}
   `;
   showScreen('ticket-screen');
+}
+
+// En A4 el presupuesto usa una tabla propia con columnas de precio por forma
+// de pago (mismo criterio que el ticket térmico): si se mezclan productos y
+// servicios, sin precio por línea, solo código/cantidad/descripción y el
+// total combinado abajo.
+function tablaPresupuestoA4Html(desglose) {
+  if (desglose.mezclado) {
+    const filas = desglose.lineas
+      .map(
+        (l) => `
+      <tr>
+        <td>${l.producto_codigo || ''}</td>
+        <td class="a4-num">${l.cantidad}</td>
+        <td>${l.descripcion}${l.cerrajero_nombre ? `<br><span class="a4-muted">Cerrajero: ${l.cerrajero_nombre}</span>` : ''}</td>
+      </tr>`
+      )
+      .join('');
+    return `
+    <table class="a4-tabla">
+      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <p class="a4-muted">Este presupuesto combina productos y servicios: el precio por forma de pago se muestra en el total.</p>`;
+  }
+  const filas = desglose.lineas
+    .map(
+      (l) => `
+      <tr>
+        <td>${l.producto_codigo || ''}</td>
+        <td class="a4-num">${l.cantidad}</td>
+        <td>${l.descripcion}${l.cerrajero_nombre ? `<br><span class="a4-muted">Cerrajero: ${l.cerrajero_nombre}</span>` : ''}</td>
+        <td class="a4-num">$${money.format(l.final)}</td>
+        <td class="a4-num">${l.tieneDebito ? '$' + money.format(l.debito) : '—'}</td>
+        <td class="a4-num">$${money.format(l.efectivo)}${l.esServicio ? '<br><span class="a4-muted">(sin factura, solo efectivo)</span>' : ''}</td>
+      </tr>`
+    )
+    .join('');
+  return `
+    <table class="a4-tabla">
+      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Final</th><th>Déb/Transf</th><th>Efectivo</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>`;
+}
+function totalesPresupuestoA4Html(desglose) {
+  const t = desglose.totales;
+  let html = `<div class="a4-total">TOTAL FINAL<br>$${money.format(t.final)}</div>`;
+  if (desglose.hayDebito) html += `<div class="a4-total">TOTAL DÉBITO O TRANSFERENCIA<br>$${money.format(t.debito)}</div>`;
+  html += `<div class="a4-total">TOTAL EFECTIVO<br>$${money.format(t.efectivo)}<br><span class="a4-muted" style="font-size:11px">(sin factura, solo efectivo)</span></div>`;
+  return html;
 }
 
 // Formato de página completa (A4), pensado para imprimir en una impresora
@@ -3397,9 +3531,15 @@ function construirDocumentoA4Html(tipo, doc) {
   const cuartaFila = esPresupuesto
     ? `<p><b>Vigencia:</b> ${doc.vigencia_dias} días</p>`
     : `<p><b>Comprobante:</b> ${doc.tipo_comprobante}</p>`;
-  const filas = doc.items
-    .map(
-      (it) => `
+  const desglose = esPresupuesto ? calcularDesglosePresupuesto(doc) : null;
+  const tablaHtml = esPresupuesto
+    ? tablaPresupuestoA4Html(desglose)
+    : `
+    <table class="a4-tabla">
+      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Precio U.</th><th>Descuento</th><th>SubTotal</th></tr></thead>
+      <tbody>${doc.items
+        .map(
+          (it) => `
       <tr>
         <td>${it.producto_codigo || ''}</td>
         <td class="a4-num">${it.cantidad}</td>
@@ -3408,8 +3548,12 @@ function construirDocumentoA4Html(tipo, doc) {
         <td class="a4-num">$${money.format(it.descuento || 0)}</td>
         <td class="a4-num">$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}</td>
       </tr>`
-    )
-    .join('');
+        )
+        .join('')}</tbody>
+    </table>`;
+  const totalBloqueHtml = esPresupuesto
+    ? totalesPresupuestoA4Html(desglose)
+    : `<div class="a4-total">TOTAL<br>$${money.format(doc.total)}</div>`;
   const pagosHtml = !esPresupuesto && doc.pagos && doc.pagos.length
     ? `<p><b>Forma de pago:</b> ${doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`).join(' / ')}</p>`
     : '';
@@ -3443,13 +3587,10 @@ function construirDocumentoA4Html(tipo, doc) {
       <p><b>Domicilio:</b> ${(cliente && cliente.direccion) || ''}</p>
       ${cuartaFila}
     </div>
-    <table class="a4-tabla">
-      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Precio U.</th><th>Descuento</th><th>SubTotal</th></tr></thead>
-      <tbody>${filas}</tbody>
-    </table>
+    ${tablaHtml}
     <div class="a4-abajo">
       <div class="a4-observaciones">Observaciones / Firma</div>
-      <div class="a4-total">TOTAL<br>$${money.format(doc.total)}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${totalBloqueHtml}</div>
     </div>
     ${pagosHtml}
     ${esPresupuesto ? '<p class="a4-muted">Presupuesto sujeto a modificaciones.</p>' : ''}
