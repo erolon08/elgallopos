@@ -3272,19 +3272,37 @@ function esCodigo1003Presupuesto(it) {
 }
 function calcularPreciosPresupuestoItem(it) {
   const esServicio = !!it.usa_mano_obra;
-  const base = esServicio
-    ? calcularPreciosServicio({
-        recargos_mano_obra: it.recargos_mano_obra || '',
-        monto_mano_obra: it.monto_mano_obra || 0,
-        descuento_debito_servicio: Number(it.familia_descuento_debito) || 0,
-      })
-    : { final: it.producto_precio_final, debito: it.producto_precio_debito, efectivo: it.producto_precio_efectivo };
   const bruto = Number(it.precio_unitario) * Number(it.cantidad);
   const descPct = bruto > 0 ? (Number(it.descuento || 0) / bruto) * 100 : 0;
   const factor = Number(it.cantidad) * (1 - descPct / 100);
+
+  if (!esServicio) {
+    // Sin producto de catálogo vinculado (línea manual/vieja sin producto_id,
+    // o el producto ya no existe) no hay forma de saber el desglose por
+    // forma de pago: se usa el precio guardado en la línea como único
+    // precio, en vez de mostrar $NaN o un $0 falso.
+    const sinDatosCatalogo = it.producto_precio_final == null || it.producto_precio_debito == null || it.producto_precio_efectivo == null;
+    if (sinDatosCatalogo) {
+      const unico = (Number(it.precio_unitario) || 0) * factor;
+      return { esServicio: false, tieneDebito: false, final: unico, debito: unico, efectivo: unico };
+    }
+    return {
+      esServicio: false,
+      tieneDebito: true,
+      final: Number(it.producto_precio_final) * factor,
+      debito: Number(it.producto_precio_debito) * factor,
+      efectivo: Number(it.producto_precio_efectivo) * factor,
+    };
+  }
+
+  const base = calcularPreciosServicio({
+    recargos_mano_obra: it.recargos_mano_obra || '',
+    monto_mano_obra: it.monto_mano_obra || 0,
+    descuento_debito_servicio: Number(it.familia_descuento_debito) || 0,
+  });
   return {
-    esServicio,
-    tieneDebito: !esServicio || esCodigo1003Presupuesto(it),
+    esServicio: true,
+    tieneDebito: esCodigo1003Presupuesto(it),
     final: base.final * factor,
     debito: base.debito * factor,
     efectivo: base.efectivo * factor,
