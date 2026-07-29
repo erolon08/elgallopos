@@ -30,12 +30,15 @@ const tx = db.transaction(() => {
   // "huérfanos" apuntando a una venta/rendición que ya no existe).
   db.prepare("DELETE FROM caja_movimientos WHERE referencia_tipo IN ('venta','rendicion')").run();
 
+  // Un presupuesto convertido en venta queda enganchado a esa venta
+  // (presupuestos.venta_id), así que hay que borrar el presupuesto ANTES
+  // que la venta, o la foreign key lo rechaza.
+  db.prepare('DELETE FROM presupuesto_items').run();
+  db.prepare('DELETE FROM presupuestos').run();
+
   db.prepare('DELETE FROM venta_pagos').run();
   db.prepare('DELETE FROM venta_items').run();
   db.prepare('DELETE FROM ventas').run();
-
-  db.prepare('DELETE FROM presupuesto_items').run();
-  db.prepare('DELETE FROM presupuestos').run();
 
   return totales;
 });
