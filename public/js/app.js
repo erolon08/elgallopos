@@ -3693,7 +3693,11 @@ function construirDocumentoA4Html(tipo, doc) {
     </div>
     ${tablaHtml}
     <div class="a4-abajo">
-      <div class="a4-observaciones">Observaciones / Firma</div>
+      <div class="a4-observaciones">Observaciones / Firma${
+        esPresupuesto
+          ? '<br><span class="a4-muted">Precio Final: puede abonarse en 3, 6 u 8 pagos según la tarjeta de crédito.</span>'
+          : ''
+      }</div>
       <div style="display:flex;flex-direction:column;gap:6px">${totalBloqueHtml}</div>
     </div>
     ${pagosHtml}
