@@ -4030,7 +4030,7 @@ async function verDetalleVenta(id) {
     .map(
       (it) => `
     <tr>
-      <td>${it.cantidad}</td><td>${it.descripcion}</td>
+      <td>${it.producto_codigo || '—'}</td><td>${it.cantidad}</td><td>${it.descripcion}</td>
       <td><select onchange="cambiarCerrajeroItemDetalle(${it.id}, this.value)">${opcionesCerrajero(it.cerrajero_id)}</select></td>
       <td>$ ${money.format(it.precio_unitario)}</td><td>$ ${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}</td>
     </tr>`
@@ -4039,7 +4039,7 @@ async function verDetalleVenta(id) {
   const pagosTxt = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $ ${money.format(p.monto)}`).join(', ') || '—';
   document.getElementById('detalleVentaContenido').innerHTML = `
     <p><b>Cliente:</b> ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'} &nbsp; <b>Estado:</b> ${venta.estado} &nbsp; <b>Comprobante:</b> ${venta.tipo_comprobante}</p>
-    <div class="table-wrap"><table><thead><tr><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${filasItems}</tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${filasItems}</tbody></table></div>
     <p style="margin-top:10px"><b>Pagos:</b> ${pagosTxt}</p>
     <p><b>Total: $ ${money.format(venta.total)}</b></p>
   `;
