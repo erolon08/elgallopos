@@ -15,17 +15,20 @@ const tx = db.transaction(() => {
     rendiciones: db.prepare('SELECT COUNT(*) c FROM rendiciones').get().c,
   };
 
-  // Movimientos de caja generados por ventas o pagos de rendición (quedarían
-  // "huérfanos" apuntando a una venta/rendición que ya no existe).
-  db.prepare("DELETE FROM caja_movimientos WHERE referencia_tipo IN ('venta','rendicion')").run();
-
   // Movimientos de stock generados por ventas (la reposición de stock por
   // anulación también queda cubierta, son movimientos con referencia_tipo='venta').
   db.prepare("DELETE FROM stock_movimientos WHERE referencia_tipo = 'venta'").run();
 
+  // Una rendición pagada queda "enganchada" a su movimiento de caja
+  // (rendiciones.caja_movimiento_id), así que hay que borrar la rendición
+  // ANTES que ese movimiento de caja, o la foreign key lo rechaza.
   db.prepare('DELETE FROM rendicion_detalle').run();
   db.prepare('DELETE FROM rendicion_descuentos').run();
   db.prepare('DELETE FROM rendiciones').run();
+
+  // Movimientos de caja generados por ventas o pagos de rendición (quedarían
+  // "huérfanos" apuntando a una venta/rendición que ya no existe).
+  db.prepare("DELETE FROM caja_movimientos WHERE referencia_tipo IN ('venta','rendicion')").run();
 
   db.prepare('DELETE FROM venta_pagos').run();
   db.prepare('DELETE FROM venta_items').run();
