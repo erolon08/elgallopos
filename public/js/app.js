@@ -3485,18 +3485,35 @@ function calcularDesglosePresupuesto(presupuesto) {
     },
     { final: 0, debito: 0, efectivo: 0 }
   );
-  return { lineas, totales, hayDebito: lineas.some((l) => l.tieneDebito) };
+  return { lineas, totales, hayDebito: lineas.some((l) => l.tieneDebito), modo_precio: presupuesto.modo_precio || 'todos' };
 }
-// Los 3 totales van en una tabla (label a la izquierda, monto a la derecha)
+// El presupuesto puede pedir mostrar los 3 precios (Final/Débito/Efectivo) o
+// uno solo puntual (ej. cuando se le puso un precio efectivo a mano que no
+// sigue el % de descuento automático, y mostrar los otros dos confundiría).
+function totalesAMostrarPresupuesto(desglose) {
+  const t = desglose.totales;
+  const modo = desglose.modo_precio;
+  if (modo === 'final') return [{ label: 'TOTAL Final', monto: t.final }];
+  if (modo === 'debito') return [{ label: 'TOTAL Débito o Transferencia', monto: t.debito }];
+  if (modo === 'efectivo') return [{ label: 'TOTAL Efectivo (sin factura, solo efectivo)', monto: t.efectivo }];
+  const todos = [{ label: 'TOTAL Final', monto: t.final }];
+  if (desglose.hayDebito) todos.push({ label: 'TOTAL Débito o Transferencia', monto: t.debito });
+  todos.push({ label: 'TOTAL Efectivo (sin factura, solo efectivo)', monto: t.efectivo });
+  return todos;
+}
+// Los totales van en una tabla (label a la izquierda, monto a la derecha)
 // para que los montos queden alineados entre sí aunque las etiquetas tengan
 // distinto largo ("TOTAL Final" vs "TOTAL Efectivo (sin factura...)").
 function totalesPresupuestoHtml(desglose) {
-  const t = desglose.totales;
-  let html = `<div class="ticket-total"><span>TOTAL Final</span><span>$${money.format(t.final)}</span></div>`;
-  html += '<table class="ticket-totales-tabla">';
-  if (desglose.hayDebito) html += `<tr><td>TOTAL Débito o Transferencia</td><td class="ticket-total-sub">$${money.format(t.debito)}</td></tr>`;
-  html += `<tr><td>TOTAL Efectivo (sin factura, solo efectivo)</td><td class="ticket-total-sub">$${money.format(t.efectivo)}</td></tr>`;
-  html += '</table>';
+  const [principal, ...resto] = totalesAMostrarPresupuesto(desglose);
+  let html = `<div class="ticket-total"><span>${principal.label}</span><span>$${money.format(principal.monto)}</span></div>`;
+  if (resto.length) {
+    html += '<table class="ticket-totales-tabla">';
+    resto.forEach((tt) => {
+      html += `<tr><td>${tt.label}</td><td class="ticket-total-sub">$${money.format(tt.monto)}</td></tr>`;
+    });
+    html += '</table>';
+  }
   return html;
 }
 
@@ -3613,9 +3630,12 @@ function tablaPresupuestoA4Html(desglose) {
 }
 function totalesPresupuestoA4Html(desglose) {
   const t = desglose.totales;
-  let html = `<div class="a4-total">TOTAL FINAL<br>$${money.format(t.final)}</div>`;
-  if (desglose.hayDebito) html += `<div class="a4-total">TOTAL DÉBITO O TRANSFERENCIA<br>$${money.format(t.debito)}</div>`;
-  html += `<div class="a4-total">TOTAL EFECTIVO<br>$${money.format(t.efectivo)}<br><span class="a4-muted" style="font-size:11px">(sin factura, solo efectivo)</span></div>`;
+  const modo = desglose.modo_precio;
+  const mostrar = { final: modo === 'todos' || modo === 'final', debito: modo === 'todos' ? desglose.hayDebito : modo === 'debito', efectivo: modo === 'todos' || modo === 'efectivo' };
+  let html = '';
+  if (mostrar.final) html += `<div class="a4-total">TOTAL FINAL<br>$${money.format(t.final)}</div>`;
+  if (mostrar.debito) html += `<div class="a4-total">TOTAL DÉBITO O TRANSFERENCIA<br>$${money.format(t.debito)}</div>`;
+  if (mostrar.efectivo) html += `<div class="a4-total">TOTAL EFECTIVO<br>$${money.format(t.efectivo)}<br><span class="a4-muted" style="font-size:11px">(sin factura, solo efectivo)</span></div>`;
   return html;
 }
 
@@ -4100,6 +4120,7 @@ async function guardarComoPresupuesto() {
   const payload = {
     cliente_id: clienteVentaActual ? clienteVentaActual.id : null,
     vigencia_dias: Number(document.getElementById('presupuestoVigencia').value) || 15,
+    modo_precio: document.getElementById('presupuestoModoPrecio').value || 'todos',
     usuario_id: session.id,
     items: itemsParaApi(),
   };

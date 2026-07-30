@@ -33,6 +33,7 @@ ensureColumn('configuracion', 'telefono_recuperacion', 'TEXT');
 ensureColumn('usuarios', 'reset_codigo', 'TEXT');
 ensureColumn('usuarios', 'reset_expira', 'TEXT');
 ensureColumn('cerrajeros', 'porcentaje_urgencia', 'REAL NOT NULL DEFAULT 0');
+ensureColumn('presupuestos', 'modo_precio', "TEXT NOT NULL DEFAULT 'todos'");
 
 // El CHECK de la columna "rol" no se puede tocar con ALTER TABLE ADD COLUMN:
 // hay que recrear la tabla. Se evita renombrar la tabla "usuarios" original

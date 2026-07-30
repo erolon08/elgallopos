@@ -5,22 +5,26 @@ function generarNumero() {
   return 'P-' + String((max || 0) + 1).padStart(4, '0');
 }
 
+const MODOS_PRECIO = ['todos', 'final', 'debito', 'efectivo'];
+
 const crear = db.transaction((datos) => {
   if (!datos.items || !datos.items.length) throw new Error('El presupuesto no tiene productos');
   const total = datos.items.reduce(
     (acc, it) => acc + Number(it.precio_unitario) * Number(it.cantidad || 1) - (Number(it.descuento) || 0),
     0
   );
+  const modo_precio = MODOS_PRECIO.includes(datos.modo_precio) ? datos.modo_precio : 'todos';
 
   const info = db
     .prepare(
-      `INSERT INTO presupuestos (numero, cliente_id, vigencia_dias, total, usuario_id)
-       VALUES (@numero, @cliente_id, @vigencia_dias, @total, @usuario_id)`
+      `INSERT INTO presupuestos (numero, cliente_id, vigencia_dias, modo_precio, total, usuario_id)
+       VALUES (@numero, @cliente_id, @vigencia_dias, @modo_precio, @total, @usuario_id)`
     )
     .run({
       numero: generarNumero(),
       cliente_id: datos.cliente_id || null,
       vigencia_dias: Number(datos.vigencia_dias) || 15,
+      modo_precio,
       total,
       usuario_id: datos.usuario_id || null,
     });

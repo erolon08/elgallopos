@@ -503,6 +503,12 @@
               <option value="15" selected>15 días</option>
               <option value="30">30 días</option>
             </select>
+            <select id="presupuestoModoPrecio" title="Qué precio mostrar en el presupuesto" style="border-radius:8px;border:0;padding:0 8px">
+              <option value="todos" selected>Mostrar los 3 precios (F/D/E)</option>
+              <option value="final">Mostrar solo precio Final</option>
+              <option value="debito">Mostrar solo Débito/Transferencia</option>
+              <option value="efectivo">Mostrar solo Efectivo</option>
+            </select>
             <button class="btn outline" onclick="cancelarVenta()">Cancelar venta <span class="key key-dark">F6</span></button>
             <div class="sale-footer-hint" id="ventaHint">En esta terminal, F10 abre el cobro directamente.</div>
             <p class="small" id="presupuestoOrigenAviso" style="flex-basis:100%;margin:0;color:#bcdcff"></p>

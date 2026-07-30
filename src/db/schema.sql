@@ -335,6 +335,7 @@ CREATE TABLE IF NOT EXISTS presupuestos (
   numero TEXT UNIQUE,
   cliente_id INTEGER REFERENCES clientes(id),
   vigencia_dias INTEGER NOT NULL DEFAULT 15,
+  modo_precio TEXT NOT NULL DEFAULT 'todos' CHECK (modo_precio IN ('todos','final','debito','efectivo')),
   estado TEXT NOT NULL DEFAULT 'vigente' CHECK (estado IN ('vigente','convertido','vencido','cerrado')),
   total REAL NOT NULL DEFAULT 0,
   venta_id INTEGER REFERENCES ventas(id),
