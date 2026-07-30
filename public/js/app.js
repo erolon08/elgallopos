@@ -990,6 +990,53 @@ function actualizarCajaFuerteCierre() {
     : `A caja fuerte: ${moneyStr(aCajaFuerte)}`;
 }
 
+// ============================================================
+// ARQUEO DE BILLETES — para cargar "Fondo para el próximo turno" contando
+// los billetes uno por uno en vez de escribir un número a ojo.
+// ============================================================
+const DENOMINACIONES_ARS = [20000, 10000, 2000, 1000, 500, 200, 100, 50, 20, 10];
+let arqueoBilletesTargetId = null;
+
+function abrirArqueoBilletes(targetInputId) {
+  arqueoBilletesTargetId = targetInputId;
+  const body = document.getElementById('arqueoBilletesBody');
+  body.innerHTML = DENOMINACIONES_ARS.map(
+    (valor, i) => `
+      <tr>
+        <td>$ ${money.format(valor)}</td>
+        <td><input type="number" min="0" step="1" value="0" style="width:70px" data-valor="${valor}" oninput="actualizarTotalArqueo()" id="arqueoCant${i}"></td>
+        <td id="arqueoSubtotal${i}">$ 0</td>
+      </tr>`
+  ).join('');
+  actualizarTotalArqueo();
+  document.getElementById('arqueoBilletesModal').classList.add('open');
+}
+
+function actualizarTotalArqueo() {
+  let total = 0;
+  DENOMINACIONES_ARS.forEach((valor, i) => {
+    const cantidad = Number(document.getElementById(`arqueoCant${i}`).value) || 0;
+    const subtotal = valor * cantidad;
+    total += subtotal;
+    document.getElementById(`arqueoSubtotal${i}`).textContent = '$ ' + money.format(subtotal);
+  });
+  document.getElementById('arqueoBilletesTotal').textContent = '$ ' + money.format(total);
+  return total;
+}
+
+function cerrarArqueoBilletes() {
+  document.getElementById('arqueoBilletesModal').classList.remove('open');
+  arqueoBilletesTargetId = null;
+}
+
+function confirmarArqueoBilletes() {
+  const total = actualizarTotalArqueo();
+  const target = document.getElementById(arqueoBilletesTargetId);
+  target.value = total;
+  if (arqueoBilletesTargetId === 'cajaFondoSiguiente') actualizarCajaFuerteCierre();
+  cerrarArqueoBilletes();
+}
+
 async function abrirTurnoCaja() {
   const fondo_inicial = document.getElementById('cajaFondoInicial').value;
   const res = await fetch('/api/caja/abrir', {
@@ -1110,7 +1157,11 @@ function construirTicketCierreHtml(t) {
     ? gastosMov.map((m) => `${m.concepto || m.categoria}&nbsp;&nbsp;${moneyStr(m.tipo === 'egreso' ? -m.monto : m.monto)}<br>`).join('')
     : 'Sin movimientos.<br>';
 
-  const cajaFuerteMov = t.movimientos.find((m) => m.categoria === 'caja_fuerte');
+  // Suma todos los envíos a caja fuerte del turno, no solo el automático del
+  // cierre: también puede haber traslados cargados a mano durante el turno
+  // (categoría "Caja fuerte" en Movimientos), y el ticket tiene que mostrar
+  // el total real enviado, no solo el primero que encuentre.
+  const totalCajaFuerte = t.movimientos.filter((m) => m.categoria === 'caja_fuerte').reduce((a, m) => a + m.monto, 0);
   const diferencia = t.diferencia || 0;
   const estadoDif = Math.abs(diferencia) < 1 ? 'CAJA EXACTA' : diferencia > 0 ? 'SOBRANTE' : 'FALTANTE';
 
@@ -1131,7 +1182,7 @@ function construirTicketCierreHtml(t) {
     EFECTIVO CONTADO&nbsp;&nbsp;${moneyStr(t.efectivo_contado)}<br>
     DIFERENCIA&nbsp;&nbsp;<b>${moneyStr(diferencia)} (${estadoDif})</b><hr>
     FONDO PRÓXIMO TURNO&nbsp;&nbsp;<b>${moneyStr(t.fondo_turno_siguiente)}</b><br>
-    ${cajaFuerteMov ? `ENVÍO A CAJA FUERTE&nbsp;&nbsp;<b>${moneyStr(cajaFuerteMov.monto)}</b><br>` : ''}
+    ${totalCajaFuerte > 0 ? `ENVÍO A CAJA FUERTE&nbsp;&nbsp;<b>${moneyStr(totalCajaFuerte)}</b><br>` : ''}
     ${t.observacion ? `<hr>Observación: ${t.observacion}<br>` : ''}
     ${ticketPieHtml()}
   `;
