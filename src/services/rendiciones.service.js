@@ -54,6 +54,11 @@ function fraccionCredito(venta_id) {
   return credito / total;
 }
 
+// Código de producto de "Urgencia": algunos cerrajeros tienen un % de
+// rendición distinto para este servicio puntual (ver porcentaje_urgencia en
+// cerrajeros); 0 significa que no tiene un % propio y se usa el general.
+const CODIGO_URGENCIA = '1009';
+
 // Descuento por tarjeta de crédito: reduce la mano de obra ANTES de aplicar el
 // % de rendición del cerrajero, en la proporción del total que se pagó con
 // crédito. Solo afecta líneas de servicio (usa "mano de obra"); los duplicados
@@ -70,7 +75,11 @@ function calcularDetalle(rows, cerrajero) {
         monto_base = Math.round(monto_base * (1 - fraccion * (cerrajero.descuento_tarjeta_credito / 100)));
       }
     }
-    const monto_rendido = Math.round(monto_base * (cerrajero.porcentaje_rendicion / 100));
+    const porcentaje =
+      r.codigo === CODIGO_URGENCIA && cerrajero.porcentaje_urgencia > 0
+        ? cerrajero.porcentaje_urgencia
+        : cerrajero.porcentaje_rendicion;
+    const monto_rendido = Math.round(monto_base * (porcentaje / 100));
     return {
       venta_item_id: r.venta_item_id,
       codigo: r.codigo || null,
@@ -80,7 +89,7 @@ function calcularDetalle(rows, cerrajero) {
       cantidad: r.cantidad,
       tipo,
       monto_base,
-      porcentaje: cerrajero.porcentaje_rendicion,
+      porcentaje,
       monto_rendido,
     };
   });

@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS cerrajeros (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   nombre TEXT NOT NULL,
   porcentaje_rendicion REAL NOT NULL DEFAULT 30,
+  porcentaje_urgencia REAL NOT NULL DEFAULT 0,
   aporte_fijo REAL NOT NULL DEFAULT 0,
   descuento_tarjeta_credito REAL NOT NULL DEFAULT 0,
   activo INTEGER NOT NULL DEFAULT 1,

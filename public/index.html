@@ -598,7 +598,7 @@
           <div class="section-title"><h3>Cerrajeros</h3><button class="btn primary" onclick="openCerrajero()">+ Nuevo cerrajero</button></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Nombre</th><th>% Rendición</th><th>Aporte fijo</th><th>% Tarjeta crédito</th><th>Estado</th><th></th></tr></thead>
+              <thead><tr><th>Nombre</th><th>% Rendición</th><th>% Urgencia</th><th>Aporte fijo</th><th>% Tarjeta crédito</th><th>Estado</th><th></th></tr></thead>
               <tbody id="cerrajerosBody"></tbody>
             </table>
           </div>
@@ -829,6 +829,7 @@
     <div class="two-col-form">
       <div class="field"><label>Nombre</label><input id="cerNombre"></div>
       <div class="field"><label>% Rendición</label><input id="cerPorcentaje" type="number" step="any" value="30"></div>
+      <div class="field"><label>% Urgencia (código 1009)</label><input id="cerPorcentajeUrgencia" type="number" step="any" value="0"></div>
       <div class="field"><label>Aporte fijo ($)</label><input id="cerAporte" type="number" step="any" value="0"></div>
       <div class="field"><label>% Descuento tarjeta crédito</label><input id="cerDescuentoTarjeta" type="number" step="any" value="0"></div>
     </div>

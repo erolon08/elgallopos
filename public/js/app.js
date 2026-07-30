@@ -1960,6 +1960,7 @@ function filaCerrajero(c) {
   tr.innerHTML = `
     <td>${c.nombre}</td>
     <td>${c.porcentaje_rendicion}%</td>
+    <td>${c.porcentaje_urgencia > 0 ? c.porcentaje_urgencia + '%' : '—'}</td>
     <td>$ ${money.format(c.aporte_fijo)}</td>
     <td>${c.descuento_tarjeta_credito}%</td>
     <td>${estado}</td>
@@ -1980,12 +1981,14 @@ async function openCerrajero(id) {
     const c = cerrajeros.find((x) => x.id === id);
     document.getElementById('cerNombre').value = c.nombre;
     document.getElementById('cerPorcentaje').value = c.porcentaje_rendicion;
+    document.getElementById('cerPorcentajeUrgencia').value = c.porcentaje_urgencia;
     document.getElementById('cerAporte').value = c.aporte_fijo;
     document.getElementById('cerDescuentoTarjeta').value = c.descuento_tarjeta_credito;
     document.getElementById('cerActivo').checked = !!c.activo;
   } else {
     document.getElementById('cerNombre').value = '';
     document.getElementById('cerPorcentaje').value = 30;
+    document.getElementById('cerPorcentajeUrgencia').value = 0;
     document.getElementById('cerAporte').value = 0;
     document.getElementById('cerDescuentoTarjeta').value = 0;
     document.getElementById('cerActivo').checked = true;
@@ -2002,6 +2005,7 @@ async function guardarCerrajero() {
   const payload = {
     nombre: document.getElementById('cerNombre').value.trim(),
     porcentaje_rendicion: Number(document.getElementById('cerPorcentaje').value) || 0,
+    porcentaje_urgencia: Number(document.getElementById('cerPorcentajeUrgencia').value) || 0,
     aporte_fijo: Number(document.getElementById('cerAporte').value) || 0,
     descuento_tarjeta_credito: Number(document.getElementById('cerDescuentoTarjeta').value) || 0,
     activo: document.getElementById('cerActivo').checked,
