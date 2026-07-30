@@ -62,7 +62,7 @@ function calcularDetalle(rows, cerrajero) {
   const fraccionCache = new Map();
   return rows.map((r) => {
     const tipo = r.usa_mano_obra ? 'servicio' : 'duplicado';
-    let monto_base = tipo === 'servicio' ? Number(r.monto_mano_obra) || 0 : (Number(r.precio_rendicion) || 0) * r.cantidad;
+    let monto_base = (tipo === 'servicio' ? Number(r.monto_mano_obra) || 0 : Number(r.precio_rendicion) || 0) * r.cantidad;
     if (tipo === 'servicio' && cerrajero.descuento_tarjeta_credito > 0) {
       if (!fraccionCache.has(r.venta_id)) fraccionCache.set(r.venta_id, fraccionCredito(r.venta_id));
       const fraccion = fraccionCache.get(r.venta_id);
@@ -213,7 +213,7 @@ function agregarLinea(rendicion_id, { tipo, codigo, descripcion, cantidad, preci
   const cant = Number(cantidad) || 1;
   const unitario = Number(precio_unitario) || 0;
   const pct = Number(porcentaje) || 0;
-  const monto_base = tipo === 'servicio' ? unitario : unitario * cant;
+  const monto_base = unitario * cant;
   const monto_rendido = Math.round(monto_base * (pct / 100));
 
   const tx = db.transaction(() => {

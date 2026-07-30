@@ -2073,6 +2073,7 @@ async function calcularRendicionPreview() {
       <td>${d.codigo || '—'}</td>
       <td>${d.descripcion}</td>
       <td>${TIPO_MOVIMIENTO_LABEL[d.tipo]}</td>
+      <td>${d.cantidad}</td>
       <td>$ ${money.format(d.monto_base)}</td>
       <td>${d.porcentaje}%</td>
       <td>$ ${money.format(d.monto_rendido)}</td>
@@ -2219,7 +2220,7 @@ async function verDetalleRendicion(id) {
     .map(
       (d) => `<tr>
         <td>${d.venta_numero || '—'}</td><td>${d.codigo || '—'}</td><td>${d.descripcion}</td><td>${TIPO_MOVIMIENTO_LABEL[d.tipo]}</td>
-        <td>$ ${money.format(d.monto_base)}</td><td>${d.porcentaje}%</td><td>$ ${money.format(d.monto_rendido)}</td>
+        <td>${d.cantidad}</td><td>$ ${money.format(d.monto_base)}</td><td>${d.porcentaje}%</td><td>$ ${money.format(d.monto_rendido)}</td>
         <td>${editable ? `<button class="btn light" onclick="quitarLineaRendicion(${id}, ${d.id})">✕</button>` : ''}</td>
       </tr>`
     )
@@ -2235,7 +2236,7 @@ async function verDetalleRendicion(id) {
   document.getElementById('rendDetalleContenido').innerHTML = `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Venta</th><th>Código</th><th>Descripción</th><th>Tipo</th><th>Base</th><th>%</th><th>Rinde</th><th></th></tr></thead>
+        <thead><tr><th>Venta</th><th>Código</th><th>Descripción</th><th>Tipo</th><th>Cant.</th><th>Base</th><th>%</th><th>Rinde</th><th></th></tr></thead>
         <tbody>${filasDetalle}</tbody>
       </table>
     </div>
@@ -2431,7 +2432,7 @@ function construirRendicionA4Html(r) {
   const filasServicios = servicios
     .map(
       (d) =>
-        `<tr><td>${d.codigo || ''}</td><td>${d.descripcion}</td><td class="a4-num">$${money.format(d.monto_base)}</td><td class="a4-num">${d.porcentaje}%</td><td class="a4-num">$${money.format(d.monto_rendido)}</td></tr>`
+        `<tr><td>${d.codigo || ''}</td><td>${d.descripcion}</td><td class="a4-num">${d.cantidad}</td><td class="a4-num">$${money.format(d.monto_base)}</td><td class="a4-num">${d.porcentaje}%</td><td class="a4-num">$${money.format(d.monto_rendido)}</td></tr>`
     )
     .join('');
 
@@ -2474,7 +2475,7 @@ function construirRendicionA4Html(r) {
       filasServicios
         ? `<h3 style="margin:14px 0 6px;font-size:13px">Servicios</h3>
     <table class="a4-tabla">
-      <thead><tr><th>Código</th><th>Descripción</th><th>Base</th><th>%</th><th>Rinde</th></tr></thead>
+      <thead><tr><th>Código</th><th>Descripción</th><th>Cant.</th><th>Base</th><th>%</th><th>Rinde</th></tr></thead>
       <tbody>${filasServicios}</tbody>
     </table>`
         : ''
