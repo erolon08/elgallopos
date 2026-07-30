@@ -3485,7 +3485,17 @@ function calcularDesglosePresupuesto(presupuesto) {
     },
     { final: 0, debito: 0, efectivo: 0 }
   );
-  return { lineas, totales, hayDebito: lineas.some((l) => l.tieneDebito), modo_precio: presupuesto.modo_precio || 'todos' };
+  return {
+    lineas,
+    totales,
+    hayDebito: lineas.some((l) => l.tieneDebito),
+    modo_precio: presupuesto.modo_precio || 'todos',
+    // Suma real de precio_unitario×cantidad-descuento tal cual quedó cargada la
+    // línea (incluye precios tocados a mano, que no siguen la lista F/D/E del
+    // producto). Se usa cuando el presupuesto pide mostrar un solo precio: ese
+    // precio tiene que ser el que se cargó, no el recalculado desde el catálogo.
+    totalReal: presupuesto.total,
+  };
 }
 // El presupuesto puede pedir mostrar los 3 precios (Final/Débito/Efectivo) o
 // uno solo puntual (ej. cuando se le puso un precio efectivo a mano que no
@@ -3493,9 +3503,9 @@ function calcularDesglosePresupuesto(presupuesto) {
 function totalesAMostrarPresupuesto(desglose) {
   const t = desglose.totales;
   const modo = desglose.modo_precio;
-  if (modo === 'final') return [{ label: 'TOTAL Final', monto: t.final }];
-  if (modo === 'debito') return [{ label: 'TOTAL Débito o Transferencia', monto: t.debito }];
-  if (modo === 'efectivo') return [{ label: 'TOTAL Efectivo (sin factura, solo efectivo)', monto: t.efectivo }];
+  if (modo === 'final') return [{ label: 'TOTAL Final', monto: desglose.totalReal }];
+  if (modo === 'debito') return [{ label: 'TOTAL Débito o Transferencia', monto: desglose.totalReal }];
+  if (modo === 'efectivo') return [{ label: 'TOTAL Efectivo (sin factura, solo efectivo)', monto: desglose.totalReal }];
   const todos = [{ label: 'TOTAL Final', monto: t.final }];
   if (desglose.hayDebito) todos.push({ label: 'TOTAL Débito o Transferencia', monto: t.debito });
   todos.push({ label: 'TOTAL Efectivo (sin factura, solo efectivo)', monto: t.efectivo });
@@ -3629,13 +3639,16 @@ function tablaPresupuestoA4Html(desglose) {
     </table>`;
 }
 function totalesPresupuestoA4Html(desglose) {
-  const t = desglose.totales;
   const modo = desglose.modo_precio;
-  const mostrar = { final: modo === 'todos' || modo === 'final', debito: modo === 'todos' ? desglose.hayDebito : modo === 'debito', efectivo: modo === 'todos' || modo === 'efectivo' };
-  let html = '';
-  if (mostrar.final) html += `<div class="a4-total">TOTAL FINAL<br>$${money.format(t.final)}</div>`;
-  if (mostrar.debito) html += `<div class="a4-total">TOTAL DÉBITO O TRANSFERENCIA<br>$${money.format(t.debito)}</div>`;
-  if (mostrar.efectivo) html += `<div class="a4-total">TOTAL EFECTIVO<br>$${money.format(t.efectivo)}<br><span class="a4-muted" style="font-size:11px">(sin factura, solo efectivo)</span></div>`;
+  if (modo !== 'todos') {
+    const titulo = { final: 'TOTAL FINAL', debito: 'TOTAL DÉBITO O TRANSFERENCIA', efectivo: 'TOTAL EFECTIVO' }[modo];
+    const sinFactura = modo === 'efectivo' ? '<br><span class="a4-muted" style="font-size:11px">(sin factura, solo efectivo)</span>' : '';
+    return `<div class="a4-total">${titulo}<br>$${money.format(desglose.totalReal)}${sinFactura}</div>`;
+  }
+  const t = desglose.totales;
+  let html = `<div class="a4-total">TOTAL FINAL<br>$${money.format(t.final)}</div>`;
+  if (desglose.hayDebito) html += `<div class="a4-total">TOTAL DÉBITO O TRANSFERENCIA<br>$${money.format(t.debito)}</div>`;
+  html += `<div class="a4-total">TOTAL EFECTIVO<br>$${money.format(t.efectivo)}<br><span class="a4-muted" style="font-size:11px">(sin factura, solo efectivo)</span></div>`;
   return html;
 }
 
