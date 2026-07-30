@@ -479,26 +479,26 @@
             </div>
           </div>
           <div class="sale-footer">
-            <div class="field" style="max-width:70px"><label style="color:#bbb;font-size:11px">Desc. gral. (%)</label><input id="ventaDescuentoGeneral" type="number" min="0" max="100" step="any" value="0" oninput="actualizarTotalVenta()" style="background:#222;color:#fff;border-color:#444;padding:5px 7px"></div>
-            <div class="field" style="max-width:150px"><label style="color:#bbb;font-size:11px">Comprobante</label>
+            <div class="field" style="max-width:50px"><label style="color:#bbb;font-size:10px">Desc. %</label><input id="ventaDescuentoGeneral" type="number" min="0" max="100" step="any" value="0" oninput="actualizarTotalVenta()" style="background:#222;color:#fff;border-color:#444;padding:4px 5px;font-size:11px"></div>
+            <div class="field" style="max-width:95px"><label style="color:#bbb;font-size:10px">Comprobante</label>
               <select id="ventaTipoComprobante">
                 <option value="Eventual" selected>No fiscal</option>
                 <option value="Factura A">Factura A</option>
                 <option value="Factura B">Factura B</option>
               </select>
             </div>
-            <div class="field" style="max-width:150px"><label style="color:#bbb;font-size:11px">Condición</label>
+            <div class="field" style="max-width:95px"><label style="color:#bbb;font-size:10px">Condición</label>
               <select id="ventaCondicionVenta">
                 <option value="Contado" selected>Contado</option>
                 <option value="Cuenta Corriente" id="ventaCondicionCtaCte">Cuenta Corriente</option>
               </select>
             </div>
-            <div class="sale-footer-total"><div class="small" style="color:#bbb">TOTAL</div><div class="total">$ <span id="ventaTotal">0</span></div></div>
-            <button class="btn dark" onclick="guardarPendiente()">💾 Pendiente <span class="key">F8</span></button>
-            <button class="btn primary" onclick="cobrarOEnviar()">Cobrar / Enviar <span class="key">F10</span></button>
-            <button class="btn dark" id="btnEnviarACajaVenta" style="display:none" onclick="enviarACajaDesdeVenta()">📤 Enviar a Caja</button>
-            <button class="btn green" onclick="guardarComoPresupuesto()">📄 Presupuesto <span class="key">F9</span></button>
-            <select id="presupuestoVigencia" title="Vigencia del presupuesto" style="border-radius:8px;border:0;padding:0 8px">
+            <div class="sale-footer-total"><div class="small" style="color:#bbb;font-size:10px">TOTAL</div><div class="total">$ <span id="ventaTotal">0</span></div></div>
+            <button class="btn dark" onclick="guardarPendiente()">💾 Pendiente<br><span class="key">F8</span></button>
+            <button class="btn primary" onclick="cobrarOEnviar()">Cobrar/Enviar<br><span class="key">F10</span></button>
+            <button class="btn dark" id="btnEnviarACajaVenta" style="display:none" onclick="enviarACajaDesdeVenta()">📤 A Caja</button>
+            <button class="btn green" onclick="guardarComoPresupuesto()">📄 Presupuesto<br><span class="key">F9</span></button>
+            <select id="presupuestoVigencia" title="Vigencia del presupuesto" style="border-radius:8px;border:0;padding:0 6px">
               <option value="7">7 días</option>
               <option value="15" selected>15 días</option>
               <option value="30">30 días</option>
@@ -506,10 +506,10 @@
             <select id="presupuestoModoPrecio" title="Qué precio mostrar en el presupuesto">
               <option value="todos" selected>Precio: F/D/E</option>
               <option value="final">Precio: Final</option>
-              <option value="debito">Precio: Débito/Transf.</option>
+              <option value="debito">Precio: Déb./Transf.</option>
               <option value="efectivo">Precio: Efectivo</option>
             </select>
-            <button class="btn outline" onclick="cancelarVenta()">Cancelar venta <span class="key key-dark">F6</span></button>
+            <button class="btn outline" onclick="cancelarVenta()">Cancelar<br><span class="key key-dark">F6</span></button>
             <div class="sale-footer-hint" id="ventaHint">En esta terminal, F10 abre el cobro directamente.</div>
             <p class="small" id="presupuestoOrigenAviso" style="flex-basis:100%;margin:0;color:#bcdcff"></p>
           </div>
