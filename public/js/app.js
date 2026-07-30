@@ -2334,11 +2334,48 @@ function closeRendicionDetalle() {
   rendicionDetalleActualCerrajeroId = null;
 }
 
+// Precios de referencia de trabajos de codificados (autos): el cerrajero
+// suele hacer estos trabajos sueltos, sin pasar por una venta de mostrador.
+// Elegir uno acá solo autocompleta descripción y precio — como cualquier
+// línea manual, quedan editables antes de tocar "Agregar" (los precios de
+// esta lista cambian de tanto en tanto y no siempre coinciden con lo cobrado).
+const CATALOGO_CODIFICADOS = [
+  { descripcion: 'Pilas', precio: 750 },
+  { descripcion: 'Portón control', precio: 1670 },
+  { descripcion: 'Pulsadores', precio: 1645 },
+  { descripcion: 'K común', precio: 2495 },
+  { descripcion: 'K Sevillana', precio: 3450 },
+  { descripcion: 'K Sevillana especial', precio: 6325 },
+  { descripcion: 'Reparación', precio: 0 },
+  { descripcion: 'Alojamiento', precio: 6440 },
+  { descripcion: 'Copia con transponder', precio: 12305 },
+  { descripcion: 'Transponder', precio: 8050 },
+  { descripcion: 'KD-Horse', precio: 18800 },
+  { descripcion: '0 llaves especiales', precio: 37145 },
+  { descripcion: '0 llaves', precio: 20872 },
+  { descripcion: 'Presencia', precio: 39100 },
+  { descripcion: 'Cranteado Yale', precio: 6150 },
+  { descripcion: 'Cranteado Mapa', precio: 8165 },
+  { descripcion: 'Copia oferta', precio: 8500 },
+  { descripcion: 'Reparación mando especial', precio: 10070 },
+  { descripcion: 'KD oferta', precio: 13800 },
+];
+
 function mostrarFormAgregarLineaRendicion() {
   const cerrajero = cerrajerosCache.find((c) => c.id === rendicionDetalleActualCerrajeroId);
   const cont = document.getElementById('rendAgregarLineaForm');
   cont.style.display = 'block';
+  const opcionesCodificados = CATALOGO_CODIFICADOS.map(
+    (c, i) => `<option value="${i}">${c.descripcion} — $ ${money.format(c.precio)}</option>`
+  ).join('');
   cont.innerHTML = `
+    <div class="field" style="margin-bottom:8px">
+      <label>Codificados (elegí para autocompletar; podés editar precio y cantidad después)</label>
+      <select id="rlCodificado" onchange="elegirCodificadoRendicion(this.value)">
+        <option value="">— Elegir trabajo de codificados —</option>
+        ${opcionesCodificados}
+      </select>
+    </div>
     <div class="two-col-form">
       <div class="field"><label>Tipo</label>
         <select id="rlTipo"><option value="servicio">Servicio</option><option value="duplicado">Duplicado</option></select>
@@ -2354,6 +2391,17 @@ function mostrarFormAgregarLineaRendicion() {
       <button class="btn outline" onclick="document.getElementById('rendAgregarLineaForm').style.display='none'">Cancelar</button>
     </div>
   `;
+}
+
+function elegirCodificadoRendicion(idx) {
+  if (idx === '') return;
+  const item = CATALOGO_CODIFICADOS[Number(idx)];
+  document.getElementById('rlTipo').value = 'duplicado';
+  document.getElementById('rlDescripcion').value = item.descripcion;
+  document.getElementById('rlPrecioUnitario').value = item.precio;
+  const cantidad = document.getElementById('rlCantidad');
+  cantidad.focus();
+  cantidad.select();
 }
 
 async function confirmarAgregarLineaRendicion() {
