@@ -877,7 +877,7 @@ async function importarClientesExcel(event) {
   const input = event.target;
   const archivo = input.files[0];
   if (!archivo) return;
-  if (!confirm(`¿Importar "${archivo.name}"? Se agregan como clientes nuevos (no actualiza existentes).`)) {
+  if (!confirm(`¿Importar "${archivo.name}"? Se agregan solo los clientes con un código que todavía no existe en el sistema; los que ya existen se saltean (no se duplican ni se actualizan).`)) {
     input.value = '';
     return;
   }
@@ -894,7 +894,8 @@ async function importarClientesExcel(event) {
       alert('Error al importar: ' + data.error);
       return;
     }
-    let msg = `Importación completa.\nClientes creados: ${data.creados}\nCódigos renumerados por duplicado: ${data.recodificados}`;
+    let msg = `Importación completa.\nClientes creados: ${data.creados}\nYa existían (salteados): ${data.omitidos}`;
+    if (data.recodificados) msg += `\nSin código en la planilla (se les asignó uno nuevo): ${data.recodificados}`;
     if (data.totalErrores) msg += `\nFilas con error: ${data.totalErrores}`;
     alert(msg);
     cargarClientes();

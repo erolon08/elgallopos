@@ -45,6 +45,7 @@ function importarClientes(filas) {
 
   let creados = 0;
   let recodificados = 0;
+  let omitidos = 0;
   const errores = [];
 
   const ejecutar = db.transaction((filas) => {
@@ -57,7 +58,14 @@ function importarClientes(filas) {
       }
 
       let codigo = limpiar(fila[COL.CODIGO]);
-      if (!codigo || codigosUsados.has(codigo)) {
+      // Si el código ya existe (el cliente ya se cargó antes, a mano o en una
+      // importación previa) no se duplica: se salta la fila directamente. Solo
+      // se recodifica cuando la fila no trae código, para poder darle uno.
+      if (codigo && codigosUsados.has(codigo)) {
+        omitidos++;
+        return;
+      }
+      if (!codigo) {
         codigo = String(siguienteCodigo);
         recodificados++;
       }
@@ -92,7 +100,7 @@ function importarClientes(filas) {
   });
   ejecutar(filas);
 
-  return { creados, recodificados, totalErrores: errores.length, errores: errores.slice(0, 50) };
+  return { creados, recodificados, omitidos, totalErrores: errores.length, errores: errores.slice(0, 50) };
 }
 
 module.exports = { importarClientes };
