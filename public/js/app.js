@@ -1778,13 +1778,22 @@ function cargarSesion() {
   session = raw ? JSON.parse(raw) : null;
 }
 
+// El link de recuperar clave solo tiene sentido con ADMIN elegido: los demás
+// puestos, si olvidan la clave, la piden a un ADMIN (que se las cambia desde
+// Configuración → Usuarios y claves), no tienen recuperación por WhatsApp.
+function actualizarLinkOlvideClave() {
+  const rol = document.querySelector('.login-role.selected').dataset.rol;
+  document.getElementById('linkOlvideClave').style.display = rol === 'ADMIN' ? '' : 'none';
+}
 document.querySelectorAll('.login-role').forEach((el) =>
   el.addEventListener('click', () => {
     document.querySelectorAll('.login-role').forEach((x) => x.classList.remove('selected'));
     el.classList.add('selected');
     document.getElementById('loginPassword').focus();
+    actualizarLinkOlvideClave();
   })
 );
+actualizarLinkOlvideClave();
 document.getElementById('loginPassword').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') doLogin();
 });

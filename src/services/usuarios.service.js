@@ -26,7 +26,11 @@ function cambiarPasswordConVerificacion(id, passwordActual, passwordNueva) {
 // vencimiento corto. El código se manda por WhatsApp desde el navegador (no
 // hay integración con la API de WhatsApp Business), así que acá solo se
 // genera y se guarda — el envío lo hace el frontend abriendo wa.me.
+// Solo existe para el puesto ADMIN: los demás puestos (CAJA/VENTA/STOCK), si
+// olvidan la clave, la pide un ADMIN y se la cambia directo desde
+// Configuración → Usuarios y claves (no necesitan el código por WhatsApp).
 function solicitarRecuperacion(rol) {
+  if (rol !== 'ADMIN') throw new Error('Solo se puede recuperar la clave del puesto ADMIN');
   const usuario = db.prepare("SELECT * FROM usuarios WHERE rol = ? AND activo = 1").get(rol);
   if (!usuario) throw new Error('Puesto no encontrado');
   const codigo = String(Math.floor(100000 + Math.random() * 900000));
@@ -36,6 +40,7 @@ function solicitarRecuperacion(rol) {
 }
 
 function confirmarRecuperacion(rol, codigo, passwordNueva) {
+  if (rol !== 'ADMIN') throw new Error('Solo se puede recuperar la clave del puesto ADMIN');
   const usuario = db.prepare("SELECT * FROM usuarios WHERE rol = ? AND activo = 1").get(rol);
   if (!usuario || !usuario.reset_codigo) throw new Error('No hay ningún código de recuperación pendiente para este puesto');
   if (String(codigo).trim() !== usuario.reset_codigo) throw new Error('El código no es correcto');
