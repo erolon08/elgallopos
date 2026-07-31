@@ -5,9 +5,15 @@ function normalizarPatente(patente) {
 }
 
 // Número de cliente autogenerado: nunca lo tipea el usuario, ni al crear ni al importar.
+// Arranca en 20.000: mientras el negocio siga cargando clientes en el sistema
+// viejo (posberry) en paralelo, esos números van a seguir subiendo desde donde
+// están ahora (~17.xxx). Reservando el rango desde 20.000 para los clientes
+// nuevos de acá, cuando se importe después una planilla más actual del
+// sistema viejo no va a chocar con ninguno de estos códigos.
+const CODIGO_CLIENTE_DESDE = 20000;
 function generarCodigo() {
   const { max } = db.prepare("SELECT MAX(CAST(codigo AS INTEGER)) AS max FROM clientes").get();
-  return String((max || 0) + 1);
+  return String(Math.max((max || 0) + 1, CODIGO_CLIENTE_DESDE));
 }
 
 function vehiculosDe(cliente_id) {
