@@ -169,13 +169,24 @@ function aplicarCierre(turno, { efectivo_contado, fondo_turno_siguiente, observa
   ).run(efectivoEsperado, contado, contado - efectivoEsperado, fondoSiguiente, observacion || null, turno.id);
 }
 
+// Al cerrar, se abre solo el turno siguiente con el fondo que se dejó
+// pactado (fondo_turno_siguiente) — la caja queda siempre abierta, sin el
+// paso manual de "Abrir turno" entre un cierre y el próximo. Se devuelve el
+// turno recién CERRADO (para el ticket de cierre); el nuevo abierto lo toma
+// solo la pantalla de Caja en su próxima consulta.
 const cerrarTurno = db.transaction((id, datos = {}) => {
   const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(id);
   if (!turno) throw new Error('Turno no encontrado');
   if (turno.estado !== 'abierto') throw new Error('El turno ya está cerrado');
   aplicarCierre(turno, datos);
   db.prepare(`UPDATE caja_turnos SET estado = 'cerrado', cerrado_en = datetime('now','localtime') WHERE id = ?`).run(id);
-  return obtener(id);
+  const cerrado = obtener(id);
+  db.prepare('INSERT INTO caja_turnos (numero, terminal, fondo_inicial) VALUES (?, ?, ?)').run(
+    'T-' + Date.now(),
+    cerrado.terminal,
+    cerrado.fondo_turno_siguiente || 0
+  );
+  return cerrado;
 });
 
 // Corrige un cierre ya hecho (ej. se contó mal el efectivo o se dejó un
