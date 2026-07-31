@@ -3506,7 +3506,6 @@ document.addEventListener('keydown', (e) => {
       F9: guardarComoPresupuesto,
       F8: guardarPendiente,
       F6: cancelarVenta,
-      F4: aplicarCerrajeroATodas,
       F2: nuevoClienteDesdeVenta,
     };
     if (atajosVenta[e.key]) {

@@ -444,10 +444,7 @@
                   <div class="small" id="ventaClienteDatos"></div>
                 </div>
                 <div class="field" style="max-width:200px"><label style="font-size:10px">Cerrajero</label>
-                  <div style="display:flex;gap:4px">
-                    <select id="ventaCerrajeroDefault" style="flex:1"><option value="">Sin asignar</option></select>
-                    <button class="btn light" style="white-space:nowrap" onclick="aplicarCerrajeroATodas()" title="Asigna el cerrajero elegido a todas las líneas ya cargadas en la venta">Aplicar <span class="key key-dark">F4</span></button>
-                  </div>
+                  <select id="ventaCerrajeroDefault" onchange="aplicarCerrajeroATodas()" title="Se asigna automáticamente a todas las líneas ya cargadas en la venta"><option value="">Sin asignar</option></select>
                 </div>
                 <button class="btn light" style="white-space:nowrap" onclick="nuevoClienteDesdeVenta()">+ Nuevo cliente <span class="key key-dark">F2</span></button>
               </div>
