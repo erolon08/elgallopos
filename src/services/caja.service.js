@@ -9,12 +9,19 @@ function turnoAbierto() {
   return db.prepare("SELECT * FROM caja_turnos WHERE estado = 'abierto' LIMIT 1").get();
 }
 
+// Si no hay turno abierto y una acción de fondo (pagar una rendición, un
+// gasto rápido del Dashboard) necesita uno, se crea acá sin que el usuario
+// pase por "Abrir turno" a propósito — por eso el fondo inicial tiene que
+// heredar lo que quedó pactado como fondo del próximo turno en el último
+// cierre (fondoSugerido), igual que si lo abriera a mano. Si se dejara en 0
+// (como antes), ese turno silencioso queda con un fondo que no refleja la
+// plata real que hay en la caja.
 function turnoAbiertoOCrear(terminal) {
   let turno = turnoAbierto();
   if (!turno) {
     const info = db
-      .prepare("INSERT INTO caja_turnos (numero, terminal, fondo_inicial) VALUES (?, ?, 0)")
-      .run('T-' + Date.now(), terminal);
+      .prepare("INSERT INTO caja_turnos (numero, terminal, fondo_inicial) VALUES (?, ?, ?)")
+      .run('T-' + Date.now(), terminal, fondoSugerido());
     turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(info.lastInsertRowid);
   }
   return turno;
