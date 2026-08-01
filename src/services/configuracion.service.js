@@ -15,6 +15,7 @@ function actualizar(datos) {
        domicilio_negocio = @domicilio_negocio, condicion_fiscal_negocio = @condicion_fiscal_negocio,
        inicio_actividades = @inicio_actividades, ingresos_brutos = @ingresos_brutos,
        telefono_recuperacion = @telefono_recuperacion,
+       arca_punto_venta = @arca_punto_venta, arca_facturacion_activa = @arca_facturacion_activa,
        actualizado_en = datetime('now','localtime')
      WHERE id = 1`
   ).run({
@@ -32,6 +33,9 @@ function actualizar(datos) {
     inicio_actividades: datos.inicio_actividades !== undefined ? datos.inicio_actividades : actual.inicio_actividades,
     ingresos_brutos: datos.ingresos_brutos !== undefined ? datos.ingresos_brutos : actual.ingresos_brutos,
     telefono_recuperacion: datos.telefono_recuperacion !== undefined ? datos.telefono_recuperacion : actual.telefono_recuperacion,
+    arca_punto_venta: datos.arca_punto_venta !== undefined ? datos.arca_punto_venta : actual.arca_punto_venta,
+    arca_facturacion_activa:
+      datos.arca_facturacion_activa !== undefined ? (datos.arca_facturacion_activa ? 1 : 0) : actual.arca_facturacion_activa,
   });
   return obtener();
 }

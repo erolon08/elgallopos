@@ -59,6 +59,13 @@ window.addEventListener('resize', () => {
 });
 
 const money = new Intl.NumberFormat('es-AR');
+// ARCA devuelve las fechas del CAE como "AAAAMMDD" (ej. "20260811"); esto
+// las pasa a "11/08/2026" para mostrarlas en el ticket.
+function formatFechaAfip(aaaammdd) {
+  const s = String(aaaammdd || '');
+  if (s.length !== 8) return s;
+  return `${s.slice(6, 8)}/${s.slice(4, 6)}/${s.slice(0, 4)}`;
+}
 function roundUpTo100(v) {
   return Math.ceil(v / 100) * 100;
 }
@@ -1650,6 +1657,18 @@ async function cargarConfiguracion() {
   document.getElementById('cfgInicioActividades').value = configCache.inicio_actividades || '';
   document.getElementById('cfgIngresosBrutos').value = configCache.ingresos_brutos || '';
   document.getElementById('cfgTelefonoRecuperacion').value = configCache.telefono_recuperacion || '';
+  document.getElementById('cfgArcaPuntoVenta').value = configCache.arca_punto_venta || '';
+  document.getElementById('cfgArcaActiva').checked = !!configCache.arca_facturacion_activa;
+}
+
+async function guardarArcaConfig() {
+  const payload = {
+    arca_punto_venta: document.getElementById('cfgArcaPuntoVenta').value.trim(),
+    arca_facturacion_activa: document.getElementById('cfgArcaActiva').checked,
+  };
+  await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  await cargarConfiguracionGlobal();
+  alert('Configuración de facturación electrónica guardada.');
 }
 
 async function guardarTelefonoRecuperacionConfig() {
@@ -3684,6 +3703,9 @@ async function mostrarTicket(venta) {
     .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}${it.cerrajero_nombre ? '<br><span style="font-size:11px">&nbsp;&nbsp;Cerrajero: ' + it.cerrajero_nombre + '</span>' : ''}<br>`)
     .join('');
   const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
+  const caeHtml = venta.cae
+    ? `<hr>Comprobante N°: ${venta.numero_comprobante}<br>CAE: ${venta.cae}<br>Vto. CAE: ${formatFechaAfip(venta.cae_vencimiento)}<br>`
+    : '';
   mostrarTicketComoTermico(`
     ${ticketEncabezadoHtml()}<hr>
     ${datosFiscalesNegocioHtmlTicket(esFiscal)}
@@ -3692,7 +3714,8 @@ async function mostrarTicket(venta) {
     ${datosFiscalesClienteHtmlTicket('venta', venta)}<hr>
     ${lineasHtml}<hr>
     <div class="ticket-total">TOTAL: $${money.format(venta.total)}</div>
-    ${pagosHtml}<hr>
+    ${pagosHtml}
+    ${caeHtml}<hr>
     <div class="center">¡Gracias por su compra!</div>
     ${ticketPieHtml()}
   `);
@@ -3819,11 +3842,12 @@ function construirDocumentoA4Html(tipo, doc) {
       <div class="a4-tipo-box">${letraTipo}</div>
       <div class="a4-doc-info">
         ${esFiscal ? '' : '<div class="a4-muted">No válido como factura</div>'}
-        <div class="a4-doc-numero">N° ${doc.numero}</div>
+        <div class="a4-doc-numero">N° ${esFiscal && doc.numero_comprobante ? doc.numero_comprobante : doc.numero}</div>
         <div>Fecha: ${fecha}</div>
         ${esFiscal ? `
           <div>Inicio de Actividades: ${cfg.inicio_actividades || '--'}</div>
           <div>CUIT: ${cfg.cuit_negocio || '--'} / Ingresos Brutos: ${cfg.ingresos_brutos || '--'}</div>
+          ${doc.cae ? `<div>CAE: ${doc.cae}</div><div>Vto. CAE: ${formatFechaAfip(doc.cae_vencimiento)}</div>` : ''}
         ` : ''}
       </div>
     </div>
@@ -4146,14 +4170,86 @@ function filaVentaHistorial(v) {
   const tr = document.createElement('tr');
   const hora = new Date(v.creado_en).toLocaleString('es-AR');
   const estadoCls = v.estado === 'cobrada' ? 's-ok' : v.estado === 'anulada' ? 's-bad' : 's-warn';
+  const puedeFacturar = v.estado === 'cobrada' && v.tipo_comprobante === 'Eventual';
+  const botonFacturar = puedeFacturar
+    ? `<button class="btn green" onclick='abrirFacturarVenta(${v.id}, ${JSON.stringify(v.cliente_nombre || null)}, ${v.cliente_id || 'null'})'>Facturar</button>`
+    : '';
   tr.innerHTML = `
     <td>${v.numero}</td><td>${hora}</td><td>${v.cliente_nombre || 'Consumidor Final'}</td>
     <td>${v.tipo_comprobante}</td><td>${v.forma_pago || '—'}</td><td>$ ${money.format(v.total)}</td>
     <td><span class="status ${estadoCls}">${v.estado}</span></td>
-    <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button></td>
+    <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button> ${botonFacturar}</td>
   `;
   return tr;
 }
+
+// ============================================================
+// FACTURAR UNA VENTA "EVENTUAL" YA COBRADA (si ARCA falló en el momento del
+// cobro, o si directamente se cobró sin facturar y después se decide hacerlo)
+// ============================================================
+let facturarClienteElegidoId = null;
+
+function abrirFacturarVenta(id, clienteNombreActual, clienteIdActual) {
+  document.getElementById('facturarVentaId').value = id;
+  document.getElementById('facturarTipoComprobante').value = 'Factura B';
+  document.getElementById('facturarClienteBuscar').value = '';
+  document.getElementById('facturarClienteResultados').style.display = 'none';
+  facturarClienteElegidoId = clienteIdActual || null;
+  document.getElementById('facturarClienteElegido').textContent = clienteNombreActual
+    ? `Cliente: ${clienteNombreActual}`
+    : 'Sin cliente asignado — se factura a Consumidor Final, o buscá uno abajo.';
+  document.getElementById('facturarVentaModal').classList.add('open');
+}
+
+function closeFacturarVenta() {
+  document.getElementById('facturarVentaModal').classList.remove('open');
+}
+
+async function buscarClienteFacturar() {
+  const q = document.getElementById('facturarClienteBuscar').value.trim();
+  const cont = document.getElementById('facturarClienteResultados');
+  if (!q) {
+    cont.style.display = 'none';
+    return;
+  }
+  const res = await fetch('/api/clientes?q=' + encodeURIComponent(q));
+  const rows = await res.json();
+  cont.innerHTML =
+    rows
+      .slice(0, 15)
+      .map(
+        (c) =>
+          `<div class="search-result-item" onclick='elegirClienteFacturar(${c.id}, ${JSON.stringify(c.nombre)})'>${c.nombre}${c.cuit ? ' — CUIT ' + c.cuit : ''}</div>`
+      )
+      .join('') || '<div class="search-result-item">Sin resultados.</div>';
+  cont.style.display = 'block';
+}
+
+function elegirClienteFacturar(id, nombre) {
+  facturarClienteElegidoId = id;
+  document.getElementById('facturarClienteElegido').textContent = `Cliente: ${nombre}`;
+  document.getElementById('facturarClienteResultados').style.display = 'none';
+  document.getElementById('facturarClienteBuscar').value = '';
+}
+
+async function confirmarFacturarVenta() {
+  const id = document.getElementById('facturarVentaId').value;
+  const tipo_comprobante = document.getElementById('facturarTipoComprobante').value;
+  const res = await fetch(`/api/ventas/${id}/facturar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tipo_comprobante, cliente_id: facturarClienteElegidoId }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  closeFacturarVenta();
+  cargarVentasHistorial();
+  alert(`Factura emitida: ${data.numero_comprobante} — CAE ${data.cae}`);
+}
+document.getElementById('facturarClienteBuscar').addEventListener('input', buscarClienteFacturar);
 document.getElementById('btnBuscarVentas').addEventListener('click', cargarVentasHistorial);
 ['ventasDesde', 'ventasHasta', 'ventasCerrajero'].forEach((id) =>
   document.getElementById(id).addEventListener('change', cargarVentasHistorial)

@@ -1,6 +1,56 @@
 const db = require('../db');
 const stockService = require('./stock.service');
 const cajaService = require('./caja.service');
+const configuracionService = require('./configuracion.service');
+const arcaFacturacionService = require('./arca-facturacion.service');
+
+// 1 = productos, 2 = servicios, 3 = productos y servicios (lo que pide ARCA
+// en cada comprobante). "items" ya trae usa_mano_obra por línea (servicio),
+// tal como los arma cobrar().
+function determinarConcepto(items) {
+  const hayServicios = items.some((it) => it.usa_mano_obra);
+  const hayProductos = items.some((it) => !it.usa_mano_obra);
+  if (hayServicios && hayProductos) return 3;
+  return hayServicios ? 2 : 1;
+}
+
+// Si corresponde Factura A/B y la facturación electrónica está activa,
+// intenta emitirla contra ARCA ANTES de tocar la base (el pedido a ARCA es
+// asíncrono y no puede ir dentro de la transacción sincrónica de cobrar()).
+// Si ARCA falla por lo que sea (sin conexión, caído, error), no se bloquea
+// el cobro: la venta se cobra igual, pero baja a "Eventual" — se puede
+// facturar más tarde a mano desde la pantalla de Ventas.
+async function intentarFacturar(tipoComprobante, total, cliente, items) {
+  if (tipoComprobante !== 'Factura A' && tipoComprobante !== 'Factura B') {
+    return { tipo_comprobante: tipoComprobante };
+  }
+  const config = configuracionService.obtener();
+  if (!config.arca_facturacion_activa || !config.arca_punto_venta) {
+    // Sin facturación electrónica activa no hay forma de conseguir un CAE
+    // real — nunca se deja una venta marcada "Factura A/B" sin CAE, porque
+    // eso imprimiría un comprobante que dice ser una factura sin serlo.
+    return { tipo_comprobante: 'Eventual' };
+  }
+  try {
+    const resultado = await arcaFacturacionService.emitirFactura({
+      tipoComprobante,
+      total,
+      cliente,
+      ptoVta: config.arca_punto_venta,
+      concepto: determinarConcepto(items),
+    });
+    return {
+      tipo_comprobante: tipoComprobante,
+      numero_comprobante: resultado.numeroCompleto,
+      cae: resultado.cae,
+      cae_vencimiento: resultado.caeVencimiento,
+    };
+  } catch (err) {
+    console.error(`No se pudo facturar electrónicamente (queda como Eventual): ${err.message}`);
+    return { tipo_comprobante: 'Eventual' };
+  }
+}
+
 
 function generarNumero() {
   const { max } = db.prepare("SELECT MAX(CAST(numero AS INTEGER)) AS max FROM ventas").get();
@@ -180,7 +230,10 @@ function exportarFilas({ desde, hasta }) {
   }));
 }
 
-const cobrar = db.transaction((id, datos) => {
+// Transacción sincrónica de cobro en sí (better-sqlite3 no admite await
+// adentro de una transacción) — cobrar(), más abajo, primero resuelve la
+// parte asíncrona (facturación electrónica) y recién después llama a esta.
+const cobrarTx = db.transaction((id, datos) => {
   const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
   if (!venta) throw new Error('Venta no encontrada');
   if (venta.estado === 'cobrada') throw new Error('La venta ya fue cobrada');
@@ -230,11 +283,86 @@ const cobrar = db.transaction((id, datos) => {
   const formaPagoResumen = datos.pagos.length > 1 ? 'Pago combinado' : datos.pagos[0].forma_pago;
 
   db.prepare(
-    `UPDATE ventas SET estado = 'cobrada', forma_pago = ?, tipo_comprobante = ?, caja_turno_id = ?, cobrado_en = datetime('now','localtime') WHERE id = ?`
-  ).run(formaPagoResumen, datos.tipo_comprobante || venta.tipo_comprobante, turno.id, id);
+    `UPDATE ventas SET estado = 'cobrada', forma_pago = ?, tipo_comprobante = ?,
+       numero_comprobante = ?, cae = ?, cae_vencimiento = ?,
+       caja_turno_id = ?, cobrado_en = datetime('now','localtime') WHERE id = ?`
+  ).run(
+    formaPagoResumen,
+    datos.tipo_comprobante || venta.tipo_comprobante,
+    datos.numero_comprobante || null,
+    datos.cae || null,
+    datos.cae_vencimiento || null,
+    turno.id,
+    id
+  );
 
   return obtener(id);
 });
+
+// Punto de entrada real para cobrar una venta: si corresponde Factura A/B
+// con facturación electrónica activa, primero intenta conseguir el CAE
+// (async, fuera de la transacción) y recién con ese resultado (CAE
+// conseguido, o "Eventual" si ARCA falló) ejecuta el cobro en sí.
+async function cobrar(id, datos) {
+  const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
+  if (!venta) throw new Error('Venta no encontrada');
+  if (venta.estado === 'cobrada') throw new Error('La venta ya fue cobrada');
+  if (venta.estado === 'anulada') throw new Error('La venta está anulada');
+
+  const tipoComprobantePedido = datos.tipo_comprobante || venta.tipo_comprobante;
+  let facturaInfo = { tipo_comprobante: tipoComprobantePedido };
+  if (tipoComprobantePedido === 'Factura A' || tipoComprobantePedido === 'Factura B') {
+    const items = db
+      .prepare(
+        'SELECT vi.*, f.usa_mano_obra FROM venta_items vi LEFT JOIN productos p ON p.id = vi.producto_id LEFT JOIN familias f ON f.id = p.familia_id WHERE vi.venta_id = ?'
+      )
+      .all(id);
+    const cliente = venta.cliente_id ? db.prepare('SELECT * FROM clientes WHERE id = ?').get(venta.cliente_id) : null;
+    facturaInfo = await intentarFacturar(tipoComprobantePedido, venta.total, cliente, items);
+  }
+
+  return cobrarTx(id, { ...datos, ...facturaInfo });
+}
+
+// Convierte una venta ya cobrada como "Eventual" en una Factura A/B real,
+// pidiendo el CAE a ARCA en el momento (a diferencia de cobrar(), acá si
+// falla se corta con un error — no hay a qué "bajar", ya está cobrada).
+async function facturarVentaExistente(id, { tipo_comprobante, cliente_id } = {}) {
+  const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
+  if (!venta) throw new Error('Venta no encontrada');
+  if (venta.estado !== 'cobrada') throw new Error('Solo se puede facturar una venta ya cobrada');
+  if (venta.cae) throw new Error('Esta venta ya tiene una factura electrónica emitida');
+  if (tipo_comprobante !== 'Factura A' && tipo_comprobante !== 'Factura B') {
+    throw new Error('Elegí Factura A o Factura B');
+  }
+
+  const config = configuracionService.obtener();
+  if (!config.arca_facturacion_activa || !config.arca_punto_venta) {
+    throw new Error('La facturación electrónica no está activa (Configuración → Facturación electrónica).');
+  }
+
+  const clienteIdFinal = cliente_id || venta.cliente_id;
+  const cliente = clienteIdFinal ? db.prepare('SELECT * FROM clientes WHERE id = ?').get(clienteIdFinal) : null;
+  const items = db
+    .prepare(
+      'SELECT vi.*, f.usa_mano_obra FROM venta_items vi LEFT JOIN productos p ON p.id = vi.producto_id LEFT JOIN familias f ON f.id = p.familia_id WHERE vi.venta_id = ?'
+    )
+    .all(id);
+
+  const resultado = await arcaFacturacionService.emitirFactura({
+    tipoComprobante: tipo_comprobante,
+    total: venta.total,
+    cliente,
+    ptoVta: config.arca_punto_venta,
+    concepto: determinarConcepto(items),
+  });
+
+  db.prepare(
+    `UPDATE ventas SET tipo_comprobante = ?, numero_comprobante = ?, cae = ?, cae_vencimiento = ?, cliente_id = ? WHERE id = ?`
+  ).run(tipo_comprobante, resultado.numeroCompleto, resultado.cae, resultado.caeVencimiento, clienteIdFinal || null, id);
+
+  return obtener(id);
+}
 
 const actualizar = db.transaction((id, datos) => {
   const actual = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
@@ -333,4 +461,16 @@ function actualizarCerrajeroLinea(venta_item_id, cerrajero_id) {
   return info.changes > 0;
 }
 
-module.exports = { crear, obtener, listar, exportarFilas, cobrar, enviarACaja, anular, actualizar, actualizarCerrajeroLinea, generarNumero };
+module.exports = {
+  crear,
+  obtener,
+  listar,
+  exportarFilas,
+  cobrar,
+  facturarVentaExistente,
+  enviarACaja,
+  anular,
+  actualizar,
+  actualizarCerrajeroLinea,
+  generarNumero,
+};

@@ -398,6 +398,11 @@ CREATE TABLE IF NOT EXISTS configuracion (
   condicion_fiscal_negocio TEXT,
   inicio_actividades TEXT,
   ingresos_brutos TEXT,
+  -- Facturación electrónica (ARCA/AFIP): arca_facturacion_activa arranca en
+  -- 0 a propósito — hasta que no se prenda a mano desde Configuración, una
+  -- venta con Factura A/B nunca intenta emitir un comprobante real.
+  arca_punto_venta TEXT,
+  arca_facturacion_activa INTEGER NOT NULL DEFAULT 0,
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 INSERT OR IGNORE INTO configuracion (id) VALUES (1);

@@ -59,10 +59,20 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.post('/:id/cobrar', (req, res) => {
+router.post('/:id/cobrar', async (req, res) => {
   try {
-    const venta = ventasService.cobrar(Number(req.params.id), req.body);
+    const venta = await ventasService.cobrar(Number(req.params.id), req.body);
     emitVentaEvent('venta:cobrada', venta);
+    res.json(venta);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/:id/facturar', async (req, res) => {
+  try {
+    const venta = await ventasService.facturarVentaExistente(Number(req.params.id), req.body);
+    emitVentaEvent('venta:actualizada', venta);
     res.json(venta);
   } catch (err) {
     res.status(400).json({ error: err.message });

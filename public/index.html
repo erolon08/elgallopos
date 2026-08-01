@@ -648,7 +648,23 @@
             <div class="field"><label>Ingresos Brutos</label><input id="cfgIngresosBrutos" placeholder="--"></div>
             <button class="btn primary" onclick="guardarDatosFiscalesConfig()">Guardar</button>
           </div>
-          <div class="notice" style="margin-top:10px">Estos datos son opcionales y solo se muestran en el documento A4 (no en el ticket térmico). Este sistema no emite facturas electrónicas de AFIP — el documento A4 es un presupuesto/comprobante interno, no un comprobante fiscal válido.</div>
+          <div class="notice" style="margin-top:10px">Estos datos son opcionales y solo se muestran en el documento A4 (no en el ticket térmico).</div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Facturación electrónica (ARCA)</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Punto de Venta</label><input id="cfgArcaPuntoVenta" placeholder="Ej: 7"></div>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:18px">
+              <input type="checkbox" id="cfgArcaActiva"> Facturación electrónica activa
+            </label>
+            <button class="btn primary" onclick="guardarArcaConfig()">Guardar</button>
+          </div>
+          <div class="notice" style="margin-top:10px">
+            Con esto activado, al cobrar una venta como Factura A o Factura B, el sistema le pide el CAE a ARCA automáticamente.
+            Si ARCA no responde en el momento (sin conexión, caído), la venta se cobra igual como "Eventual" (no fiscal) —
+            después se puede facturar esa venta puntual desde la pantalla de Ventas, con el botón "Facturar".
+          </div>
         </div>
 
         <div class="card">
@@ -698,6 +714,29 @@
       </div>
     </div>
     <div class="login-error" id="olvideClaveError" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div class="modal" id="facturarVentaModal">
+  <div class="modal-box">
+    <div class="section-title"><h3>Facturar venta</h3><button class="btn light" onclick="closeFacturarVenta()">✕</button></div>
+    <input type="hidden" id="facturarVentaId">
+    <div class="field"><label>Tipo de comprobante</label>
+      <select id="facturarTipoComprobante">
+        <option value="Factura B">Factura B</option>
+        <option value="Factura A">Factura A (necesita CUIT del cliente)</option>
+      </select>
+    </div>
+    <div class="field" style="margin-top:10px;position:relative">
+      <label>Cliente</label>
+      <input id="facturarClienteBuscar" placeholder="Buscar por nombre, código o CUIT...">
+      <div class="search-results" id="facturarClienteResultados" style="display:none"></div>
+      <div class="small" id="facturarClienteElegido" style="margin-top:6px"></div>
+    </div>
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn primary" onclick="confirmarFacturarVenta()">Facturar</button>
+      <button class="btn outline" onclick="closeFacturarVenta()">Cancelar</button>
+    </div>
   </div>
 </div>
 
