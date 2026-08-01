@@ -87,7 +87,11 @@ function firmarCms(xml, certPem, privateKeyPem) {
   return forge.util.encode64(der);
 }
 
-function llamarSoap(url, soapBody) {
+// El servidor de WSFE (a diferencia de WSAA) exige que el header SOAPAction
+// coincida exactamente con la operación que se está llamando (ej.
+// "http://ar.gov.afip.dif.FEV1/FEDummy") — si va vacío, lo rechaza antes de
+// siquiera mirar el cuerpo del pedido.
+function llamarSoap(url, soapBody, soapAction = '') {
   const envelope = `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"><soapenv:Body>${soapBody}</soapenv:Body></soapenv:Envelope>`;
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -96,7 +100,7 @@ function llamarSoap(url, soapBody) {
         method: 'POST',
         headers: {
           'Content-Type': 'text/xml; charset=utf-8',
-          SOAPAction: '',
+          SOAPAction: soapAction,
           'Content-Length': Buffer.byteLength(envelope),
         },
       },

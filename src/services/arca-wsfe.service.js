@@ -23,7 +23,7 @@ function parsear(body) {
 // meterse con la parte que sí necesita el certificado.
 async function dummy() {
   const soapBody = `<FEDummy xmlns="${NS}"/>`;
-  const { status, body } = await wsaa.llamarSoap(WSFE_URL, soapBody);
+  const { status, body } = await wsaa.llamarSoap(WSFE_URL, soapBody, `"${NS}FEDummy"`);
   if (status !== 200) throw new Error(`ARCA (WSFE) respondió con error HTTP ${status}: ${body.slice(0, 500)}`);
   const resultado = parsear(body)?.FEDummyResponse?.FEDummyResult;
   if (!resultado) throw new Error(`Respuesta de FEDummy inesperada: ${body.slice(0, 500)}`);
@@ -38,7 +38,7 @@ async function ultimoAutorizado(ptoVta, cbteTipo) {
   const { token, sign } = await wsaa.obtenerTicket('wsfe');
   const cuit = wsaa.obtenerCuit();
   const soapBody = `<FECompUltimoAutorizado xmlns="${NS}"><Auth><Token>${token}</Token><Sign>${sign}</Sign><Cuit>${cuit}</Cuit></Auth><PtoVta>${ptoVta}</PtoVta><CbteTipo>${cbteTipo}</CbteTipo></FECompUltimoAutorizado>`;
-  const { status, body } = await wsaa.llamarSoap(WSFE_URL, soapBody);
+  const { status, body } = await wsaa.llamarSoap(WSFE_URL, soapBody, `"${NS}FECompUltimoAutorizado"`);
   if (status !== 200) throw new Error(`ARCA (WSFE) respondió con error HTTP ${status}: ${body.slice(0, 500)}`);
   const resultado = parsear(body)?.FECompUltimoAutorizadoResponse?.FECompUltimoAutorizadoResult;
   if (!resultado) throw new Error(`Respuesta de FECompUltimoAutorizado inesperada: ${body.slice(0, 500)}`);
