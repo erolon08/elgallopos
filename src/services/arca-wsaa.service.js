@@ -44,17 +44,22 @@ function cargarCredenciales() {
 }
 
 // El CUIT que hay que mandar en cada llamada a WSFE se saca directo del
-// certificado (campo serialNumber, "CUIT 20304239655") en vez de tener que
-// configurarlo aparte — así no se puede desincronizar del certificado real.
+// certificado (en vez de tener que configurarlo aparte, así no se puede
+// desincronizar del certificado real). El campo donde ARCA lo pone en el
+// certificado emitido puede no llamarse "serialNumber" tal cual el pedido
+// (CSR) lo tenía, así que se revisan todos los campos del subject buscando
+// un número de 11 dígitos, en vez de asumir un nombre de campo fijo.
 function obtenerCuit() {
   const { certPem } = cargarCredenciales();
   const cert = forge.pki.certificateFromPem(certPem);
-  const campo = cert.subject.getField('serialNumber');
-  const match = campo && String(campo.value).match(/(\d{11})/);
-  if (!match) {
-    throw new Error('No se pudo leer el CUIT del certificado (campo serialNumber ausente o con formato inesperado).');
+  for (const attr of cert.subject.attributes) {
+    const match = String(attr.value).match(/(\d{11})/);
+    if (match) return match[1];
   }
-  return match[1];
+  const detalle = cert.subject.attributes
+    .map((a) => `${a.name || a.shortName || a.type}=${a.value}`)
+    .join(', ');
+  throw new Error(`No se encontró un CUIT (11 dígitos) en ningún campo del certificado. Campos del certificado: ${detalle || '(vacío)'}`);
 }
 
 function crearLoginTicketRequestXml(servicio) {
