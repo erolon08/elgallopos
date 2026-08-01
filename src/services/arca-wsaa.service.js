@@ -11,7 +11,7 @@ const forge = require('node-forge');
 const { XMLParser } = require('fast-xml-parser');
 
 const ARCA_DIR = path.join(__dirname, '..', '..', 'arca');
-const WSAA_URL = 'https://wsaa.afip.gov.ar/ws/services/LoginCgi';
+const WSAA_URL = 'https://wsaa.afip.gov.ar/ws/services/LoginCms';
 
 const cacheTickets = new Map(); // servicio -> { token, sign, expira }
 
