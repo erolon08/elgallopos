@@ -237,6 +237,10 @@ CREATE TABLE IF NOT EXISTS ventas (
   numero_comprobante TEXT,
   cae TEXT,
   cae_vencimiento TEXT,
+  -- Neto/IVA tal como se le reportaron a ARCA al pedir el CAE (para poder
+  -- mostrarlos discriminados en el ticket de Factura A, que lo exige).
+  iva_neto REAL,
+  iva_monto REAL,
   enviado_whatsapp INTEGER NOT NULL DEFAULT 0,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   cobrado_en TEXT

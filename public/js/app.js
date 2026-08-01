@@ -3706,6 +3706,12 @@ async function mostrarTicket(venta) {
   const caeHtml = venta.cae
     ? `<hr>Comprobante N°: ${venta.numero_comprobante}<br>CAE: ${venta.cae}<br>Vto. CAE: ${formatFechaAfip(venta.cae_vencimiento)}<br>`
     : '';
+  // Factura A tiene que discriminar el IVA (a diferencia de la B, que va a
+  // Consumidor Final y solo necesita el total).
+  const ivaHtml =
+    venta.tipo_comprobante === 'Factura A' && venta.iva_neto != null
+      ? `Neto: $${money.format(venta.iva_neto)}<br>IVA 21%: $${money.format(venta.iva_monto)}<br>`
+      : '';
   mostrarTicketComoTermico(`
     ${ticketEncabezadoHtml()}<hr>
     ${datosFiscalesNegocioHtmlTicket(esFiscal)}
@@ -3713,6 +3719,7 @@ async function mostrarTicket(venta) {
     Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}<br>
     ${datosFiscalesClienteHtmlTicket('venta', venta)}<hr>
     ${lineasHtml}<hr>
+    ${ivaHtml}
     <div class="ticket-total">TOTAL: $${money.format(venta.total)}</div>
     ${pagosHtml}
     ${caeHtml}<hr>
@@ -3824,9 +3831,13 @@ function construirDocumentoA4Html(tipo, doc) {
         )
         .join('')}</tbody>
     </table>`;
+  const ivaBloqueA4Html =
+    !esPresupuesto && doc.tipo_comprobante === 'Factura A' && doc.iva_neto != null
+      ? `<div class="a4-total">NETO<br>$${money.format(doc.iva_neto)}</div><div class="a4-total">IVA 21%<br>$${money.format(doc.iva_monto)}</div>`
+      : '';
   const totalBloqueHtml = esPresupuesto
     ? totalesPresupuestoA4Html(desglose)
-    : `<div class="a4-total">TOTAL<br>$${money.format(doc.total)}</div>`;
+    : `${ivaBloqueA4Html}<div class="a4-total">TOTAL<br>$${money.format(doc.total)}</div>`;
   const pagosHtml = !esPresupuesto && doc.pagos && doc.pagos.length
     ? `<p><b>Forma de pago:</b> ${doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`).join(' / ')}</p>`
     : '';

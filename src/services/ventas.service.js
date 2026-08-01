@@ -44,6 +44,8 @@ async function intentarFacturar(tipoComprobante, total, cliente, items) {
       numero_comprobante: resultado.numeroCompleto,
       cae: resultado.cae,
       cae_vencimiento: resultado.caeVencimiento,
+      iva_neto: resultado.impNeto,
+      iva_monto: resultado.impIva,
     };
   } catch (err) {
     console.error(`No se pudo facturar electrónicamente (queda como Eventual): ${err.message}`);
@@ -284,7 +286,7 @@ const cobrarTx = db.transaction((id, datos) => {
 
   db.prepare(
     `UPDATE ventas SET estado = 'cobrada', forma_pago = ?, tipo_comprobante = ?,
-       numero_comprobante = ?, cae = ?, cae_vencimiento = ?,
+       numero_comprobante = ?, cae = ?, cae_vencimiento = ?, iva_neto = ?, iva_monto = ?,
        caja_turno_id = ?, cobrado_en = datetime('now','localtime') WHERE id = ?`
   ).run(
     formaPagoResumen,
@@ -292,6 +294,8 @@ const cobrarTx = db.transaction((id, datos) => {
     datos.numero_comprobante || null,
     datos.cae || null,
     datos.cae_vencimiento || null,
+    datos.iva_neto ?? null,
+    datos.iva_monto ?? null,
     turno.id,
     id
   );
@@ -358,8 +362,18 @@ async function facturarVentaExistente(id, { tipo_comprobante, cliente_id } = {})
   });
 
   db.prepare(
-    `UPDATE ventas SET tipo_comprobante = ?, numero_comprobante = ?, cae = ?, cae_vencimiento = ?, cliente_id = ? WHERE id = ?`
-  ).run(tipo_comprobante, resultado.numeroCompleto, resultado.cae, resultado.caeVencimiento, clienteIdFinal || null, id);
+    `UPDATE ventas SET tipo_comprobante = ?, numero_comprobante = ?, cae = ?, cae_vencimiento = ?,
+       iva_neto = ?, iva_monto = ?, cliente_id = ? WHERE id = ?`
+  ).run(
+    tipo_comprobante,
+    resultado.numeroCompleto,
+    resultado.cae,
+    resultado.caeVencimiento,
+    resultado.impNeto,
+    resultado.impIva,
+    clienteIdFinal || null,
+    id
+  );
 
   return obtener(id);
 }
