@@ -9,12 +9,14 @@
     "dev": "node --watch src/server.js",
     "seed": "node src/db/seed.js",
     "reset-ventas": "node src/db/reset-ventas.js",
-    "generar-csr-arca": "node scripts/generar-csr-arca.js"
+    "generar-csr-arca": "node scripts/generar-csr-arca.js",
+    "test-arca-conexion": "node scripts/test-arca-conexion.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.3.0",
     "express": "^4.19.2",
+    "fast-xml-parser": "^5.10.1",
     "multer": "^2.2.0",
     "node-forge": "^1.4.0",
     "socket.io": "^4.7.5",
