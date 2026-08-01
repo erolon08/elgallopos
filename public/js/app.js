@@ -3708,7 +3708,12 @@ function datosFiscalesClienteHtmlTicket(tipo, doc) {
 function datosFiscalesNegocioHtmlTicket(esFiscal) {
   const cfg = configCache || {};
   if (!esFiscal) return 'No válido como factura<br>';
-  return `CUIT: ${cfg.cuit_negocio || '--'}<br>Ingresos Brutos: ${cfg.ingresos_brutos || '--'}<br>Inicio de Actividades: ${cfg.inicio_actividades || '--'}<br>`;
+  let html = '';
+  if (cfg.responsable_nombre) html += `${cfg.responsable_nombre}<br>`;
+  if (cfg.domicilio_negocio) html += `${cfg.domicilio_negocio}<br>`;
+  if (cfg.condicion_fiscal_negocio) html += `${cfg.condicion_fiscal_negocio}<br>`;
+  html += `CUIT: ${cfg.cuit_negocio || '--'}<br>Ingresos Brutos: ${cfg.ingresos_brutos || '--'}<br>Inicio de Actividades: ${cfg.inicio_actividades || '--'}<br>`;
+  return html;
 }
 
 async function mostrarTicket(venta) {
