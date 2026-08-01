@@ -124,10 +124,14 @@ async function solicitarCAE(ptoVta, cbteTipo, detalle) {
     throw new Error(`ARCA rechazó la factura (Resultado=${det.Resultado}).${observaciones ? ' Observaciones: ' + observaciones : ''}`);
   }
 
+  // fast-xml-parser convierte solo los valores con pinta de número (CAE,
+  // fecha AAAAMMDD, número de comprobante) a Number — al guardarlos en una
+  // columna de texto SQLite los reconvierte agregando ".0" al final. Se
+  // fuerzan a string acá, antes de que lleguen a la base o al ticket.
   return {
-    cae: det.CAE,
-    caeVencimiento: det.CAEFchVto, // formato AAAAMMDD
-    cbteNro: det.CbteDesde,
+    cae: String(det.CAE),
+    caeVencimiento: String(det.CAEFchVto), // formato AAAAMMDD
+    cbteNro: String(det.CbteDesde),
     observaciones, // puede venir con Resultado=A y observaciones igual (advertencias, no bloquean)
   };
 }
