@@ -10,7 +10,8 @@
     "seed": "node src/db/seed.js",
     "reset-ventas": "node src/db/reset-ventas.js",
     "generar-csr-arca": "node scripts/generar-csr-arca.js",
-    "test-arca-conexion": "node scripts/test-arca-conexion.js"
+    "test-arca-conexion": "node scripts/test-arca-conexion.js",
+    "test-arca-emitir-factura": "node scripts/test-arca-emitir-factura.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

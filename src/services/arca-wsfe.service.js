@@ -1,7 +1,7 @@
-// Llamadas al servicio de Facturación Electrónica de ARCA (WSFEv1). Por
-// ahora solo las de solo-lectura, para probar que la autenticación (WSAA) y
-// la conexión funcionan de punta a punta sin ningún riesgo fiscal — todavía
-// no se emite ningún comprobante real (eso es el paso siguiente).
+// Llamadas al servicio de Facturación Electrónica de ARCA (WSFEv1): las de
+// solo-lectura (dummy/ultimoAutorizado) y FECAESolicitar, que sí emite un
+// comprobante real e irreversible — la arma con cuidado arca-facturacion.service.js,
+// acá solo se manda el pedido tal como llega y se interpreta la respuesta.
 const { XMLParser } = require('fast-xml-parser');
 const wsaa = require('./arca-wsaa.service');
 
@@ -50,4 +50,86 @@ async function ultimoAutorizado(ptoVta, cbteTipo) {
   return resultado; // { PtoVta, CbteTipo, CbteNro }
 }
 
-module.exports = { dummy, ultimoAutorizado };
+// Pide el CAE (Código de Autorización Electrónico) para UN comprobante —
+// esto es lo que efectivamente lo hace válido y fiscal. `detalle` ya tiene
+// que venir completo y correcto (lo arma arca-facturacion.service.js);
+// acá no se completa ni corrige nada, solo se envía tal cual.
+//   detalle: { concepto, docTipo, docNro, cbteNro, cbteFch, impTotal,
+//     impNeto, impIva, condicionIvaReceptorId, alicuotas: [{id, baseImp, importe}],
+//     fchServDesde, fchServHasta, fchVtoPago } (los 3 últimos solo si concepto != 1)
+async function solicitarCAE(ptoVta, cbteTipo, detalle) {
+  const { token, sign } = await wsaa.obtenerTicket('wsfe');
+  const cuit = wsaa.obtenerCuit();
+
+  const camposServicio =
+    detalle.concepto === 1
+      ? ''
+      : `<FchServDesde>${detalle.fchServDesde}</FchServDesde><FchServHasta>${detalle.fchServHasta}</FchServHasta><FchVtoPago>${detalle.fchVtoPago}</FchVtoPago>`;
+
+  const ivaXml = detalle.alicuotas
+    .map(
+      (a) =>
+        `<AlicIva><Id>${a.id}</Id><BaseImp>${a.baseImp.toFixed(2)}</BaseImp><Importe>${a.importe.toFixed(2)}</Importe></AlicIva>`
+    )
+    .join('');
+
+  const soapBody = `<FECAESolicitar xmlns="${NS}">
+    <Auth><Token>${token}</Token><Sign>${sign}</Sign><Cuit>${cuit}</Cuit></Auth>
+    <FeCAEReq>
+      <FeCabReq><CantReg>1</CantReg><PtoVta>${ptoVta}</PtoVta><CbteTipo>${cbteTipo}</CbteTipo></FeCabReq>
+      <FeDetReq><FECAEDetRequest>
+        <Concepto>${detalle.concepto}</Concepto>
+        <DocTipo>${detalle.docTipo}</DocTipo>
+        <DocNro>${detalle.docNro}</DocNro>
+        <CbteDesde>${detalle.cbteNro}</CbteDesde>
+        <CbteHasta>${detalle.cbteNro}</CbteHasta>
+        <CbteFch>${detalle.cbteFch}</CbteFch>
+        <ImpTotal>${detalle.impTotal.toFixed(2)}</ImpTotal>
+        <ImpTotConc>0.00</ImpTotConc>
+        <ImpNeto>${detalle.impNeto.toFixed(2)}</ImpNeto>
+        <ImpOpEx>0.00</ImpOpEx>
+        <ImpIVA>${detalle.impIva.toFixed(2)}</ImpIVA>
+        <ImpTrib>0.00</ImpTrib>
+        <MonId>PES</MonId>
+        <MonCotiz>1</MonCotiz>
+        <CondicionIVAReceptorId>${detalle.condicionIvaReceptorId}</CondicionIVAReceptorId>
+        ${camposServicio}
+        <Iva>${ivaXml}</Iva>
+      </FECAEDetRequest></FeDetReq>
+    </FeCAEReq>
+  </FECAESolicitar>`;
+
+  const { status, body } = await wsaa.llamarSoap(WSFE_URL, soapBody, `"${NS}FECAESolicitar"`);
+  if (status !== 200) throw new Error(`ARCA (WSFE) respondió con error HTTP ${status}: ${body.slice(0, 800)}`);
+
+  const resultado = parsear(body)?.FECAESolicitarResponse?.FECAESolicitarResult;
+  if (!resultado) throw new Error(`Respuesta de FECAESolicitar inesperada: ${body.slice(0, 800)}`);
+
+  const erroresGenerales = resultado.Errors?.Err;
+  if (erroresGenerales) {
+    const lista = Array.isArray(erroresGenerales) ? erroresGenerales : [erroresGenerales];
+    throw new Error(`ARCA (WSFE) rechazó el pedido antes de procesarlo: ${lista.map((e) => `[${e.Code}] ${e.Msg}`).join(' | ')}`);
+  }
+
+  const det = resultado.FeDetResp?.FECAEDetResponse;
+  if (!det) throw new Error(`Respuesta de FECAESolicitar sin detalle: ${body.slice(0, 800)}`);
+
+  const observaciones = det.Observaciones?.Obs
+    ? (Array.isArray(det.Observaciones.Obs) ? det.Observaciones.Obs : [det.Observaciones.Obs])
+        .map((o) => `[${o.Code}] ${o.Msg}`)
+        .join(' | ')
+    : null;
+
+  if (det.Resultado !== 'A') {
+    throw new Error(`ARCA rechazó la factura (Resultado=${det.Resultado}).${observaciones ? ' Observaciones: ' + observaciones : ''}`);
+  }
+
+  return {
+    cae: det.CAE,
+    caeVencimiento: det.CAEFchVto, // formato AAAAMMDD
+    cbteNro: det.CbteDesde,
+    observaciones, // puede venir con Resultado=A y observaciones igual (advertencias, no bloquean)
+  };
+}
+
+module.exports = { dummy, ultimoAutorizado, solicitarCAE };
