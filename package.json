@@ -9,6 +9,7 @@
     "dev": "node --watch src/server.js",
     "seed": "node src/db/seed.js",
     "reset-ventas": "node src/db/reset-ventas.js",
+    "limpiar-demo": "node src/db/limpiar-demo.js",
     "generar-csr-arca": "node scripts/generar-csr-arca.js",
     "test-arca-conexion": "node scripts/test-arca-conexion.js",
     "test-arca-emitir-factura": "node scripts/test-arca-emitir-factura.js"
