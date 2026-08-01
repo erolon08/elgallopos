@@ -2818,10 +2818,16 @@ let botoneraOrdenando = false;
 
 function toggleOrdenarBotonera() {
   botoneraOrdenando = !botoneraOrdenando;
+  botoneraSeleccionado = null;
   document.getElementById('btnOrdenarBotonera').classList.toggle('active-ordenar', botoneraOrdenando);
   document.getElementById('btnOrdenarBotonera').textContent = botoneraOrdenando ? '✔ Listo' : '✎ Ordenar';
   renderBotoneraVenta();
 }
+
+// En modo "Ordenar": click derecho elige un botón (se marca), y click
+// izquierdo sobre otro botón los intercambia de lugar — más rápido que
+// mover de a un paso con flechas cuando hay que llevar un botón lejos.
+let botoneraSeleccionado = null;
 
 function renderBotoneraVenta() {
   const cont = document.getElementById('ventaBotonera');
@@ -2832,30 +2838,46 @@ function renderBotoneraVenta() {
     cont.innerHTML = '<p class="small">Marcá productos como favoritos (⭐) desde Productos para que aparezcan acá.</p>';
     return;
   }
-  rows.forEach((p, i) => {
+  rows.forEach((p) => {
     const div = document.createElement('div');
-    div.className = 'botonera-btn';
     const precioTxt = p.usa_mano_obra ? 'Servicio' : '$ ' + money.format(p.precio_final);
+    div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>${precioTxt}</small>`;
     if (botoneraOrdenando) {
-      div.innerHTML = `
-        <b>${p.codigo}</b><span>${p.descripcion}</span><small>${precioTxt}</small>
-        <div class="botonera-mover">
-          <button type="button" ${i === 0 ? 'disabled' : ''} onclick="moverBotonera(${i}, -1)">◀</button>
-          <button type="button" ${i === rows.length - 1 ? 'disabled' : ''} onclick="moverBotonera(${i}, 1)">▶</button>
-        </div>`;
+      div.className = 'botonera-btn' + (p.id === botoneraSeleccionado ? ' seleccionado' : '');
+      div.title = 'Click derecho: elegir este botón. Click izquierdo sobre otro: intercambiar lugares.';
+      div.oncontextmenu = (e) => {
+        e.preventDefault();
+        seleccionarBotoneraOrden(p.id);
+      };
+      div.onclick = () => intercambiarBotoneraOrden(p.id);
     } else {
-      div.innerHTML = `<b>${p.codigo}</b><span>${p.descripcion}</span><small>${precioTxt}</small>`;
+      div.className = 'botonera-btn';
       div.onclick = () => agregarProductoACarrito(p);
     }
     cont.appendChild(div);
   });
 }
 
-async function moverBotonera(indice, delta) {
+function seleccionarBotoneraOrden(id) {
+  botoneraSeleccionado = botoneraSeleccionado === id ? null : id;
+  renderBotoneraVenta();
+}
+
+async function intercambiarBotoneraOrden(id) {
+  if (!botoneraSeleccionado || botoneraSeleccionado === id) {
+    botoneraSeleccionado = null;
+    renderBotoneraVenta();
+    return;
+  }
   const rows = botoneraFamiliaActiva === 'todas' ? botoneraCache : botoneraCache.filter((p) => p.familia === botoneraFamiliaActiva);
-  const otro = indice + delta;
-  if (otro < 0 || otro >= rows.length) return;
-  [rows[indice], rows[otro]] = [rows[otro], rows[indice]];
+  const idxA = rows.findIndex((p) => p.id === botoneraSeleccionado);
+  const idxB = rows.findIndex((p) => p.id === id);
+  botoneraSeleccionado = null;
+  if (idxA === -1 || idxB === -1) {
+    renderBotoneraVenta();
+    return;
+  }
+  [rows[idxA], rows[idxB]] = [rows[idxB], rows[idxA]];
   if (botoneraFamiliaActiva !== 'todas') {
     // Reinserta el subconjunto reordenado en su lugar dentro de la lista completa.
     const otras = botoneraCache.filter((p) => p.familia !== botoneraFamiliaActiva);
@@ -3700,8 +3722,14 @@ async function mostrarTicket(venta) {
   const esFiscal = esFacturaFiscal('venta', venta);
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
-    .map((it) => `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}${it.cerrajero_nombre ? '<br><span style="font-size:11px">&nbsp;&nbsp;Cerrajero: ' + it.cerrajero_nombre + '</span>' : ''}<br>`)
+    .map((it) => {
+      const descLinea =
+        it.descuento > 0 ? `<br><span class="ticket-descuento">&nbsp;&nbsp;Descuento: -$${money.format(it.descuento)}</span>` : '';
+      return `${it.cantidad} x ${it.descripcion}&nbsp;&nbsp;$${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}${descLinea}${it.cerrajero_nombre ? '<br><span style="font-size:11px">&nbsp;&nbsp;Cerrajero: ' + it.cerrajero_nombre + '</span>' : ''}<br>`;
+    })
     .join('');
+  const descuentoGeneralHtml =
+    venta.descuento_general > 0 ? `Descuento general: -$${money.format(venta.descuento_general)}<br>` : '';
   const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
   const caeHtml = venta.cae
     ? `<hr>Comprobante N°: ${venta.numero_comprobante}<br>CAE: ${venta.cae}<br>Vto. CAE: ${formatFechaAfip(venta.cae_vencimiento)}<br>`
@@ -3712,14 +3740,21 @@ async function mostrarTicket(venta) {
     venta.tipo_comprobante === 'Factura A' && venta.iva_neto != null
       ? `Neto: $${money.format(venta.iva_neto)}<br>IVA 21%: $${money.format(venta.iva_monto)}<br>`
       : '';
+  // El tipo de comprobante (Factura A/B) se destaca en un recuadro aparte,
+  // más grande, para que salte a la vista de una — y los datos fiscales del
+  // negocio van en letra chica y separados con líneas, para no alargar el
+  // ticket (es una tira angosta, no una hoja).
+  const tipoBoxHtml = esFiscal ? `<div class="center"><span class="ticket-tipo-box">${venta.tipo_comprobante.toUpperCase()}</span></div>` : '';
   mostrarTicketComoTermico(`
-    ${ticketEncabezadoHtml()}<hr>
-    ${datosFiscalesNegocioHtmlTicket(esFiscal)}
-    Fecha: ${fecha}<br>N°: ${venta.numero} · ${venta.tipo_comprobante}<br>
+    ${ticketEncabezadoHtml()}
+    ${tipoBoxHtml}
+    <hr><span class="ticket-negocio-chico">${datosFiscalesNegocioHtmlTicket(esFiscal)}</span><hr>
+    Fecha: ${fecha}<br>N°: ${venta.numero}${esFiscal ? '' : ' · ' + venta.tipo_comprobante}<br>
     Cliente: ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'}<br>
     ${datosFiscalesClienteHtmlTicket('venta', venta)}<hr>
     ${lineasHtml}<hr>
     ${ivaHtml}
+    ${descuentoGeneralHtml}
     <div class="ticket-total">TOTAL: $${money.format(venta.total)}</div>
     ${pagosHtml}
     ${caeHtml}<hr>
