@@ -1659,6 +1659,8 @@ async function cargarConfiguracion() {
   document.getElementById('cfgTelefonoRecuperacion').value = configCache.telefono_recuperacion || '';
   document.getElementById('cfgArcaPuntoVenta').value = configCache.arca_punto_venta || '';
   document.getElementById('cfgArcaActiva').checked = !!configCache.arca_facturacion_activa;
+  document.getElementById('cfgMpAccessToken').value = configCache.mp_access_token || '';
+  document.getElementById('cfgMpActiva').checked = !!configCache.mp_activo;
 }
 
 async function guardarArcaConfig() {
@@ -1669,6 +1671,16 @@ async function guardarArcaConfig() {
   await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   await cargarConfiguracionGlobal();
   alert('Configuración de facturación electrónica guardada.');
+}
+
+async function guardarMpConfig() {
+  const payload = {
+    mp_access_token: document.getElementById('cfgMpAccessToken').value.trim(),
+    mp_activo: document.getElementById('cfgMpActiva').checked,
+  };
+  await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  await cargarConfiguracionGlobal();
+  alert('Configuración de cobro con QR guardada.');
 }
 
 async function guardarTelefonoRecuperacionConfig() {
@@ -3353,13 +3365,86 @@ function abrirCobro(ventaId, total) {
   }
 }
 function closeCobro() {
+  detenerPollingMp();
   document.getElementById('cobroModal').classList.remove('open');
   ventaEnCobroId = null;
 }
 function volverAMetodos() {
+  detenerPollingMp();
   ['cobroPasoMetodos', 'cobroPasoEfectivo', 'cobroPasoSimple', 'cobroPasoMarca', 'cobroPasoQr', 'cobroPasoCombinado'].forEach((id) => {
     document.getElementById(id).style.display = id === 'cobroPasoMetodos' ? 'block' : 'none';
   });
+}
+
+// Cobro con QR de Mercado Pago: si está activo y configurado en Configuración,
+// genera un QR real y sondea el estado del pago cada 3s hasta que Mercado
+// Pago lo confirme — recién ahí se cierra la venta sola. Para las demás
+// billeteras (o si Mercado Pago no está configurado) se mantiene el flujo
+// simulado de siempre, con confirmación manual.
+let mpPollInterval = null;
+
+async function seleccionarBilleteraQr(billetera) {
+  qrBilleteraElegida = billetera;
+  detenerPollingMp();
+  const qrBox = document.getElementById('qrBox');
+  const textoEl = document.getElementById('qrMontoTexto');
+  const btnConfirmar = document.getElementById('btnConfirmarQr');
+  qrBox.style.display = 'flex';
+  qrBox.innerHTML = '';
+
+  if (billetera === 'Mercado Pago' && configCache.mp_activo && configCache.mp_access_token) {
+    textoEl.innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>Generando QR de Mercado Pago…`;
+    btnConfirmar.style.display = 'none';
+    try {
+      const res = await fetch('/api/mercadopago/qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ venta_id: ventaEnCobroId, monto: ventaEnCobroTotal, descripcion: 'Venta El Gallo POS' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo generar el QR');
+      const img = document.createElement('img');
+      img.src = data.qr;
+      img.style.width = '100%';
+      img.style.height = '100%';
+      qrBox.appendChild(img);
+      textoEl.innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>Mercado Pago — esperando que el cliente pague…`;
+      iniciarPollingMp(data.external_reference);
+    } catch (err) {
+      textoEl.innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br><span style="color:#c0392b">No se pudo generar el QR: ${err.message}</span>`;
+      btnConfirmar.style.display = 'inline-block';
+    }
+  } else {
+    textoEl.innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>${billetera} <span class="small">(simulado, sin integración real)</span>`;
+    btnConfirmar.style.display = 'inline-block';
+  }
+}
+
+function iniciarPollingMp(externalReference) {
+  mpPollInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/mercadopago/estado/${externalReference}`);
+      const data = await res.json();
+      if (data.estado === 'aprobado') {
+        detenerPollingMp();
+        document.getElementById('qrMontoTexto').innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>✅ Pago aprobado por Mercado Pago`;
+        await finalizarCobro([{ forma_pago: 'QR', marca: 'Mercado Pago', monto: ventaEnCobroTotal }]);
+      } else if (data.estado === 'rechazado') {
+        detenerPollingMp();
+        document.getElementById('qrMontoTexto').innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>❌ Pago rechazado. Generá el QR de nuevo o probá otro medio.`;
+        document.getElementById('btnConfirmarQr').style.display = 'inline-block';
+      }
+    } catch (err) {
+      // Falla momentánea de red al consultar: no corta el sondeo, reintenta en el próximo ciclo.
+    }
+  }, 3000);
+}
+
+function detenerPollingMp() {
+  if (mpPollInterval) {
+    clearInterval(mpPollInterval);
+    mpPollInterval = null;
+  }
 }
 
 function elegirFormaPago(forma) {
@@ -3395,12 +3480,7 @@ function elegirFormaPago(forma) {
       const btn = document.createElement('div');
       btn.className = 'brand-btn';
       btn.textContent = billetera;
-      btn.onclick = () => {
-        qrBilleteraElegida = billetera;
-        document.getElementById('qrBox').style.display = 'flex';
-        document.getElementById('qrMontoTexto').innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>${billetera} <span class="small">(simulado, sin integración real)</span>`;
-        document.getElementById('btnConfirmarQr').style.display = 'inline-block';
-      };
+      btn.onclick = () => seleccionarBilleteraQr(billetera);
       grid.appendChild(btn);
     });
   } else if (forma === 'Pago Combinado') {

@@ -16,6 +16,7 @@ function actualizar(datos) {
        inicio_actividades = @inicio_actividades, ingresos_brutos = @ingresos_brutos,
        telefono_recuperacion = @telefono_recuperacion,
        arca_punto_venta = @arca_punto_venta, arca_facturacion_activa = @arca_facturacion_activa,
+       mp_access_token = @mp_access_token, mp_activo = @mp_activo,
        actualizado_en = datetime('now','localtime')
      WHERE id = 1`
   ).run({
@@ -36,6 +37,8 @@ function actualizar(datos) {
     arca_punto_venta: datos.arca_punto_venta !== undefined ? datos.arca_punto_venta : actual.arca_punto_venta,
     arca_facturacion_activa:
       datos.arca_facturacion_activa !== undefined ? (datos.arca_facturacion_activa ? 1 : 0) : actual.arca_facturacion_activa,
+    mp_access_token: datos.mp_access_token !== undefined ? datos.mp_access_token : actual.mp_access_token,
+    mp_activo: datos.mp_activo !== undefined ? (datos.mp_activo ? 1 : 0) : actual.mp_activo,
   });
   return obtener();
 }

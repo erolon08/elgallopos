@@ -282,6 +282,24 @@ CREATE TABLE IF NOT EXISTS venta_pagos (
 );
 CREATE INDEX IF NOT EXISTS idx_ventapagos_venta ON venta_pagos(venta_id);
 
+-- Seguimiento de cada QR de cobro generado contra la API de Mercado Pago
+-- (Checkout Pro). Una venta puede tener más de una fila acá si el QR se
+-- generó de nuevo (ej. el cliente tardó y expiró, o se canceló y se volvió
+-- a intentar). "aprobado"/"rechazado" reflejan lo que devolvió Mercado Pago;
+-- la venta recién se cobra en el sistema cuando queda en 'aprobado'.
+CREATE TABLE IF NOT EXISTS mp_pagos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  venta_id INTEGER NOT NULL REFERENCES ventas(id),
+  external_reference TEXT NOT NULL UNIQUE,
+  preference_id TEXT,
+  monto REAL NOT NULL,
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','aprobado','rechazado')),
+  mp_payment_id TEXT,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mppagos_venta ON mp_pagos(venta_id);
+
 -- ============================================================
 -- RENDICIÓN DE CERRAJEROS
 -- Período libre (desde/hasta), no solo diario.
@@ -407,6 +425,12 @@ CREATE TABLE IF NOT EXISTS configuracion (
   -- venta con Factura A/B nunca intenta emitir un comprobante real.
   arca_punto_venta TEXT,
   arca_facturacion_activa INTEGER NOT NULL DEFAULT 0,
+  -- Cobro con QR de Mercado Pago: mp_activo arranca en 0 a propósito, igual
+  -- que arca_facturacion_activa — hasta no prenderlo a mano desde
+  -- Configuración con un Access Token cargado, el botón "Mercado Pago" del
+  -- cobro por QR se comporta como antes (simulado, confirmación manual).
+  mp_access_token TEXT,
+  mp_activo INTEGER NOT NULL DEFAULT 0,
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 INSERT OR IGNORE INTO configuracion (id) VALUES (1);

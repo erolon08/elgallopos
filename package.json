@@ -21,6 +21,7 @@
     "fast-xml-parser": "^5.10.1",
     "multer": "^2.2.0",
     "node-forge": "^1.4.0",
+    "qrcode": "^1.5.4",
     "socket.io": "^4.7.5",
     "xlsx": "^0.18.5"
   }

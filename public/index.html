@@ -667,6 +667,22 @@
           </div>
         </div>
 
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Cobro con QR (Mercado Pago)</h3></div>
+          <div class="toolbar">
+            <div class="field" style="flex:1"><label>Access Token (producción)</label><input id="cfgMpAccessToken" type="password" placeholder="APP_USR-..."></div>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:18px">
+              <input type="checkbox" id="cfgMpActiva"> Cobro con QR activo
+            </label>
+            <button class="btn primary" onclick="guardarMpConfig()">Guardar</button>
+          </div>
+          <div class="notice" style="margin-top:10px">
+            Con esto activado, al elegir "Mercado Pago" como billetera QR en el cobro, el sistema genera un código QR real
+            con el monto exacto y confirma la venta solo. No hace falta que la PC tenga internet público — el sistema
+            consulta a Mercado Pago, no al revés.
+          </div>
+        </div>
+
         <div class="card">
           <div class="section-title"><h3>Notas del ticket</h3></div>
           <div class="toolbar">
