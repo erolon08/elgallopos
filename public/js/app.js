@@ -3663,6 +3663,13 @@ async function finalizarCobro(pagos) {
   }
   closeCobro();
   limpiarCarrito();
+  if (data.arca_error) {
+    alert(
+      `Error CAE: no se pudo facturar electrónicamente esta venta, quedó como Eventual.\n` +
+        `Detalle: ${data.arca_error}\n\n` +
+        `La podés facturar más tarde desde Ventas → botón "Facturar" cuando vuelva la conexión con ARCA.`
+    );
+  }
   mostrarTicket(data);
 }
 
@@ -4441,7 +4448,7 @@ async function confirmarFacturarVenta() {
   });
   const data = await res.json();
   if (!res.ok) {
-    alert('Error: ' + data.error);
+    alert('Error CAE: no se pudo facturar. ' + data.error);
     return;
   }
   closeFacturarVenta();

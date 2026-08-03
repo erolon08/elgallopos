@@ -49,7 +49,7 @@ async function intentarFacturar(tipoComprobante, total, cliente, items) {
     };
   } catch (err) {
     console.error(`No se pudo facturar electrónicamente (queda como Eventual): ${err.message}`);
-    return { tipo_comprobante: 'Eventual' };
+    return { tipo_comprobante: 'Eventual', arca_error: err.message };
   }
 }
 
@@ -325,7 +325,11 @@ async function cobrar(id, datos) {
     facturaInfo = await intentarFacturar(tipoComprobantePedido, venta.total, cliente, items);
   }
 
-  return cobrarTx(id, { ...datos, ...facturaInfo });
+  const ventaCobrada = cobrarTx(id, { ...datos, ...facturaInfo });
+  // arca_error es informativo para esta respuesta puntual (avisarle al
+  // cajero que quedó "Eventual" por una falla de ARCA, no porque él lo haya
+  // elegido) — no se guarda en la base, la venta ya quedó bien como Eventual.
+  return facturaInfo.arca_error ? { ...ventaCobrada, arca_error: facturaInfo.arca_error } : ventaCobrada;
 }
 
 // Convierte una venta ya cobrada como "Eventual" en una Factura A/B real,
