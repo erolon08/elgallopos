@@ -586,8 +586,8 @@ document.getElementById('prodSearch').addEventListener('input', cargarProductos)
 function abrirActualizarPrecios() {
   document.getElementById('masPrecProveedor').value = '';
   document.getElementById('masPrecFamilia').value = '';
-  document.getElementById('masPrecPorcentaje').value = '';
-  document.getElementById('masPrecAplicarCosto').checked = true;
+  document.getElementById('masPrecAumentoCosto').value = '';
+  document.getElementById('masPrecMargen').value = '';
   document.getElementById('masPrecPreviewWrap').style.display = 'none';
   document.getElementById('actualizarPreciosModal').classList.add('open');
 }
@@ -597,11 +597,13 @@ function closeActualizarPrecios() {
 async function previsualizarActualizarPrecios() {
   const proveedor_id = document.getElementById('masPrecProveedor').value;
   const familia_id = document.getElementById('masPrecFamilia').value;
-  const porcentaje = document.getElementById('masPrecPorcentaje').value;
+  const aumento_costo = document.getElementById('masPrecAumentoCosto').value;
+  const margen = document.getElementById('masPrecMargen').value;
   if (!proveedor_id && !familia_id) return alert('Elegí un proveedor y/o una familia.');
-  if (porcentaje === '' || !Number.isFinite(Number(porcentaje))) return alert('Ingresá el porcentaje.');
+  if (aumento_costo === '' || !Number.isFinite(Number(aumento_costo))) return alert('Ingresá el % de aumento del costo (puede ser 0).');
+  if (margen === '' || !Number.isFinite(Number(margen))) return alert('Ingresá el margen sobre el costo.');
 
-  const params = new URLSearchParams({ porcentaje });
+  const params = new URLSearchParams({ aumento_costo, margen });
   if (proveedor_id) params.set('proveedor_id', proveedor_id);
   if (familia_id) params.set('familia_id', familia_id);
   const res = await fetch('/api/productos/actualizar-precios/preview?' + params.toString());
@@ -612,18 +614,18 @@ async function previsualizarActualizarPrecios() {
   tbody.innerHTML = filas.length
     ? filas
         .map(
-          (f) => `<tr><td>${f.codigo}</td><td>${f.descripcion}</td><td>$ ${money.format(f.precio_final_actual)}</td><td><b>$ ${money.format(f.precio_final_nuevo)}</b></td></tr>`
+          (f) => `<tr><td>${f.codigo}</td><td>${f.descripcion}</td><td>$ ${money.format(f.costo_actual)}</td><td>$ ${money.format(f.costo_nuevo)}</td><td>$ ${money.format(f.precio_final_actual)}</td><td><b>$ ${money.format(f.precio_final_nuevo)}</b></td></tr>`
         )
         .join('')
-    : '<tr><td colspan="4">No hay productos que matcheen ese filtro.</td></tr>';
+    : '<tr><td colspan="6">No hay productos que matcheen ese filtro.</td></tr>';
   document.getElementById('masPrecPreviewTotal').textContent = `${filas.length} producto(s) van a actualizarse.`;
   document.getElementById('masPrecPreviewWrap').style.display = 'block';
 }
 async function confirmarActualizarPrecios() {
   const proveedor_id = document.getElementById('masPrecProveedor').value;
   const familia_id = document.getElementById('masPrecFamilia').value;
-  const porcentaje = document.getElementById('masPrecPorcentaje').value;
-  const aplicar_costo = document.getElementById('masPrecAplicarCosto').checked;
+  const aumento_costo = document.getElementById('masPrecAumentoCosto').value;
+  const margen = document.getElementById('masPrecMargen').value;
   if (!confirm('¿Confirmás aplicar este cambio de precios? No se puede deshacer con un clic.')) return;
 
   const res = await fetch('/api/productos/actualizar-precios', {
@@ -632,8 +634,8 @@ async function confirmarActualizarPrecios() {
     body: JSON.stringify({
       proveedor_id: proveedor_id || null,
       familia_id: familia_id || null,
-      porcentaje,
-      aplicar_costo,
+      aumento_costo,
+      margen,
     }),
   });
   const data = await res.json();

@@ -43,32 +43,40 @@ router.post('/', (req, res) => {
   }
 });
 
-router.get('/actualizar-precios/preview', (req, res) => {
-  const { proveedor_id, familia_id, porcentaje } = req.query;
-  if (!proveedor_id && !familia_id) return res.status(400).json({ error: 'Elegí un proveedor y/o una familia' });
-  if (porcentaje === undefined || porcentaje === '' || !Number.isFinite(Number(porcentaje))) {
-    return res.status(400).json({ error: 'Falta el porcentaje' });
+function validarParametrosMasivo({ proveedor_id, familia_id, aumento_costo, margen }) {
+  if (!proveedor_id && !familia_id) return 'Elegí un proveedor y/o una familia';
+  if (aumento_costo === undefined || aumento_costo === '' || !Number.isFinite(Number(aumento_costo))) {
+    return 'Falta el % de aumento de costo';
   }
+  if (margen === undefined || margen === '' || !Number.isFinite(Number(margen))) {
+    return 'Falta el margen sobre el costo';
+  }
+  return null;
+}
+
+router.get('/actualizar-precios/preview', (req, res) => {
+  const { proveedor_id, familia_id, aumento_costo, margen } = req.query;
+  const error = validarParametrosMasivo({ proveedor_id, familia_id, aumento_costo, margen });
+  if (error) return res.status(400).json({ error });
   res.json(
     productosService.previsualizarActualizacionMasiva({
       proveedor_id: proveedor_id ? Number(proveedor_id) : undefined,
       familia_id: familia_id ? Number(familia_id) : undefined,
-      porcentaje,
+      aumento_costo,
+      margen,
     })
   );
 });
 
 router.post('/actualizar-precios', (req, res) => {
-  const { proveedor_id, familia_id, porcentaje, aplicar_costo } = req.body;
-  if (!proveedor_id && !familia_id) return res.status(400).json({ error: 'Elegí un proveedor y/o una familia' });
-  if (porcentaje === undefined || porcentaje === '' || !Number.isFinite(Number(porcentaje))) {
-    return res.status(400).json({ error: 'Falta el porcentaje' });
-  }
+  const { proveedor_id, familia_id, aumento_costo, margen } = req.body;
+  const error = validarParametrosMasivo({ proveedor_id, familia_id, aumento_costo, margen });
+  if (error) return res.status(400).json({ error });
   const actualizados = productosService.aplicarActualizacionMasiva({
     proveedor_id: proveedor_id ? Number(proveedor_id) : undefined,
     familia_id: familia_id ? Number(familia_id) : undefined,
-    porcentaje,
-    aplicar_costo: !!aplicar_costo,
+    aumento_costo,
+    margen,
   });
   res.json({ actualizados });
 });

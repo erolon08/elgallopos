@@ -764,18 +764,21 @@
     <div class="toolbar" style="margin-top:10px">
       <div class="field"><label>Proveedor</label><select id="masPrecProveedor"><option value="">Todos</option></select></div>
       <div class="field"><label>Familia</label><select id="masPrecFamilia"><option value="">Todas</option></select></div>
-      <div class="field"><label>Porcentaje (+ sube, - baja)</label><input id="masPrecPorcentaje" type="number" step="any" placeholder="Ej: 15 o -10"></div>
     </div>
-    <label style="display:flex;align-items:center;gap:6px;margin-top:8px">
-      <input type="checkbox" id="masPrecAplicarCosto" checked> Aplicar el mismo porcentaje al costo
-    </label>
+    <div class="toolbar" style="margin-top:10px">
+      <div class="field"><label>% de aumento del costo</label><input id="masPrecAumentoCosto" type="number" step="any" placeholder="Ej: 5 (lo que subió el proveedor)"></div>
+      <div class="field"><label>Margen sobre el costo nuevo</label><input id="masPrecMargen" type="number" step="any" placeholder="Ej: 115"></div>
+    </div>
+    <div class="notice" style="margin-top:8px">
+      Primero se sube el costo ese %, y sobre el costo nuevo se calcula el precio final con el margen indicado. Ej: costo $1.000, aumento 5% → costo $1.050. Margen 115% → precio final $1.050 × 2,15 = $2.257.
+    </div>
     <div class="toolbar" style="margin-top:12px">
       <button class="btn primary" onclick="previsualizarActualizarPrecios()">Vista previa</button>
     </div>
     <div id="masPrecPreviewWrap" style="display:none;margin-top:12px">
       <div class="table-wrap" style="max-height:280px">
         <table>
-          <thead><tr><th>Código</th><th>Descripción</th><th>Precio actual</th><th>Precio nuevo</th></tr></thead>
+          <thead><tr><th>Código</th><th>Descripción</th><th>Costo actual</th><th>Costo nuevo</th><th>Precio actual</th><th>Precio nuevo</th></tr></thead>
           <tbody id="masPrecPreviewBody"></tbody>
         </table>
       </div>
