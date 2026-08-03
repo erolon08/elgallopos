@@ -216,6 +216,84 @@ function toggleFavorito(id) {
   return obtener(id);
 }
 
+// Actualización masiva de precios (ej: "subió Bronzen 15%" o "bajó tal
+// proveedor"): un único porcentaje aplicado sobre precio_final de todos los
+// productos que matchean el filtro (proveedor y/o familia, se combinan con
+// AND), recalculando débito/efectivo con la misma regla que usa el alta y
+// edición individual. Los servicios (usa_mano_obra) quedan afuera siempre:
+// no tienen precio de catálogo, su precio sale de la mano de obra en la venta.
+function listarParaActualizacionMasiva({ proveedor_id, familia_id }) {
+  let sql = `
+    SELECT p.*, f.usa_mano_obra, f.usa_precio_rendicion, f.descuento_debito, f.descuento_efectivo
+    FROM productos p
+    JOIN familias f ON f.id = p.familia_id
+    WHERE p.activo = 1 AND f.usa_mano_obra = 0
+  `;
+  const params = {};
+  if (proveedor_id) {
+    sql += ' AND p.proveedor_id = @proveedor_id';
+    params.proveedor_id = proveedor_id;
+  }
+  if (familia_id) {
+    sql += ' AND p.familia_id = @familia_id';
+    params.familia_id = familia_id;
+  }
+  return db.prepare(sql).all(params);
+}
+
+function calcularNuevoPrecioMasivo(p, pct) {
+  const precio_final = Math.round(p.precio_final * (1 + pct / 100));
+  let precio_debito;
+  let precio_efectivo;
+  if (p.usa_precio_rendicion) {
+    precio_debito = precio_final;
+    precio_efectivo = precio_final;
+  } else if (p.usar_regla_automatica) {
+    const precios = calcularPrecios(precio_final, { descuento_debito: p.descuento_debito, descuento_efectivo: p.descuento_efectivo });
+    precio_debito = precios.precio_debito;
+    precio_efectivo = precios.precio_efectivo;
+  } else {
+    // Precios cargados a mano (regla automática apagada): se mueven con el
+    // mismo porcentaje para no perder la personalización, sin forzar la
+    // redondez a múltiplos de $100 que solo aplica a la regla automática.
+    precio_debito = Math.round(p.precio_debito * (1 + pct / 100));
+    precio_efectivo = Math.round(p.precio_efectivo * (1 + pct / 100));
+  }
+  return { precio_final, precio_debito, precio_efectivo };
+}
+
+function previsualizarActualizacionMasiva({ proveedor_id, familia_id, porcentaje }) {
+  const pct = Number(porcentaje);
+  return listarParaActualizacionMasiva({ proveedor_id, familia_id }).map((p) => ({
+    id: p.id,
+    codigo: p.codigo,
+    descripcion: p.descripcion,
+    precio_final_actual: p.precio_final,
+    precio_final_nuevo: calcularNuevoPrecioMasivo(p, pct).precio_final,
+  }));
+}
+
+const aplicarActualizacionMasiva = db.transaction(({ proveedor_id, familia_id, porcentaje, aplicar_costo }) => {
+  const pct = Number(porcentaje);
+  const productos = listarParaActualizacionMasiva({ proveedor_id, familia_id });
+  const update = db.prepare(
+    `UPDATE productos SET costo = @costo, precio_final = @precio_final, precio_debito = @precio_debito,
+       precio_efectivo = @precio_efectivo, actualizado_en = datetime('now','localtime')
+     WHERE id = @id`
+  );
+  productos.forEach((p) => {
+    const { precio_final, precio_debito, precio_efectivo } = calcularNuevoPrecioMasivo(p, pct);
+    update.run({
+      id: p.id,
+      costo: aplicar_costo ? Math.round(p.costo * (1 + pct / 100)) : p.costo,
+      precio_final,
+      precio_debito,
+      precio_efectivo,
+    });
+  });
+  return productos.length;
+});
+
 // Recibe el orden completo (array de ids) que el usuario armó a mano en la
 // botonera y lo graba como posición (0, 1, 2...) de cada producto. Así evita
 // depender de comparar valores previos, que arrancan todos en 0.
@@ -224,4 +302,14 @@ const guardarOrdenBotonera = db.transaction((idsEnOrden) => {
   idsEnOrden.forEach((id, i) => stmt.run(i, Number(id)));
 });
 
-module.exports = { listar, obtener, crear, actualizar, desactivar, toggleFavorito, guardarOrdenBotonera };
+module.exports = {
+  listar,
+  obtener,
+  crear,
+  actualizar,
+  desactivar,
+  toggleFavorito,
+  guardarOrdenBotonera,
+  previsualizarActualizacionMasiva,
+  aplicarActualizacionMasiva,
+};

@@ -105,12 +105,14 @@ async function cargarFamiliasGlobal() {
   populateSelect(document.getElementById('prodFamilia'), familiasCache, { placeholder: 'Todas' });
   populateSelect(document.getElementById('prodFamiliaSel'), familiasCache);
   populateSelect(document.getElementById('rkFamiliaId'), familiasCache, { placeholder: 'Elegir familia' });
+  populateSelect(document.getElementById('masPrecFamilia'), familiasCache, { placeholder: 'Todas' });
 }
 
 async function cargarProveedoresGlobal() {
   const res = await fetch('/api/proveedores');
   proveedoresCache = await res.json();
   populateSelect(document.getElementById('prodProveedor'), proveedoresCache, { placeholder: 'Todos' });
+  populateSelect(document.getElementById('masPrecProveedor'), proveedoresCache, { placeholder: 'Todos' });
 
   const modalSel = document.getElementById('prodProveedorSel');
   const previous = modalSel.value;
@@ -576,6 +578,70 @@ document.getElementById('prodSearch').addEventListener('input', cargarProductos)
 ['prodFamilia', 'prodProveedor', 'prodStock', 'prodIncompletos'].forEach((id) =>
   document.getElementById(id).addEventListener('change', cargarProductos)
 );
+
+// Actualización masiva de precios por proveedor y/o familia (ej: "subió
+// Bronzen 15%"): primero arma una vista previa (sin tocar la base) para que
+// el usuario vea exactamente qué códigos y montos van a cambiar antes de
+// aplicar de verdad.
+function abrirActualizarPrecios() {
+  document.getElementById('masPrecProveedor').value = '';
+  document.getElementById('masPrecFamilia').value = '';
+  document.getElementById('masPrecPorcentaje').value = '';
+  document.getElementById('masPrecAplicarCosto').checked = true;
+  document.getElementById('masPrecPreviewWrap').style.display = 'none';
+  document.getElementById('actualizarPreciosModal').classList.add('open');
+}
+function closeActualizarPrecios() {
+  document.getElementById('actualizarPreciosModal').classList.remove('open');
+}
+async function previsualizarActualizarPrecios() {
+  const proveedor_id = document.getElementById('masPrecProveedor').value;
+  const familia_id = document.getElementById('masPrecFamilia').value;
+  const porcentaje = document.getElementById('masPrecPorcentaje').value;
+  if (!proveedor_id && !familia_id) return alert('Elegí un proveedor y/o una familia.');
+  if (porcentaje === '' || !Number.isFinite(Number(porcentaje))) return alert('Ingresá el porcentaje.');
+
+  const params = new URLSearchParams({ porcentaje });
+  if (proveedor_id) params.set('proveedor_id', proveedor_id);
+  if (familia_id) params.set('familia_id', familia_id);
+  const res = await fetch('/api/productos/actualizar-precios/preview?' + params.toString());
+  const filas = await res.json();
+  if (!res.ok) return alert('Error: ' + filas.error);
+
+  const tbody = document.getElementById('masPrecPreviewBody');
+  tbody.innerHTML = filas.length
+    ? filas
+        .map(
+          (f) => `<tr><td>${f.codigo}</td><td>${f.descripcion}</td><td>$ ${money.format(f.precio_final_actual)}</td><td><b>$ ${money.format(f.precio_final_nuevo)}</b></td></tr>`
+        )
+        .join('')
+    : '<tr><td colspan="4">No hay productos que matcheen ese filtro.</td></tr>';
+  document.getElementById('masPrecPreviewTotal').textContent = `${filas.length} producto(s) van a actualizarse.`;
+  document.getElementById('masPrecPreviewWrap').style.display = 'block';
+}
+async function confirmarActualizarPrecios() {
+  const proveedor_id = document.getElementById('masPrecProveedor').value;
+  const familia_id = document.getElementById('masPrecFamilia').value;
+  const porcentaje = document.getElementById('masPrecPorcentaje').value;
+  const aplicar_costo = document.getElementById('masPrecAplicarCosto').checked;
+  if (!confirm('¿Confirmás aplicar este cambio de precios? No se puede deshacer con un clic.')) return;
+
+  const res = await fetch('/api/productos/actualizar-precios', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      proveedor_id: proveedor_id || null,
+      familia_id: familia_id || null,
+      porcentaje,
+      aplicar_costo,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) return alert('Error: ' + data.error);
+  alert(`Listo, se actualizaron ${data.actualizados} producto(s).`);
+  closeActualizarPrecios();
+  cargarProductos();
+}
 
 // ============================================================
 // FAMILIAS

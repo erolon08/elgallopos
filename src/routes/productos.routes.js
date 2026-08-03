@@ -43,6 +43,36 @@ router.post('/', (req, res) => {
   }
 });
 
+router.get('/actualizar-precios/preview', (req, res) => {
+  const { proveedor_id, familia_id, porcentaje } = req.query;
+  if (!proveedor_id && !familia_id) return res.status(400).json({ error: 'Elegí un proveedor y/o una familia' });
+  if (porcentaje === undefined || porcentaje === '' || !Number.isFinite(Number(porcentaje))) {
+    return res.status(400).json({ error: 'Falta el porcentaje' });
+  }
+  res.json(
+    productosService.previsualizarActualizacionMasiva({
+      proveedor_id: proveedor_id ? Number(proveedor_id) : undefined,
+      familia_id: familia_id ? Number(familia_id) : undefined,
+      porcentaje,
+    })
+  );
+});
+
+router.post('/actualizar-precios', (req, res) => {
+  const { proveedor_id, familia_id, porcentaje, aplicar_costo } = req.body;
+  if (!proveedor_id && !familia_id) return res.status(400).json({ error: 'Elegí un proveedor y/o una familia' });
+  if (porcentaje === undefined || porcentaje === '' || !Number.isFinite(Number(porcentaje))) {
+    return res.status(400).json({ error: 'Falta el porcentaje' });
+  }
+  const actualizados = productosService.aplicarActualizacionMasiva({
+    proveedor_id: proveedor_id ? Number(proveedor_id) : undefined,
+    familia_id: familia_id ? Number(familia_id) : undefined,
+    porcentaje,
+    aplicar_costo: !!aplicar_costo,
+  });
+  res.json({ actualizados });
+});
+
 router.put('/orden-botonera', (req, res) => {
   const { orden } = req.body;
   if (!Array.isArray(orden) || !orden.length) {

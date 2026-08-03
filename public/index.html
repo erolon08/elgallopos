@@ -213,6 +213,7 @@
             <div class="toolbar" style="margin:0">
               <button class="btn outline" onclick="document.getElementById('prodImportarInput').click()">Importar Excel</button>
               <input type="file" id="prodImportarInput" accept=".xlsx,.xls" style="display:none" onchange="importarExcel(event)">
+              <button class="btn outline" onclick="abrirActualizarPrecios()">Actualizar precios masivo</button>
               <button class="btn primary" onclick="openProducto()">+ Nuevo producto</button>
             </div>
           </div>
@@ -752,6 +753,37 @@
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="confirmarFacturarVenta()">Facturar</button>
       <button class="btn outline" onclick="closeFacturarVenta()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="actualizarPreciosModal">
+  <div class="modal-box" style="max-width:640px">
+    <div class="section-title"><h3>Actualizar precios masivo</h3><button class="btn light" onclick="closeActualizarPrecios()">✕</button></div>
+    <div class="notice">Elegí proveedor y/o familia (al menos uno). Solo se tocan los productos que matcheen — el resto queda exactamente igual. Los servicios no entran (su precio sale de la mano de obra en la venta).</div>
+    <div class="toolbar" style="margin-top:10px">
+      <div class="field"><label>Proveedor</label><select id="masPrecProveedor"><option value="">Todos</option></select></div>
+      <div class="field"><label>Familia</label><select id="masPrecFamilia"><option value="">Todas</option></select></div>
+      <div class="field"><label>Porcentaje (+ sube, - baja)</label><input id="masPrecPorcentaje" type="number" step="any" placeholder="Ej: 15 o -10"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:8px">
+      <input type="checkbox" id="masPrecAplicarCosto" checked> Aplicar el mismo porcentaje al costo
+    </label>
+    <div class="toolbar" style="margin-top:12px">
+      <button class="btn primary" onclick="previsualizarActualizarPrecios()">Vista previa</button>
+    </div>
+    <div id="masPrecPreviewWrap" style="display:none;margin-top:12px">
+      <div class="table-wrap" style="max-height:280px">
+        <table>
+          <thead><tr><th>Código</th><th>Descripción</th><th>Precio actual</th><th>Precio nuevo</th></tr></thead>
+          <tbody id="masPrecPreviewBody"></tbody>
+        </table>
+      </div>
+      <div class="small" id="masPrecPreviewTotal" style="margin-top:8px"></div>
+      <div class="toolbar" style="margin-top:12px">
+        <button class="btn primary" onclick="confirmarActualizarPrecios()">Aplicar a estos productos</button>
+        <button class="btn outline" onclick="closeActualizarPrecios()">Cancelar</button>
+      </div>
     </div>
   </div>
 </div>
