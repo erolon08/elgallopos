@@ -68,6 +68,7 @@
       <button data-screen="rendicion">🔧 Rendición cerrajeros</button>
       <button data-screen="caja">💰 Caja y turnos</button>
       <button data-screen="ranking">🏆 Ranking</button>
+      <button data-screen="resumen">🗒️ Resumen</button>
       <button data-screen="configuracion">⚙️ Configuración</button>
     </div>
   </aside>
@@ -203,6 +204,44 @@
           <button class="btn primary" onclick="consultarRanking()">Consultar</button>
 
           <div id="rkConsultaResultado" style="margin-top:16px"></div>
+        </div>
+      </section>
+
+      <section class="screen" id="resumen">
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Resumen de Ventas</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Desde</label><input id="resVentasDesde" type="date"></div>
+            <div class="field"><label>Hasta</label><input id="resVentasHasta" type="date"></div>
+            <button class="btn primary" onclick="cargarResumenVentas()">Ver resumen</button>
+            <button class="btn outline" onclick="descargarExcelResumenVentas()">Descargar Excel</button>
+            <button class="btn outline" onclick="verResumenVentasA4()">Ver en A4 / Imprimir / Copiar</button>
+          </div>
+          <div id="resVentasResultado" style="margin-top:14px"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Resumen de Rendiciones de cerrajeros</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Desde</label><input id="resRendDesde" type="date"></div>
+            <div class="field"><label>Hasta</label><input id="resRendHasta" type="date"></div>
+            <button class="btn primary" onclick="cargarResumenRendiciones()">Ver resumen</button>
+            <button class="btn outline" onclick="descargarExcelResumenRendiciones()">Descargar Excel</button>
+            <button class="btn outline" onclick="verResumenRendicionesA4()">Ver en A4 / Imprimir / Copiar</button>
+          </div>
+          <div id="resRendResultado" style="margin-top:14px"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Resumen de Gastos</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Desde</label><input id="resGastosDesde" type="date"></div>
+            <div class="field"><label>Hasta</label><input id="resGastosHasta" type="date"></div>
+            <button class="btn primary" onclick="cargarResumenGastos()">Ver resumen</button>
+            <button class="btn outline" onclick="descargarExcelResumenGastos()">Descargar Excel</button>
+            <button class="btn outline" onclick="verResumenGastosA4()">Ver en A4 / Imprimir / Copiar</button>
+          </div>
+          <div id="resGastosResultado" style="margin-top:14px"></div>
         </div>
       </section>
 
@@ -701,6 +740,7 @@
           <button class="btn outline" id="btnImprimirA4" style="display:none" onclick="imprimirEnA4()">🖨️ Imprimir en A4</button>
           <button class="btn green" id="btnEnviarImagenWhatsapp" onclick="enviarImagenWhatsapp()">🖼️ Enviar imagen por WhatsApp</button>
           <button class="btn green" id="btnEnviarImagenA4Whatsapp" style="display:none" onclick="enviarImagenA4Whatsapp()">🖼️ Enviar imagen A4 por WhatsApp</button>
+          <button class="btn light" onclick="copiarImagenTicket()">📋 Copiar imagen</button>
           <button class="btn light" id="btnEditarTicketRendicion" style="display:none" onclick="editarRendicionDesdeTicket()">✎ Modificar</button>
           <button class="btn light" id="btnEditarTicketCierre" style="display:none" onclick="editarCierreDesdeTicket()">✎ Modificar cierre</button>
           <button class="btn outline" onclick="showScreen(ultimaPantallaAntesDelTicket || 'venta')">Volver</button>

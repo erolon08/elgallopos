@@ -14,16 +14,36 @@ function condicionFecha(columna, { anio, mes }) {
   return { sql: cond.length ? 'AND ' + cond.join(' AND ') : '', params };
 }
 
+// Igual que condicionFecha, pero admite además un rango de fechas libre
+// (desde/hasta) para los resúmenes con selector de fecha a fecha; si viene
+// desde u hasta, el rango libre tiene prioridad sobre año/mes.
+function condicionRango(columna, { anio, mes, desde, hasta }) {
+  if (desde || hasta) {
+    const cond = [];
+    const params = {};
+    if (desde) {
+      cond.push(`date(${columna}) >= date(@desde)`);
+      params.desde = desde;
+    }
+    if (hasta) {
+      cond.push(`date(${columna}) <= date(@hasta)`);
+      params.hasta = hasta;
+    }
+    return { sql: cond.length ? 'AND ' + cond.join(' AND ') : '', params };
+  }
+  return condicionFecha(columna, { anio, mes });
+}
+
 // Total facturado (ventas cobradas), sin importar la forma de pago —
 // incluye lo vendido a Cuenta Corriente, que todavía no se cobró.
-function facturacion({ anio, mes }) {
-  const { sql, params } = condicionFecha('v.cobrado_en', { anio, mes });
+function facturacion({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
   return db.prepare(`SELECT COALESCE(SUM(v.total), 0) AS total FROM ventas v WHERE v.estado = 'cobrada' ${sql}`).get(params).total;
 }
 
 // Parte de lo facturado que quedó a cuenta del cliente (todavía no ingresó a caja).
-function cuentaCorriente({ anio, mes }) {
-  const { sql, params } = condicionFecha('v.cobrado_en', { anio, mes });
+function cuentaCorriente({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
   return db
     .prepare(
       `SELECT COALESCE(SUM(vp.monto), 0) AS total
@@ -33,9 +53,21 @@ function cuentaCorriente({ anio, mes }) {
     .get(params).total;
 }
 
+// Lo cobrado en efectivo (billetes en mano, va a la caja física).
+function efectivo({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(vp.monto), 0) AS total
+       FROM venta_pagos vp JOIN ventas v ON v.id = vp.venta_id
+       WHERE v.estado = 'cobrada' AND vp.forma_pago = 'Efectivo' ${sql}`
+    )
+    .get(params).total;
+}
+
 // Transferencias + tarjetas (débito/crédito) + QR: lo cobrado que nunca pasó por la caja física.
-function pagoElectronico({ anio, mes }) {
-  const { sql, params } = condicionFecha('v.cobrado_en', { anio, mes });
+function pagoElectronico({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
   return db
     .prepare(
       `SELECT COALESCE(SUM(vp.monto), 0) AS total
@@ -45,10 +77,24 @@ function pagoElectronico({ anio, mes }) {
     .get(params).total;
 }
 
+// Desglose de lo cobrado por cada forma de pago (para el resumen de ventas).
+function ventasPorFormaPago({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
+  return db
+    .prepare(
+      `SELECT vp.forma_pago, COALESCE(SUM(vp.monto), 0) AS total
+       FROM venta_pagos vp JOIN ventas v ON v.id = vp.venta_id
+       WHERE v.estado = 'cobrada' ${sql}
+       GROUP BY vp.forma_pago
+       ORDER BY total DESC`
+    )
+    .all(params);
+}
+
 // Egresos de caja (gastos, retiros, empleados, rendiciones a cerrajeros, etc.),
 // sin contar los envíos a caja fuerte (esos se muestran aparte).
-function gastos({ anio, mes, tipo_egreso, forma_pago }) {
-  const { sql, params } = condicionFecha('creado_en', { anio, mes });
+function gastos({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
+  const { sql, params } = condicionRango('creado_en', { anio, mes, desde, hasta });
   let extra = '';
   if (tipo_egreso) {
     extra += ' AND COALESCE(tipo_egreso, categoria) = @tipo_egreso';
@@ -67,8 +113,8 @@ function gastos({ anio, mes, tipo_egreso, forma_pago }) {
 }
 
 // Lo que se guardó en la caja fuerte al cerrar turnos en el período.
-function cajaFuerte({ anio, mes }) {
-  const { sql, params } = condicionFecha('creado_en', { anio, mes });
+function cajaFuerte({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('creado_en', { anio, mes, desde, hasta });
   return db.prepare(`SELECT COALESCE(SUM(monto), 0) AS total FROM caja_movimientos WHERE categoria = 'caja_fuerte' ${sql}`).get(params).total;
 }
 
@@ -87,8 +133,8 @@ function serieMensual({ anio }) {
   return meses;
 }
 
-function gastosPorTipo({ anio, mes, forma_pago }) {
-  const { sql, params } = condicionFecha('creado_en', { anio, mes });
+function gastosPorTipo({ anio, mes, desde, hasta, forma_pago }) {
+  const { sql, params } = condicionRango('creado_en', { anio, mes, desde, hasta });
   let extra = '';
   if (forma_pago) {
     extra += ' AND forma_pago = @forma_pago';
@@ -133,25 +179,6 @@ function tiposEgresoDisponibles() {
     )
     .all()
     .map((r) => r.etiqueta);
-}
-
-// Igual que condicionFecha, pero admite un rango de fechas libre (desde/hasta)
-// además de año/mes. Si viene desde u hasta, el rango libre tiene prioridad.
-function condicionRango(columna, { anio, mes, desde, hasta }) {
-  if (desde || hasta) {
-    const cond = [];
-    const params = {};
-    if (desde) {
-      cond.push(`date(${columna}) >= date(@desde)`);
-      params.desde = desde;
-    }
-    if (hasta) {
-      cond.push(`date(${columna}) <= date(@hasta)`);
-      params.hasta = hasta;
-    }
-    return { sql: cond.length ? 'AND ' + cond.join(' AND ') : '', params };
-  }
-  return condicionFecha(columna, { anio, mes });
 }
 
 // Cuánto se vendió de un producto puntual en el período, más su stock actual
@@ -220,4 +247,54 @@ function dashboard({ anio, mes, tipo_egreso, forma_pago }) {
   };
 }
 
-module.exports = { dashboard, aniosDisponibles, consultaProducto, consultaFamilia };
+// Resumen de ventas para un período (usado en el menú Resumen): total
+// facturado y desglosado por forma de pago, más cuánto de eso fue efectivo /
+// medios electrónicos / cuenta corriente y cuánto terminó en caja fuerte.
+function resumenVentas({ desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { desde, hasta });
+  const cantidadVentas = db.prepare(`SELECT COUNT(*) AS n FROM ventas v WHERE v.estado = 'cobrada' ${sql}`).get(params).n;
+  return {
+    desde,
+    hasta,
+    total: facturacion({ desde, hasta }),
+    efectivo: efectivo({ desde, hasta }),
+    pagoElectronico: pagoElectronico({ desde, hasta }),
+    cuentaCorriente: cuentaCorriente({ desde, hasta }),
+    cajaFuerte: cajaFuerte({ desde, hasta }),
+    porFormaPago: ventasPorFormaPago({ desde, hasta }),
+    cantidadVentas,
+  };
+}
+
+// Resumen de gastos (egresos de caja, sin caja fuerte) para un período.
+function resumenGastos({ desde, hasta }) {
+  return {
+    desde,
+    hasta,
+    total: gastos({ desde, hasta }),
+    porTipo: gastosPorTipo({ desde, hasta }),
+  };
+}
+
+// Un renglón por egreso de caja (gasto puntual), para exportar a Excel.
+function exportarFilasGastos({ desde, hasta }) {
+  const { sql, params } = condicionRango('creado_en', { desde, hasta });
+  return db
+    .prepare(
+      `SELECT creado_en AS fecha, COALESCE(tipo_egreso, categoria) AS tipo, concepto, forma_pago, monto
+       FROM caja_movimientos
+       WHERE tipo = 'egreso' AND categoria NOT IN ('venta', 'caja_fuerte') ${sql}
+       ORDER BY creado_en`
+    )
+    .all(params);
+}
+
+module.exports = {
+  dashboard,
+  aniosDisponibles,
+  consultaProducto,
+  consultaFamilia,
+  resumenVentas,
+  resumenGastos,
+  exportarFilasGastos,
+};

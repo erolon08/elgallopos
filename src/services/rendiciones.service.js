@@ -332,6 +332,51 @@ function anular(id) {
   tx();
 }
 
+// Resumen de rendiciones YA GENERADAS (no de trabajos pendientes) en un
+// período, agrupado por cerrajero — para el menú Resumen: "cuánto le pagué
+// a cada cerrajero entre estas fechas".
+function resumen({ desde, hasta }) {
+  const params = {};
+  let cond = '';
+  if (desde) {
+    cond += ' AND date(r.creado_en) >= date(@desde)';
+    params.desde = desde;
+  }
+  if (hasta) {
+    cond += ' AND date(r.creado_en) <= date(@hasta)';
+    params.hasta = hasta;
+  }
+  const filas = db
+    .prepare(
+      `SELECT r.id, r.creado_en, r.fecha_desde, r.fecha_hasta, r.estado, r.total_bruto, r.total_descuentos, r.total_pagar,
+              c.nombre AS cerrajero_nombre
+       FROM rendiciones r JOIN cerrajeros c ON c.id = r.cerrajero_id
+       WHERE 1=1 ${cond}
+       ORDER BY r.creado_en`
+    )
+    .all(params);
+
+  const porCerrajero = {};
+  filas.forEach((f) => {
+    if (!porCerrajero[f.cerrajero_nombre]) {
+      porCerrajero[f.cerrajero_nombre] = { cerrajero_nombre: f.cerrajero_nombre, cantidad: 0, total_bruto: 0, total_descuentos: 0, total_pagar: 0 };
+    }
+    const g = porCerrajero[f.cerrajero_nombre];
+    g.cantidad += 1;
+    g.total_bruto += f.total_bruto;
+    g.total_descuentos += f.total_descuentos;
+    g.total_pagar += f.total_pagar;
+  });
+
+  const totalGeneral = filas.reduce((s, f) => s + f.total_pagar, 0);
+  return { desde, hasta, filas, porCerrajero: Object.values(porCerrajero), totalGeneral };
+}
+
+// Un renglón por rendición (no por línea de detalle), para exportar a Excel.
+function exportarFilas({ desde, hasta }) {
+  return resumen({ desde, hasta }).filas;
+}
+
 module.exports = {
   previsualizar,
   generar,
@@ -343,4 +388,6 @@ module.exports = {
   quitarLinea,
   agregarDescuento,
   quitarDescuento,
+  resumen,
+  exportarFilas,
 };

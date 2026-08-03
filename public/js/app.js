@@ -2,7 +2,7 @@ const titles = {
   dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', clientes: 'Clientes',
   venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
-  caja: 'Caja y turnos', ranking: 'Ranking', configuracion: 'Configuración',
+  caja: 'Caja y turnos', ranking: 'Ranking', resumen: 'Resumen', configuracion: 'Configuración',
 };
 
 // ============================================================
@@ -45,6 +45,7 @@ function showScreen(id) {
   if (id === 'presupuestos') cargarPresupuestos();
   if (id === 'rendicion') { cargarCerrajerosAdmin(); cargarRendiciones(); }
   if (id === 'caja') cargarCaja();
+  if (id === 'resumen') inicializarResumen();
   if (id === 'venta') { actualizarHintVenta(); cargarBotoneraVenta(); ajustarAltoVenta(); }
 }
 
@@ -1866,7 +1867,7 @@ socket.on('caja:actualizada', () => {
 let session = null;
 const PANTALLAS_POR_ROL = {
   // Stock queda reservado exclusivamente al puesto STOCK, ni ADMIN lo ve.
-  ADMIN: ['dashboard', 'ranking', 'configuracion', 'productos', 'familias', 'clientes', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja'],
+  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja'],
   CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'caja'],
   VENTA: ['venta', 'pendientes', 'presupuestos', 'clientes'],
   STOCK: ['stock', 'productos'],
@@ -4246,6 +4247,41 @@ function convertirAPng(blobJpeg) {
   });
 }
 
+// Copia al portapapeles lo que se esté mostrando en pantalla (térmico o A4),
+// sin pasar por WhatsApp — para pegarlo con Ctrl+V donde se necesite (Word,
+// mail, etc.). Si el navegador no permite portapapeles (sin HTTPS), descarga
+// la imagen como último recurso.
+async function copiarImagenTicket() {
+  const elA4 = document.getElementById('ticketA4Contenido');
+  const elId = elA4 && elA4.style.display !== 'none' && elA4.innerHTML ? 'ticketA4Contenido' : 'ticketContenido';
+  let canvas;
+  try {
+    canvas = await generarCanvasElemento(elId);
+  } catch (err) {
+    alert('No se pudo generar la imagen: ' + err.message);
+    return;
+  }
+  canvas.toBlob(async (blob) => {
+    if (!blob) return alert('No se pudo generar la imagen.');
+    if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': await convertirAPng(blob) })]);
+        alert('Imagen copiada. Pegala donde quieras con Ctrl+V.');
+        return;
+      } catch (err) {
+        // si falla el portapapeles, seguir con la descarga como último recurso
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ticket-${Date.now()}.jpg`;
+    a.click();
+    URL.revokeObjectURL(url);
+    alert('No se pudo copiar al portapapeles (el navegador lo bloquea sin conexión segura). Se descargó la imagen en su lugar.');
+  }, 'image/jpeg', 0.92);
+}
+
 // ============================================================
 // PENDIENTES
 // ============================================================
@@ -4644,6 +4680,189 @@ async function convertirPresupuestoEnVenta(id) {
   renderVenta();
   document.getElementById('presupuestoOrigenAviso').textContent = `Convirtiendo el presupuesto ${presupuesto.numero}. Revisá cerrajero y mano de obra antes de cobrar.`;
   showScreen('venta');
+}
+
+// ============================================================
+// RESUMEN (Ventas / Rendiciones / Gastos, por rango de fechas)
+// ============================================================
+function inicializarResumen() {
+  if (document.getElementById('resVentasDesde').value) return; // ya se inicializó antes, no pisar lo que eligió el usuario
+  const hoy = new Date();
+  const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10);
+  const hoyStr = hoy.toISOString().slice(0, 10);
+  ['resVentas', 'resRend', 'resGastos'].forEach((prefijo) => {
+    document.getElementById(`${prefijo}Desde`).value = primerDiaMes;
+    document.getElementById(`${prefijo}Hasta`).value = hoyStr;
+  });
+  cargarResumenVentas();
+  cargarResumenRendiciones();
+  cargarResumenGastos();
+}
+
+function resumenA4Header(titulo, desde, hasta) {
+  const cfg = configCache || {};
+  const logo = cfg.logo_url || '/img/logo-badge.png';
+  const nombreNegocio = cfg.nombre_negocio || 'CERRAJERÍA EL GALLO';
+  return `
+    <div class="a4-top">
+      <div class="a4-empresa">
+        <h2>${nombreNegocio}</h2>
+        ${cfg.responsable_nombre ? `<div>${cfg.responsable_nombre}</div>` : ''}
+        <img src="${logo}" alt="${nombreNegocio}">
+      </div>
+      <div class="a4-tipo-box">R</div>
+      <div class="a4-doc-info">
+        <div class="a4-doc-numero">${titulo}</div>
+        <div>Período: ${desde || 'inicio'} a ${hasta || 'hoy'}</div>
+        <div class="a4-muted">Impreso: ${new Date().toLocaleDateString('es-AR')}</div>
+      </div>
+    </div>
+  `;
+}
+
+// --- Ventas ---
+async function cargarResumenVentas() {
+  const desde = document.getElementById('resVentasDesde').value;
+  const hasta = document.getElementById('resVentasHasta').value;
+  const params = new URLSearchParams();
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  const r = await (await fetch('/api/reportes/resumen-ventas?' + params.toString())).json();
+  ultimoResumenVentas = r;
+  const filas = r.porFormaPago.map((f) => `<tr><td>${f.forma_pago}</td><td class="a4-num">$ ${money.format(f.total)}</td></tr>`).join('');
+  document.getElementById('resVentasResultado').innerHTML = `
+    <p><b>${r.cantidadVentas}</b> venta(s) — Total facturado: <b>$ ${money.format(r.total)}</b></p>
+    <div class="table-wrap"><table><thead><tr><th>Forma de pago</th><th>Monto</th></tr></thead><tbody>${filas || '<tr><td colspan="2">Sin ventas en el período.</td></tr>'}</tbody></table></div>
+    <p class="small" style="margin-top:8px">Efectivo: $ ${money.format(r.efectivo)} — Medios electrónicos: $ ${money.format(r.pagoElectronico)} — Cuenta corriente: $ ${money.format(r.cuentaCorriente)} — A caja fuerte: $ ${money.format(r.cajaFuerte)}</p>
+  `;
+}
+let ultimoResumenVentas = null;
+function descargarExcelResumenVentas() {
+  const desde = document.getElementById('resVentasDesde').value;
+  const hasta = document.getElementById('resVentasHasta').value;
+  const params = new URLSearchParams();
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  window.open('/api/ventas/exportar?' + params.toString(), '_blank');
+}
+async function verResumenVentasA4() {
+  if (!ultimoResumenVentas) await cargarResumenVentas();
+  const r = ultimoResumenVentas;
+  const filas = r.porFormaPago.map((f) => `<tr><td>${f.forma_pago}</td><td class="a4-num">$ ${money.format(f.total)}</td></tr>`).join('');
+  const html = `
+    ${resumenA4Header('Resumen de Ventas', r.desde, r.hasta)}
+    <p><b>Cantidad de ventas:</b> ${r.cantidadVentas}</p>
+    <table class="a4-tabla">
+      <thead><tr><th>Forma de pago</th><th>Monto</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <p class="a4-muted">Efectivo: $ ${money.format(r.efectivo)} — Medios electrónicos: $ ${money.format(r.pagoElectronico)} — Cuenta corriente: $ ${money.format(r.cuentaCorriente)} — Enviado a caja fuerte: $ ${money.format(r.cajaFuerte)}</p>
+    <div class="a4-total">TOTAL FACTURADO: $ ${money.format(r.total)}</div>
+  `;
+  ultimoDocumentoParaTicket = { tipo: 'resumen', data: r };
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
+  document.getElementById('btnImprimirA4').style.display = 'none';
+  document.getElementById('btnEditarTicketRendicion').style.display = 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  mostrarTicketComoA4(html);
+  showScreen('ticket-screen');
+}
+
+// --- Rendiciones ---
+let ultimoResumenRendiciones = null;
+async function cargarResumenRendiciones() {
+  const desde = document.getElementById('resRendDesde').value;
+  const hasta = document.getElementById('resRendHasta').value;
+  const params = new URLSearchParams();
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  const r = await (await fetch('/api/rendiciones/resumen?' + params.toString())).json();
+  ultimoResumenRendiciones = r;
+  const filas = r.porCerrajero
+    .map((c) => `<tr><td>${c.cerrajero_nombre}</td><td class="a4-num">${c.cantidad}</td><td class="a4-num">$ ${money.format(c.total_pagar)}</td></tr>`)
+    .join('');
+  document.getElementById('resRendResultado').innerHTML = `
+    <p>Total pagado a cerrajeros: <b>$ ${money.format(r.totalGeneral)}</b></p>
+    <div class="table-wrap"><table><thead><tr><th>Cerrajero</th><th>Rendiciones</th><th>Total pagado</th></tr></thead><tbody>${filas || '<tr><td colspan="3">Sin rendiciones en el período.</td></tr>'}</tbody></table></div>
+  `;
+}
+function descargarExcelResumenRendiciones() {
+  const desde = document.getElementById('resRendDesde').value;
+  const hasta = document.getElementById('resRendHasta').value;
+  const params = new URLSearchParams();
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  window.open('/api/rendiciones/exportar?' + params.toString(), '_blank');
+}
+async function verResumenRendicionesA4() {
+  if (!ultimoResumenRendiciones) await cargarResumenRendiciones();
+  const r = ultimoResumenRendiciones;
+  const filas = r.porCerrajero
+    .map((c) => `<tr><td>${c.cerrajero_nombre}</td><td class="a4-num">${c.cantidad}</td><td class="a4-num">$ ${money.format(c.total_pagar)}</td></tr>`)
+    .join('');
+  const html = `
+    ${resumenA4Header('Resumen de Rendiciones de cerrajeros', r.desde, r.hasta)}
+    <table class="a4-tabla">
+      <thead><tr><th>Cerrajero</th><th>Rendiciones</th><th>Total pagado</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div class="a4-total">TOTAL PAGADO: $ ${money.format(r.totalGeneral)}</div>
+  `;
+  ultimoDocumentoParaTicket = { tipo: 'resumen', data: r };
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
+  document.getElementById('btnImprimirA4').style.display = 'none';
+  document.getElementById('btnEditarTicketRendicion').style.display = 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  mostrarTicketComoA4(html);
+  showScreen('ticket-screen');
+}
+
+// --- Gastos ---
+let ultimoResumenGastos = null;
+async function cargarResumenGastos() {
+  const desde = document.getElementById('resGastosDesde').value;
+  const hasta = document.getElementById('resGastosHasta').value;
+  const params = new URLSearchParams();
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  const r = await (await fetch('/api/reportes/resumen-gastos?' + params.toString())).json();
+  ultimoResumenGastos = r;
+  const filas = r.porTipo.map((t) => `<tr><td>${t.etiqueta}</td><td class="a4-num">$ ${money.format(t.total)}</td></tr>`).join('');
+  document.getElementById('resGastosResultado').innerHTML = `
+    <p>Total de gastos: <b>$ ${money.format(r.total)}</b></p>
+    <div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Monto</th></tr></thead><tbody>${filas || '<tr><td colspan="2">Sin gastos en el período.</td></tr>'}</tbody></table></div>
+  `;
+}
+function descargarExcelResumenGastos() {
+  const desde = document.getElementById('resGastosDesde').value;
+  const hasta = document.getElementById('resGastosHasta').value;
+  const params = new URLSearchParams();
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  window.open('/api/reportes/exportar-gastos?' + params.toString(), '_blank');
+}
+async function verResumenGastosA4() {
+  if (!ultimoResumenGastos) await cargarResumenGastos();
+  const r = ultimoResumenGastos;
+  const filas = r.porTipo.map((t) => `<tr><td>${t.etiqueta}</td><td class="a4-num">$ ${money.format(t.total)}</td></tr>`).join('');
+  const html = `
+    ${resumenA4Header('Resumen de Gastos', r.desde, r.hasta)}
+    <table class="a4-tabla">
+      <thead><tr><th>Tipo</th><th>Monto</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div class="a4-total">TOTAL DE GASTOS: $ ${money.format(r.total)}</div>
+  `;
+  ultimoDocumentoParaTicket = { tipo: 'resumen', data: r };
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
+  document.getElementById('btnImprimirA4').style.display = 'none';
+  document.getElementById('btnEditarTicketRendicion').style.display = 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  mostrarTicketComoA4(html);
+  showScreen('ticket-screen');
 }
 
 // ============================================================

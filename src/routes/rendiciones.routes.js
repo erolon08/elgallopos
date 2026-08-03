@@ -1,7 +1,26 @@
 const express = require('express');
+const XLSX = require('xlsx');
 const rendicionesService = require('../services/rendiciones.service');
 
 const router = express.Router();
+
+router.get('/resumen', (req, res) => {
+  const { desde, hasta } = req.query;
+  res.json(rendicionesService.resumen({ desde, hasta }));
+});
+
+router.get('/exportar', (req, res) => {
+  const { desde, hasta } = req.query;
+  const filas = rendicionesService.exportarFilas({ desde, hasta });
+  const hoja = XLSX.utils.json_to_sheet(filas);
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, 'Rendiciones');
+  const buffer = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  const nombre = `rendiciones_${desde || 'inicio'}_a_${hasta || 'hoy'}.xlsx`;
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
+  res.send(buffer);
+});
 
 router.get('/preview', (req, res) => {
   const { cerrajero_id, fecha_desde, fecha_hasta } = req.query;
