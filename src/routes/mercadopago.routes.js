@@ -12,13 +12,26 @@ router.post('/qr', async (req, res) => {
   try {
     const { venta_id, monto, descripcion } = req.body;
     if (!venta_id || !monto) return res.status(400).json({ error: 'Falta venta_id o monto' });
-    const { externalReference, initPoint } = await mercadopagoService.crearPagoQr({
-      ventaId: venta_id,
-      monto,
-      descripcion,
-    });
-    const qr = await qrcode.toDataURL(initPoint);
-    res.json({ external_reference: externalReference, qr, link: initPoint });
+    const resultado = await mercadopagoService.crearPagoQr({ ventaId: venta_id, monto, descripcion });
+    if (resultado.qrFijo) {
+      // El monto ya se empujó al QR fijo del mostrador: no hace falta generar una imagen nueva.
+      return res.json({ external_reference: resultado.externalReference, qr_fijo: true });
+    }
+    const qr = await qrcode.toDataURL(resultado.initPoint);
+    res.json({ external_reference: resultado.externalReference, qr, link: resultado.initPoint, qr_fijo: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/qr-fijo', (req, res) => {
+  res.json({ configurado: mercadopagoService.qrFijoConfigurado() });
+});
+
+router.post('/qr-fijo/configurar', async (req, res) => {
+  try {
+    const resultado = await mercadopagoService.configurarQrFijo();
+    res.json(resultado);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

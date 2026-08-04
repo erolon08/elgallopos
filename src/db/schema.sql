@@ -431,6 +431,14 @@ CREATE TABLE IF NOT EXISTS configuracion (
   -- cobro por QR se comporta como antes (simulado, confirmación manual).
   mp_access_token TEXT,
   mp_activo INTEGER NOT NULL DEFAULT 0,
+  -- QR fijo del mostrador (modelo híbrido de Mercado Pago): una sola sucursal
+  -- y caja creadas una vez, con un único QR impreso que se reutiliza en cada
+  -- venta empujándole el monto por API en vez de generar un QR nuevo cada vez.
+  mp_user_id TEXT,
+  mp_store_external_id TEXT,
+  mp_pos_external_id TEXT,
+  mp_qr_fijo_image_url TEXT,
+  mp_qr_fijo_template_url TEXT,
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 INSERT OR IGNORE INTO configuracion (id) VALUES (1);

@@ -1730,6 +1730,45 @@ async function cargarConfiguracion() {
   document.getElementById('cfgArcaActiva').checked = !!configCache.arca_facturacion_activa;
   document.getElementById('cfgMpAccessToken').value = configCache.mp_access_token || '';
   document.getElementById('cfgMpActiva').checked = !!configCache.mp_activo;
+  mostrarEstadoQrFijoMp();
+}
+
+function mostrarEstadoQrFijoMp() {
+  const estadoEl = document.getElementById('mpQrFijoEstado');
+  const wrap = document.getElementById('mpQrFijoImagenWrap');
+  if (configCache.mp_qr_fijo_image_url) {
+    estadoEl.textContent = 'QR fijo ya configurado.';
+    document.getElementById('mpQrFijoImagen').src = configCache.mp_qr_fijo_image_url;
+    const linkTemplate = document.getElementById('mpQrFijoTemplateLink');
+    if (configCache.mp_qr_fijo_template_url) {
+      linkTemplate.href = configCache.mp_qr_fijo_template_url;
+      linkTemplate.style.display = 'inline';
+    } else {
+      linkTemplate.style.display = 'none';
+    }
+    wrap.style.display = 'block';
+  } else {
+    estadoEl.textContent = 'Todavía no configurado (se usa un QR nuevo por cada venta).';
+    wrap.style.display = 'none';
+  }
+}
+
+async function configurarQrFijoMp() {
+  if (!configCache.mp_access_token) {
+    alert('Primero cargá y guardá el Access Token de Mercado Pago.');
+    return;
+  }
+  document.getElementById('mpQrFijoEstado').textContent = 'Configurando…';
+  const res = await fetch('/api/mercadopago/qr-fijo/configurar', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById('mpQrFijoEstado').textContent = '';
+    alert('Error: ' + data.error);
+    return;
+  }
+  await cargarConfiguracionGlobal();
+  mostrarEstadoQrFijoMp();
+  alert('Listo, se configuró el QR fijo. Imprimilo y pegalo en el mostrador.');
 }
 
 async function guardarArcaConfig() {
@@ -3472,12 +3511,18 @@ async function seleccionarBilleteraQr(billetera) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'No se pudo generar el QR');
-      const img = document.createElement('img');
-      img.src = data.qr;
-      img.style.width = '100%';
-      img.style.height = '100%';
-      qrBox.appendChild(img);
-      textoEl.innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>Mercado Pago — esperando que el cliente pague…`;
+      if (data.qr_fijo) {
+        // El monto ya se le mandó al QR fijo del mostrador: no hace falta mostrar ninguna imagen nueva.
+        qrBox.style.display = 'none';
+        textoEl.innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>Monto enviado al QR fijo del mostrador — esperando que el cliente pague…`;
+      } else {
+        const img = document.createElement('img');
+        img.src = data.qr;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        qrBox.appendChild(img);
+        textoEl.innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br>Mercado Pago — esperando que el cliente pague…`;
+      }
       iniciarPollingMp(data.external_reference);
     } catch (err) {
       textoEl.innerHTML = `<b>$ ${money.format(ventaEnCobroTotal)}</b><br><span style="color:#c0392b">No se pudo generar el QR: ${err.message}</span>`;

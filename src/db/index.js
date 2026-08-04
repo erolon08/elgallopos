@@ -40,6 +40,11 @@ ensureColumn('ventas', 'iva_neto', 'REAL');
 ensureColumn('ventas', 'iva_monto', 'REAL');
 ensureColumn('configuracion', 'mp_access_token', 'TEXT');
 ensureColumn('configuracion', 'mp_activo', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('configuracion', 'mp_user_id', 'TEXT');
+ensureColumn('configuracion', 'mp_store_external_id', 'TEXT');
+ensureColumn('configuracion', 'mp_pos_external_id', 'TEXT');
+ensureColumn('configuracion', 'mp_qr_fijo_image_url', 'TEXT');
+ensureColumn('configuracion', 'mp_qr_fijo_template_url', 'TEXT');
 
 // El CHECK de la columna "rol" no se puede tocar con ALTER TABLE ADD COLUMN:
 // hay que recrear la tabla. Se evita renombrar la tabla "usuarios" original

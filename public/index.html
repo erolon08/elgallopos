@@ -717,9 +717,23 @@
             <button class="btn primary" onclick="guardarMpConfig()">Guardar</button>
           </div>
           <div class="notice" style="margin-top:10px">
-            Con esto activado, al elegir "Mercado Pago" como billetera QR en el cobro, el sistema genera un código QR real
-            con el monto exacto y confirma la venta solo. No hace falta que la PC tenga internet público — el sistema
+            Con esto activado, al elegir "Mercado Pago" como billetera QR en el cobro, el sistema le manda el monto exacto
+            a Mercado Pago y confirma la venta solo. No hace falta que la PC tenga internet público — el sistema
             consulta a Mercado Pago, no al revés.
+          </div>
+          <div class="toolbar" style="margin-top:14px;align-items:center">
+            <button class="btn outline" onclick="configurarQrFijoMp()">Configurar QR fijo del mostrador</button>
+            <span class="small" id="mpQrFijoEstado"></span>
+          </div>
+          <div class="notice" style="margin-top:10px">
+            Esto crea (una sola vez) un código QR fijo en tu cuenta de Mercado Pago para tener pegado en el mostrador,
+            igual que posBerry: no cambia con cada venta — el sistema le manda el monto por atrás en el momento de cobrar,
+            así no hay que girar la pantalla ni mostrar un QR distinto cada vez.
+          </div>
+          <div id="mpQrFijoImagenWrap" style="display:none;margin-top:14px;text-align:center">
+            <img id="mpQrFijoImagen" style="max-width:260px;border:1px solid var(--line);border-radius:8px">
+            <p class="small" style="margin-top:8px">Imprimí esta imagen (clic derecho → Guardar imagen, o Ctrl+P) y pegala en el mostrador.</p>
+            <a id="mpQrFijoTemplateLink" href="#" target="_blank" style="display:none">Ver cartel para imprimir (con marca Mercado Pago)</a>
           </div>
         </div>
 
