@@ -31,6 +31,17 @@ function qrFijoConfigurado() {
   return !!(userId && storeExternalId && posExternalId);
 }
 
+async function esperarSucursalDisponible(userId, accessToken, storeExternalId) {
+  for (let intento = 0; intento < 5; intento++) {
+    const resp = await fetch(`${MP_API}/users/${userId}/stores/search?external_id=${storeExternalId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await resp.json();
+    if (resp.ok && (data.results || [])[0]) return;
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+}
+
 // Da de alta (o reutiliza si ya existe) una sucursal y una caja fijas en la
 // cuenta de Mercado Pago del negocio. La caja trae un único QR que Mercado
 // Pago aloja como imagen — ese QR se imprime UNA vez y se deja en el
@@ -91,22 +102,38 @@ async function configurarQrFijo() {
     storeId = existente.id;
   }
 
+  // Mercado Pago tarda unos segundos en propagar una sucursal recién creada:
+  // si se crea la caja enseguida puede responder que la sucursal no existe
+  // aunque la búsqueda ya la muestre. Se espera a que esté realmente disponible.
+  await esperarSucursalDisponible(userId, accessToken, storeExternalId);
+
   let qr;
-  const posResp = await fetch(`${MP_API}/pos`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({
-      name: 'Mostrador',
-      fixed_amount: false,
-      store_id: storeId,
-      external_store_id: storeExternalId,
-      external_id: posExternalId,
-    }),
-  });
-  const posData = await posResp.json();
-  if (posResp.ok) {
-    qr = posData.qr;
-  } else {
+  let posData;
+  let posResp;
+  for (let intento = 0; intento < 4; intento++) {
+    posResp = await fetch(`${MP_API}/pos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        name: 'Mostrador',
+        fixed_amount: false,
+        store_id: storeId,
+        external_store_id: storeExternalId,
+        external_id: posExternalId,
+      }),
+    });
+    posData = await posResp.json();
+    if (posResp.ok) {
+      qr = posData.qr;
+      break;
+    }
+    if (String(posData.message || '').toLowerCase().includes('does not refer any store') && intento < 3) {
+      await new Promise((r) => setTimeout(r, 1500));
+      continue;
+    }
+    break;
+  }
+  if (!qr) {
     const listResp = await fetch(`${MP_API}/pos?external_id=${posExternalId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
     const listData = await listResp.json();
     const existente = (listData.results || [])[0];
