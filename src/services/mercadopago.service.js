@@ -48,14 +48,33 @@ async function configurarQrFijo() {
   const storeExternalId = 'ELGALLOPOS';
   const posExternalId = 'MOSTRADOR';
 
+  const negocio = db.prepare('SELECT nombre_negocio, domicilio_negocio FROM configuracion WHERE id = 1').get();
+  const direccion = (negocio.domicilio_negocio || '').trim() || 'Corrientes Capital';
+
   let storeId;
   const storeResp = await fetch(`${MP_API}/users/${userId}/stores`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({
-      name: 'Cerrajería El Gallo',
+      name: negocio.nombre_negocio || 'Cerrajería El Gallo',
       external_id: storeExternalId,
-      location: { address_line: 'Mostrador', city_name: 'Corrientes', state_name: 'Corrientes', latitude: 0, longitude: 0 },
+      business_hours: {
+        monday: [{ open: '08:00', close: '20:00' }],
+        tuesday: [{ open: '08:00', close: '20:00' }],
+        wednesday: [{ open: '08:00', close: '20:00' }],
+        thursday: [{ open: '08:00', close: '20:00' }],
+        friday: [{ open: '08:00', close: '20:00' }],
+        saturday: [{ open: '08:00', close: '13:00' }],
+      },
+      location: {
+        street_name: direccion,
+        street_number: '0',
+        city_name: 'Corrientes',
+        state_name: 'Corrientes',
+        latitude: -27.4694,
+        longitude: -58.8306,
+        reference: negocio.nombre_negocio || 'Cerrajería El Gallo',
+      },
     }),
   });
   const storeData = await storeResp.json();
