@@ -3788,6 +3788,14 @@ function calcularPreciosPresupuestoItem(it) {
   const descPct = bruto > 0 ? (Number(it.descuento || 0) / bruto) * 100 : 0;
   const factor = Number(it.cantidad) * (1 - descPct / 100);
 
+  // Precio tocado a mano: no sigue el % de recargo/descuento por forma de
+  // pago del catálogo (por algo se cambió a mano), así que se respeta ese
+  // precio igual en las 3 columnas en vez de recalcularlo desde el producto.
+  if (it.tipo_precio === 'manual') {
+    const unico = (Number(it.precio_unitario) || 0) * factor;
+    return { esServicio, tieneDebito: false, final: unico, debito: unico, efectivo: unico };
+  }
+
   if (!esServicio) {
     // Sin producto de catálogo vinculado (línea manual/vieja sin producto_id,
     // o el producto ya no existe) no hay forma de saber el desglose por

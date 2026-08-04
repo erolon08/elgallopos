@@ -286,6 +286,7 @@ table{width:100%;border-collapse:collapse;min-width:640px} th,td{padding:10px 11
   .ticket hr{border-top:1.5px dashed #000}
   .ticket-total{font-size:20px;border-width:3px;padding:8px 4px}
   .ticket-total-sub{font-size:17px}
+  .ticket-negocio-chico{font-size:12px;line-height:1.6;font-weight:400;color:#000}
   body.modo-impresion-a4 .ticket{display:none!important}
   body.modo-impresion-a4 .ticket-a4{display:block!important;max-width:100%}
 }
