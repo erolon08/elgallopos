@@ -163,10 +163,12 @@ async function crearPagoQr({ ventaId, monto, descripcion }) {
     const body = {
       external_reference: externalReference,
       title: titulo,
+      description: titulo,
       total_amount: Number(monto),
       items: [
         {
           title: titulo,
+          description: titulo,
           unit_price: Number(monto),
           quantity: 1,
           unit_measure: 'unit',
