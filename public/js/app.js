@@ -3061,15 +3061,19 @@ function responderUsaPila(usa) {
   document.getElementById('pilaModalSeleccionWrap').style.display = 'block';
 }
 
+let pilasCacheDialogo = [];
+
 async function cargarSelectPilas() {
   const sel = document.getElementById('pilaModalSelect');
   sel.innerHTML = '<option value="">Cargando…</option>';
-  const pilas = await (await fetch('/api/productos?es_pila=true')).json();
-  if (!pilas.length) {
+  pilasCacheDialogo = await (await fetch('/api/productos?es_pila=true')).json();
+  if (!pilasCacheDialogo.length) {
     sel.innerHTML = '<option value="">No hay ningún producto marcado como "Es una pila" — cargalo en Productos</option>';
     return;
   }
-  sel.innerHTML = pilas.map((pila) => `<option value="${pila.id}">${pila.descripcion} (stock: ${pila.stock_actual})</option>`).join('');
+  sel.innerHTML = pilasCacheDialogo
+    .map((pila) => `<option value="${pila.id}">${pila.descripcion} — $ ${money.format(pila.precio_final)} (stock: ${pila.stock_actual})</option>`)
+    .join('');
 }
 
 function confirmarPilaSeleccionada() {
@@ -3079,14 +3083,23 @@ function confirmarPilaSeleccionada() {
     alert('Elegí qué pila se usó.');
     return;
   }
+  const pila = pilasCacheDialogo.find((x) => x.id === pilaId);
   const { p, tipoElegido } = pilaDialogoPendiente;
   pilaDialogoPendiente = null;
   document.getElementById('pilaModal').classList.remove('open');
-  agregarProductoACarritoInterno(p, tipoElegido, pilaId);
+  agregarProductoACarritoInterno(p, tipoElegido, pila);
 }
 
-function agregarProductoACarritoInterno(p, tipoElegido, pilaProductoId) {
+// pila: producto completo (con sus 3 precios) elegido en el diálogo, o null
+// si no usó pila. Su precio se SUMA al del producto en la misma línea (no
+// aparece como ítem aparte en el carrito ni en el ticket) y su stock se
+// descuenta al cobrar — ver cobrarTx en ventas.service.js.
+function agregarProductoACarritoInterno(p, tipoElegido, pila) {
   const cerrajeroDefault = document.getElementById('ventaCerrajeroDefault').value || null;
+  const pilaProductoId = pila ? pila.id : null;
+  const pilaFinal = pila ? Number(pila.precio_final) || 0 : 0;
+  const pilaDebito = pila ? Number(pila.precio_debito) || 0 : 0;
+  const pilaEfectivo = pila ? Number(pila.precio_efectivo) || 0 : 0;
   if (p.usa_mano_obra) {
     carritoVenta.push({
       producto_id: p.id,
@@ -3103,14 +3116,15 @@ function agregarProductoACarritoInterno(p, tipoElegido, pilaProductoId) {
       pila_producto_id: pilaProductoId,
     });
   } else if (p.usa_precio_rendicion) {
+    const precioConPila = (Number(p.precio_final) || 0) + pilaFinal;
     carritoVenta.push({
       producto_id: p.id,
       descripcion: p.descripcion,
       cantidad: 1,
       es_servicio: false,
       precio_unico: true,
-      precios: { final: p.precio_final, debito: p.precio_final, efectivo: p.precio_final },
-      precio_unitario: p.precio_final,
+      precios: { final: precioConPila, debito: precioConPila, efectivo: precioConPila },
+      precio_unitario: precioConPila,
       tipo_precio: 'final',
       descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
@@ -3118,13 +3132,19 @@ function agregarProductoACarritoInterno(p, tipoElegido, pilaProductoId) {
     });
   } else {
     const tipo = tipoElegido || tipoPrecioGlobal;
+    const base = p.precios || { final: p.precio_final, debito: p.precio_debito, efectivo: p.precio_efectivo };
+    const precios = {
+      final: (Number(base.final) || 0) + pilaFinal,
+      debito: (Number(base.debito) || 0) + pilaDebito,
+      efectivo: (Number(base.efectivo) || 0) + pilaEfectivo,
+    };
     carritoVenta.push({
       producto_id: p.id,
       descripcion: p.descripcion,
       cantidad: 1,
       es_servicio: false,
-      precios: { final: p.precio_final, debito: p.precio_debito, efectivo: p.precio_efectivo },
-      precio_unitario: p.precios ? p.precios[tipo] : p[`precio_${tipo}`],
+      precios,
+      precio_unitario: precios[tipo],
       tipo_precio: tipo,
       descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
@@ -4475,11 +4495,12 @@ async function abrirPendienteParaEditar(id) {
       // Se restaura tal cual quedó guardada la línea (incluida la pila
       // elegida, si la había) sin volver a preguntar — la pregunta es solo
       // al agregar el producto por primera vez.
-      agregarProductoACarritoInterno(producto, undefined, it.pila_producto_id || null);
+      agregarProductoACarritoInterno(producto, undefined, null);
       const linea = carritoVenta[carritoVenta.length - 1];
       linea.descripcion = it.descripcion;
       linea.cantidad = it.cantidad;
       linea.cerrajero_id = it.cerrajero_id || null;
+      linea.pila_producto_id = it.pila_producto_id || null;
       const bruto = it.precio_unitario * it.cantidad;
       linea.descuento_pct = bruto > 0 && it.descuento ? (Number(it.descuento) / bruto) * 100 : 0;
       if (linea.es_servicio) {
