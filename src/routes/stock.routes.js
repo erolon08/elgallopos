@@ -14,6 +14,16 @@ router.get('/', (req, res) => {
   res.json(rows);
 });
 
+router.get('/sugerencia-compra', (req, res) => {
+  const { familia_id, stock_maximo, dias } = req.query;
+  const rows = stockService.sugerenciaCompra({
+    familia_id: familia_id ? Number(familia_id) : undefined,
+    stock_maximo,
+    dias,
+  });
+  res.json(rows);
+});
+
 router.get('/:id/movimientos', (req, res) => {
   const { desde, hasta } = req.query;
   const rows = stockService.movimientos(Number(req.params.id), { desde, hasta });

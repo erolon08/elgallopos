@@ -105,4 +105,40 @@ const registrarMovimiento = db.transaction((params) => {
   };
 });
 
-module.exports = { listarStock, movimientos, registrarMovimiento, estadoStock };
+// Sugerencia de compra: productos que se vendieron en el último mes (30 días
+// por defecto) y hoy tienen poco stock (5 unidades o menos, por defecto). Se
+// ignoran a propósito los productos con poco stock que NO se vendieron en ese
+// período — pueden ser productos sin rotación, no hace falta reponerlos ya.
+function sugerenciaCompra({ familia_id, stock_maximo, dias } = {}) {
+  const limiteStock = stock_maximo != null && stock_maximo !== '' ? Number(stock_maximo) : 5;
+  const diasVentana = dias != null && dias !== '' ? Number(dias) : 30;
+  let sql = `
+    SELECT p.id, p.codigo, p.descripcion, p.stock_actual, p.stock_minimo,
+           f.id AS familia_id, f.nombre AS familia, pr.nombre AS proveedor,
+           SUM(vi.cantidad) AS vendidas_mes
+    FROM venta_items vi
+    JOIN ventas v ON v.id = vi.venta_id
+    JOIN productos p ON p.id = vi.producto_id
+    JOIN familias f ON f.id = p.familia_id
+    LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
+    WHERE v.estado = 'cobrada'
+      AND date(v.cobrado_en) >= date('now', @dias)
+      AND p.activo = 1
+      AND p.stock_actual <= @limiteStock
+  `;
+  const params = { dias: `-${diasVentana} days`, limiteStock };
+  if (familia_id) {
+    sql += ' AND p.familia_id = @familia_id';
+    params.familia_id = familia_id;
+  }
+  sql += ' GROUP BY p.id ORDER BY vendidas_mes DESC, p.descripcion';
+
+  return db.prepare(sql).all(params).map((r) => ({
+    ...r,
+    // Sugerencia simple: reponer lo que se vendió, descontando lo que ya
+    // queda en stock (nunca negativo). El cajero puede ajustarlo a mano.
+    sugerido: Math.max(0, Math.round(r.vendidas_mes - r.stock_actual)),
+  }));
+}
+
+module.exports = { listarStock, movimientos, registrarMovimiento, estadoStock, sugerenciaCompra };

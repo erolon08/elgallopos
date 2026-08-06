@@ -1,5 +1,5 @@
 const titles = {
-  dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', clientes: 'Clientes',
+  dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', compras: 'Sugerencia de compra', clientes: 'Clientes',
   venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
   caja: 'Caja y turnos', ranking: 'Ranking', resumen: 'Resumen', configuracion: 'Configuración',
@@ -45,6 +45,7 @@ function showScreen(id) {
   if (id === 'presupuestos') cargarPresupuestos();
   if (id === 'rendicion') { cargarCerrajerosAdmin(); cargarRendiciones(); }
   if (id === 'caja') cargarCaja();
+  if (id === 'compras') cargarCompras();
   if (id === 'resumen') inicializarResumen();
   if (id === 'venta') { actualizarHintVenta(); cargarBotoneraVenta(); ajustarAltoVenta(); }
 }
@@ -103,6 +104,7 @@ async function cargarFamiliasGlobal() {
   const res = await fetch('/api/familias?soloActivas=true');
   familiasCache = await res.json();
   populateSelect(document.getElementById('stockFamilia'), familiasCache, { placeholder: 'Todas' });
+  populateSelect(document.getElementById('comprasFamilia'), familiasCache, { placeholder: 'Todas' });
   populateSelect(document.getElementById('prodFamilia'), familiasCache, { placeholder: 'Todas' });
   populateSelect(document.getElementById('prodFamiliaSel'), familiasCache);
   populateSelect(document.getElementById('rkFamiliaId'), familiasCache, { placeholder: 'Elegir familia' });
@@ -173,6 +175,43 @@ function filaStock(r) {
   `;
   return tr;
 }
+
+// ============================================================
+// COMPRAS — sugerencia (vendido en el último mes + poco stock hoy)
+// ============================================================
+async function cargarCompras() {
+  const familia_id = document.getElementById('comprasFamilia').value;
+  const stock_maximo = document.getElementById('comprasStockMaximo').value;
+
+  const params = new URLSearchParams();
+  if (familia_id) params.set('familia_id', familia_id);
+  if (stock_maximo !== '') params.set('stock_maximo', stock_maximo);
+
+  const res = await fetch('/api/stock/sugerencia-compra?' + params.toString());
+  const rows = await res.json();
+  const tbody = document.getElementById('comprasBody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted)">No hay productos que se hayan vendido en el último mes con ese stock.</td></tr>';
+    return;
+  }
+  rows.forEach((r) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.codigo}</td>
+      <td>${r.descripcion}</td>
+      <td>${r.familia}</td>
+      <td>${r.proveedor || '—'}</td>
+      <td>${money.format(r.vendidas_mes)}</td>
+      <td class="celda-actual">${money.format(r.stock_actual)}</td>
+      <td><b>${money.format(r.sugerido)}</b></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+document.getElementById('btnBuscarCompras').addEventListener('click', cargarCompras);
+document.getElementById('comprasFamilia').addEventListener('change', cargarCompras);
+document.getElementById('comprasStockMaximo').addEventListener('change', cargarCompras);
 
 function openAjuste(producto_id, descripcion) {
   ajusteProductoId = producto_id;

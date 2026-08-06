@@ -65,6 +65,7 @@
       <button data-screen="productos">📦 Productos</button>
       <button data-screen="familias">🗂️ Familias</button>
       <button data-screen="stock">🏷️ Stock</button>
+      <button data-screen="compras">🛍️ Compras</button>
       <button data-screen="rendicion">🔧 Rendición cerrajeros</button>
       <button data-screen="caja">💰 Caja y turnos</button>
       <button data-screen="ranking">🏆 Ranking</button>
@@ -445,6 +446,27 @@
             <table>
               <thead><tr><th>Código</th><th>Producto</th><th>Familia</th><th>Actual</th><th>Mínimo</th><th>Estado</th><th></th></tr></thead>
               <tbody id="stockBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="compras">
+        <div class="card">
+          <div class="section-title"><h3>Sugerencia de compra</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Familia</label><select id="comprasFamilia"><option value="">Todas</option></select></div>
+            <div class="field" style="width:110px"><label>Stock hasta</label><input id="comprasStockMaximo" type="number" min="0" step="1" value="5"></div>
+            <button class="btn primary" id="btnBuscarCompras">Buscar</button>
+          </div>
+          <div class="notice" style="margin-top:4px">
+            Solo se muestran productos que <b>se vendieron en el último mes</b> y que hoy tienen poco stock — no importa si
+            hay otros productos con poco o nada de stock: si no se vendieron en el último mes, no aparecen acá.
+          </div>
+          <div class="table-wrap" style="margin-top:12px">
+            <table>
+              <thead><tr><th>Código</th><th>Producto</th><th>Familia</th><th>Proveedor</th><th>Vendidas (últ. mes)</th><th>Stock actual</th><th>Sugerido a comprar</th></tr></thead>
+              <tbody id="comprasBody"></tbody>
             </table>
           </div>
         </div>
