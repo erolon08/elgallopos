@@ -16,9 +16,9 @@ function enriquecer(p) {
   return { ...p, estado_stock: estadoStock(p), incompleto: esIncompleto(p) ? 1 : 0 };
 }
 
-function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = {}) {
+function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito, es_pila } = {}) {
   let sql = `
-    SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.usa_precio_rendicion, f.descuento_debito, f.descuento_efectivo, pr.nombre AS proveedor
+    SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.usa_precio_rendicion, f.descuento_debito, f.descuento_efectivo, f.pregunta_pila, pr.nombre AS proveedor
     FROM productos p
     JOIN familias f ON f.id = p.familia_id
     LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
@@ -51,6 +51,9 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
   if (favorito === 'true') {
     sql += ' AND p.favorito = 1';
   }
+  if (es_pila === 'true') {
+    sql += ' AND p.es_pila = 1';
+  }
   // Con búsqueda de texto, prioriza coincidencias de código (empieza con, o
   // en cualquier parte) antes que las de descripción, para que no queden
   // tapadas por productos alfabéticamente anteriores que solo matchean
@@ -82,7 +85,7 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito } = 
 function obtener(id) {
   const row = db
     .prepare(
-      `SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.usa_precio_rendicion, f.descuento_debito, f.descuento_efectivo, pr.nombre AS proveedor
+      `SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.usa_precio_rendicion, f.descuento_debito, f.descuento_efectivo, f.pregunta_pila, pr.nombre AS proveedor
        FROM productos p JOIN familias f ON f.id = p.familia_id
        LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
        WHERE p.id = ?`
@@ -140,9 +143,9 @@ function crear(datos) {
     .prepare(
       `INSERT INTO productos
         (codigo, descripcion, familia_id, proveedor_id, costo, precio_final, precio_debito, precio_efectivo,
-         precio_rendicion, recargos_mano_obra, usar_regla_automatica, iva, stock_minimo, favorito)
+         precio_rendicion, recargos_mano_obra, usar_regla_automatica, iva, stock_minimo, favorito, es_pila)
        VALUES (@codigo, @descripcion, @familia_id, @proveedor_id, @costo, @precio_final, @precio_debito, @precio_efectivo,
-         @precio_rendicion, @recargos_mano_obra, @usar_regla_automatica, @iva, @stock_minimo, @favorito)`
+         @precio_rendicion, @recargos_mano_obra, @usar_regla_automatica, @iva, @stock_minimo, @favorito, @es_pila)`
     )
     .run({
       codigo: String(datos.codigo).trim(),
@@ -154,6 +157,7 @@ function crear(datos) {
       iva: Number(datos.iva) || 0,
       stock_minimo: Number(datos.stock_minimo) || 0,
       favorito: datos.favorito ? 1 : 0,
+      es_pila: datos.es_pila ? 1 : 0,
     });
   return obtener(info.lastInsertRowid);
 }
@@ -182,7 +186,7 @@ function actualizar(id, datos) {
        costo = @costo, precio_final = @precio_final, precio_debito = @precio_debito, precio_efectivo = @precio_efectivo,
        precio_rendicion = @precio_rendicion, recargos_mano_obra = @recargos_mano_obra,
        usar_regla_automatica = @usar_regla_automatica, iva = @iva,
-       stock_minimo = @stock_minimo, favorito = @favorito, actualizado_en = datetime('now','localtime')
+       stock_minimo = @stock_minimo, favorito = @favorito, es_pila = @es_pila, actualizado_en = datetime('now','localtime')
      WHERE id = @id`
   ).run({
     id,
@@ -200,6 +204,7 @@ function actualizar(id, datos) {
     iva: datos.iva != null ? Number(datos.iva) : actual.iva,
     stock_minimo: datos.stock_minimo != null ? Number(datos.stock_minimo) : actual.stock_minimo,
     favorito: datos.favorito !== undefined ? (datos.favorito ? 1 : 0) : actual.favorito,
+    es_pila: datos.es_pila !== undefined ? (datos.es_pila ? 1 : 0) : actual.es_pila,
   });
   return obtener(id);
 }

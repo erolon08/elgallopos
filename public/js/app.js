@@ -492,6 +492,7 @@ async function openProducto(id) {
     document.getElementById('prodManoObraPrueba').value = '';
     document.getElementById('prodPrecioFinalPrueba').value = '';
     document.getElementById('prodFavorito').checked = !!p.favorito;
+    document.getElementById('prodEsPila').checked = !!p.es_pila;
     updateRendicionFieldVisibility();
     toggleCamposPorFamilia();
     toggleReglaAutomatica();
@@ -514,6 +515,7 @@ async function openProducto(id) {
     document.getElementById('prodManoObraPrueba').value = '';
     document.getElementById('prodPrecioFinalPrueba').value = '';
     document.getElementById('prodFavorito').checked = false;
+    document.getElementById('prodEsPila').checked = false;
     updateRendicionFieldVisibility();
     toggleCamposPorFamilia();
     toggleReglaAutomatica();
@@ -537,6 +539,7 @@ async function guardarProducto() {
     iva: Number(document.getElementById('prodIva').value) || 0,
     precio_rendicion: document.getElementById('prodPrecioRendicion').value || null,
     favorito: document.getElementById('prodFavorito').checked,
+    es_pila: document.getElementById('prodEsPila').checked,
   };
   if (esServicio) {
     payload.recargos_mano_obra = document.getElementById('prodRecargos').value.trim() || null;
@@ -693,6 +696,7 @@ async function openFamilia(id) {
     document.getElementById('famEfectivo').value = f.descuento_efectivo;
     document.getElementById('famUsaRendicion').checked = !!f.usa_precio_rendicion;
     document.getElementById('famUsaManoObra').checked = !!f.usa_mano_obra;
+    document.getElementById('famPreguntaPila').checked = !!f.pregunta_pila;
     document.getElementById('famActiva').checked = !!f.activo;
   } else {
     document.getElementById('famNombre').value = '';
@@ -700,6 +704,7 @@ async function openFamilia(id) {
     document.getElementById('famEfectivo').value = 30;
     document.getElementById('famUsaRendicion').checked = false;
     document.getElementById('famUsaManoObra').checked = false;
+    document.getElementById('famPreguntaPila').checked = false;
     document.getElementById('famActiva').checked = true;
   }
   document.getElementById('familiaModal').classList.add('open');
@@ -717,6 +722,7 @@ async function guardarFamilia() {
     descuento_efectivo: Number(document.getElementById('famEfectivo').value) || 0,
     usa_precio_rendicion: document.getElementById('famUsaRendicion').checked,
     usa_mano_obra: document.getElementById('famUsaManoObra').checked,
+    pregunta_pila: document.getElementById('famPreguntaPila').checked,
     activo: document.getElementById('famActiva').checked,
   };
   if (!payload.nombre) {
@@ -3013,7 +3019,73 @@ async function intercambiarBotoneraOrden(id) {
   });
 }
 
+// Familias como CODIFICADOS tienen pregunta_pila=1: antes de agregarlos al
+// carrito se pregunta si se usó una pila (para descontarla del stock aparte,
+// sin cobrarla). Los productos que son ellos mismos una pila (es_pila=1)
+// quedan afuera de la pregunta — no tiene sentido preguntarle a una pila si
+// usa pila.
+let pilaDialogoPendiente = null;
+
 function agregarProductoACarrito(p, tipoElegido) {
+  if (p.pregunta_pila && !p.es_pila) {
+    mostrarDialogoPila(p, tipoElegido);
+    return;
+  }
+  agregarProductoACarritoInterno(p, tipoElegido, null);
+}
+
+function mostrarDialogoPila(p, tipoElegido) {
+  pilaDialogoPendiente = { p, tipoElegido };
+  document.getElementById('pilaModalProducto').textContent = p.descripcion;
+  document.getElementById('pilaModalPreguntaWrap').style.display = 'flex';
+  document.getElementById('pilaModalSeleccionWrap').style.display = 'none';
+  document.getElementById('pilaModal').classList.add('open');
+}
+
+function cancelarDialogoPila() {
+  pilaDialogoPendiente = null;
+  document.getElementById('pilaModal').classList.remove('open');
+}
+
+function responderUsaPila(usa) {
+  if (!pilaDialogoPendiente) return;
+  if (!usa) {
+    const { p, tipoElegido } = pilaDialogoPendiente;
+    pilaDialogoPendiente = null;
+    document.getElementById('pilaModal').classList.remove('open');
+    agregarProductoACarritoInterno(p, tipoElegido, null);
+    return;
+  }
+  cargarSelectPilas();
+  document.getElementById('pilaModalPreguntaWrap').style.display = 'none';
+  document.getElementById('pilaModalSeleccionWrap').style.display = 'block';
+}
+
+async function cargarSelectPilas() {
+  const sel = document.getElementById('pilaModalSelect');
+  sel.innerHTML = '<option value="">Cargando…</option>';
+  const pilas = await (await fetch('/api/productos?es_pila=true')).json();
+  if (!pilas.length) {
+    sel.innerHTML = '<option value="">No hay ningún producto marcado como "Es una pila" — cargalo en Productos</option>';
+    return;
+  }
+  sel.innerHTML = pilas.map((pila) => `<option value="${pila.id}">${pila.descripcion} (stock: ${pila.stock_actual})</option>`).join('');
+}
+
+function confirmarPilaSeleccionada() {
+  if (!pilaDialogoPendiente) return;
+  const pilaId = Number(document.getElementById('pilaModalSelect').value);
+  if (!pilaId) {
+    alert('Elegí qué pila se usó.');
+    return;
+  }
+  const { p, tipoElegido } = pilaDialogoPendiente;
+  pilaDialogoPendiente = null;
+  document.getElementById('pilaModal').classList.remove('open');
+  agregarProductoACarritoInterno(p, tipoElegido, pilaId);
+}
+
+function agregarProductoACarritoInterno(p, tipoElegido, pilaProductoId) {
   const cerrajeroDefault = document.getElementById('ventaCerrajeroDefault').value || null;
   if (p.usa_mano_obra) {
     carritoVenta.push({
@@ -3028,6 +3100,7 @@ function agregarProductoACarrito(p, tipoElegido) {
       descuento_pct: 0,
       tipo_precio: tipoElegido || 'final',
       cerrajero_id: cerrajeroDefault,
+      pila_producto_id: pilaProductoId,
     });
   } else if (p.usa_precio_rendicion) {
     carritoVenta.push({
@@ -3041,6 +3114,7 @@ function agregarProductoACarrito(p, tipoElegido) {
       tipo_precio: 'final',
       descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
+      pila_producto_id: pilaProductoId,
     });
   } else {
     const tipo = tipoElegido || tipoPrecioGlobal;
@@ -3054,6 +3128,7 @@ function agregarProductoACarrito(p, tipoElegido) {
       tipo_precio: tipo,
       descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
+      pila_producto_id: pilaProductoId,
     });
   }
   renderVenta();
@@ -3360,6 +3435,7 @@ function itemsParaApi() {
       descuento: bruto * (descPct / 100),
       monto_mano_obra: it.es_servicio ? it.monto_mano_obra : null,
       cerrajero_id: it.cerrajero_id || null,
+      pila_producto_id: it.pila_producto_id || null,
     };
   });
 }
@@ -4396,7 +4472,10 @@ async function abrirPendienteParaEditar(id) {
   for (const it of venta.items) {
     if (it.producto_id) {
       const producto = await (await fetch(`/api/productos/${it.producto_id}`)).json();
-      agregarProductoACarrito(producto);
+      // Se restaura tal cual quedó guardada la línea (incluida la pila
+      // elegida, si la había) sin volver a preguntar — la pregunta es solo
+      // al agregar el producto por primera vez.
+      agregarProductoACarritoInterno(producto, undefined, it.pila_producto_id || null);
       const linea = carritoVenta[carritoVenta.length - 1];
       linea.descripcion = it.descripcion;
       linea.cantidad = it.cantidad;
@@ -4701,7 +4780,9 @@ async function convertirPresupuestoEnVenta(id) {
     const descuentoPctGuardado = bruto > 0 && it.descuento ? (Number(it.descuento) / bruto) * 100 : 0;
     if (it.producto_id) {
       const producto = await (await fetch(`/api/productos/${it.producto_id}`)).json();
-      agregarProductoACarrito(producto);
+      // Se reconstruye la línea sin volver a preguntar por la pila (los
+      // presupuestos no tienen ese dato guardado, ya que no descuentan stock).
+      agregarProductoACarritoInterno(producto, undefined, null);
       const linea = carritoVenta[carritoVenta.length - 1];
       linea.descripcion = it.descripcion;
       linea.cantidad = it.cantidad;

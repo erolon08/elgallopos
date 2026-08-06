@@ -9,7 +9,7 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 router.get('/', (req, res) => {
-  const { q, familia_id, proveedor_id, stock, incompletos, favorito } = req.query;
+  const { q, familia_id, proveedor_id, stock, incompletos, favorito, es_pila } = req.query;
   res.json(
     productosService.listar({
       q,
@@ -18,6 +18,7 @@ router.get('/', (req, res) => {
       stock,
       incompletos,
       favorito,
+      es_pila,
     })
   );
 });

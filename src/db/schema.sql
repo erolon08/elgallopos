@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS familias (
   descuento_efectivo REAL NOT NULL DEFAULT 30, -- % que se resta del precio final
   usa_precio_rendicion INTEGER NOT NULL DEFAULT 0, -- ej: DUPLICADOS
   usa_mano_obra INTEGER NOT NULL DEFAULT 0,        -- ej: SERVICIOS
+  pregunta_pila INTEGER NOT NULL DEFAULT 0,        -- ej: CODIFICADOS (pregunta qué pila se usó al vender)
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
@@ -68,6 +69,7 @@ CREATE TABLE IF NOT EXISTS productos (
   stock_minimo REAL NOT NULL DEFAULT 0,
   favorito INTEGER NOT NULL DEFAULT 0,  -- aparece en la botonera rápida de Venta
   orden_botonera INTEGER NOT NULL DEFAULT 0,  -- posición manual dentro de la botonera de favoritos
+  es_pila INTEGER NOT NULL DEFAULT 0,   -- este producto es una pila (se ofrece en el diálogo "¿qué pila se usó?")
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
@@ -262,6 +264,7 @@ CREATE TABLE IF NOT EXISTS venta_items (
   descuento REAL NOT NULL DEFAULT 0,
   monto_mano_obra REAL,
   cerrajero_id INTEGER REFERENCES cerrajeros(id),
+  pila_producto_id INTEGER REFERENCES productos(id), -- solo familias con pregunta_pila=1: qué pila se usó
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_ventaitems_venta ON venta_items(venta_id);

@@ -93,8 +93,8 @@ const crear = db.transaction((datos) => {
 
   const insertItem = db.prepare(`
     INSERT INTO venta_items
-      (venta_id, producto_id, descripcion, cantidad, precio_unitario, tipo_precio, descuento, monto_mano_obra, cerrajero_id)
-    VALUES (@venta_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @tipo_precio, @descuento, @monto_mano_obra, @cerrajero_id)
+      (venta_id, producto_id, descripcion, cantidad, precio_unitario, tipo_precio, descuento, monto_mano_obra, cerrajero_id, pila_producto_id)
+    VALUES (@venta_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @tipo_precio, @descuento, @monto_mano_obra, @cerrajero_id, @pila_producto_id)
   `);
   datos.items.forEach((it) => {
     insertItem.run({
@@ -107,6 +107,7 @@ const crear = db.transaction((datos) => {
       descuento: Number(it.descuento) || 0,
       monto_mano_obra: it.monto_mano_obra != null && it.monto_mano_obra !== '' ? Number(it.monto_mano_obra) : null,
       cerrajero_id: it.cerrajero_id || null,
+      pila_producto_id: it.pila_producto_id || null,
     });
   });
 
@@ -122,10 +123,12 @@ function obtener(id) {
   if (!venta) return null;
   const items = db
     .prepare(
-      `SELECT vi.*, c.nombre AS cerrajero_nombre, p.codigo AS producto_codigo
+      `SELECT vi.*, c.nombre AS cerrajero_nombre, p.codigo AS producto_codigo,
+              pp.codigo AS pila_codigo, pp.descripcion AS pila_descripcion
        FROM venta_items vi
        LEFT JOIN cerrajeros c ON c.id = vi.cerrajero_id
        LEFT JOIN productos p ON p.id = vi.producto_id
+       LEFT JOIN productos pp ON pp.id = vi.pila_producto_id
        WHERE vi.venta_id = ? ORDER BY vi.id`
     )
     .all(id);
@@ -255,6 +258,21 @@ const cobrarTx = db.transaction((id, datos) => {
         tipo: 'venta',
         cantidad: -Math.abs(it.cantidad),
         motivo: `Venta N° ${venta.numero}`,
+        referencia_tipo: 'venta',
+        referencia_id: id,
+        usuario_id: datos.usuario_id,
+        terminal: datos.terminal,
+      });
+    }
+    // Pila consumida al vender un producto de una familia "pregunta_pila"
+    // (ej. codificados): se descuenta del stock aparte, sin cobrarla —
+    // ya está incluida en el precio del codificado.
+    if (it.pila_producto_id) {
+      stockService.registrarMovimiento({
+        producto_id: it.pila_producto_id,
+        tipo: 'venta',
+        cantidad: -Math.abs(it.cantidad),
+        motivo: `Pila usada en Venta N° ${venta.numero}`,
         referencia_tipo: 'venta',
         referencia_id: id,
         usuario_id: datos.usuario_id,
@@ -405,8 +423,8 @@ const actualizar = db.transaction((id, datos) => {
   db.prepare('DELETE FROM venta_items WHERE venta_id = ?').run(id);
   const insertItem = db.prepare(`
     INSERT INTO venta_items
-      (venta_id, producto_id, descripcion, cantidad, precio_unitario, tipo_precio, descuento, monto_mano_obra, cerrajero_id)
-    VALUES (@venta_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @tipo_precio, @descuento, @monto_mano_obra, @cerrajero_id)
+      (venta_id, producto_id, descripcion, cantidad, precio_unitario, tipo_precio, descuento, monto_mano_obra, cerrajero_id, pila_producto_id)
+    VALUES (@venta_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @tipo_precio, @descuento, @monto_mano_obra, @cerrajero_id, @pila_producto_id)
   `);
   datos.items.forEach((it) => {
     insertItem.run({
@@ -419,6 +437,7 @@ const actualizar = db.transaction((id, datos) => {
       descuento: Number(it.descuento) || 0,
       monto_mano_obra: it.monto_mano_obra != null && it.monto_mano_obra !== '' ? Number(it.monto_mano_obra) : null,
       cerrajero_id: it.cerrajero_id || null,
+      pila_producto_id: it.pila_producto_id || null,
     });
   });
 
@@ -445,6 +464,18 @@ const anular = db.transaction((id, { motivo, usuario_id, terminal } = {}) => {
           tipo: 'nota_credito',
           cantidad: Math.abs(it.cantidad),
           motivo: `Anulación venta N° ${venta.numero}${motivo ? ' — ' + motivo : ''}`,
+          referencia_tipo: 'venta',
+          referencia_id: id,
+          usuario_id,
+          terminal,
+        });
+      }
+      if (it.pila_producto_id) {
+        stockService.registrarMovimiento({
+          producto_id: it.pila_producto_id,
+          tipo: 'nota_credito',
+          cantidad: Math.abs(it.cantidad),
+          motivo: `Anulación venta N° ${venta.numero} — pila devuelta${motivo ? ' — ' + motivo : ''}`,
           referencia_tipo: 'venta',
           referencia_id: id,
           usuario_id,

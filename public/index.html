@@ -933,6 +933,9 @@
     <label style="display:block;margin:12px 0 4px">
       <input type="checkbox" id="prodFavorito"> ⭐ Mostrar en la botonera rápida de Venta
     </label>
+    <label style="display:block;margin:4px 0">
+      <input type="checkbox" id="prodEsPila"> 🔋 Es una pila (aparece para elegir en el diálogo "¿qué pila se usó?")
+    </label>
 
     <div id="prodCamposNormales">
       <label id="prodReglaAutomaticaRow" style="display:block;margin:14px 0 6px">
@@ -979,10 +982,29 @@
     </div>
     <label style="display:block;margin:12px 0 4px"><input type="checkbox" id="famUsaRendicion"> Usa precio de rendición por producto (ej. duplicados de llaves)</label>
     <label style="display:block;margin:4px 0"><input type="checkbox" id="famUsaManoObra"> Genera mano de obra para rendición de cerrajeros (ej. servicios)</label>
+    <label style="display:block;margin:4px 0"><input type="checkbox" id="famPreguntaPila"> Pregunta qué pila se usó al vender (ej. codificados)</label>
     <label style="display:block;margin:12px 0 4px" id="famActivaWrap"><input type="checkbox" id="famActiva" checked> Activa</label>
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="guardarFamilia()">Guardar</button>
       <button class="btn outline" onclick="closeFamilia()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="pilaModal">
+  <div class="modal-box">
+    <div class="section-title"><h3>¿Usa pila?</h3><button class="btn light" onclick="cancelarDialogoPila()">✕</button></div>
+    <p id="pilaModalProducto" style="margin:0 0 14px;font-weight:700"></p>
+    <div id="pilaModalPreguntaWrap" class="toolbar">
+      <button class="btn primary" onclick="responderUsaPila(true)">Sí, usó pila</button>
+      <button class="btn outline" onclick="responderUsaPila(false)">No usó pila</button>
+    </div>
+    <div id="pilaModalSeleccionWrap" style="display:none">
+      <div class="field"><label>¿Qué pila se usó?</label><select id="pilaModalSelect"></select></div>
+      <div class="toolbar" style="margin-top:14px">
+        <button class="btn primary" onclick="confirmarPilaSeleccionada()">Agregar</button>
+        <button class="btn outline" onclick="cancelarDialogoPila()">Cancelar</button>
+      </div>
     </div>
   </div>
 </div>

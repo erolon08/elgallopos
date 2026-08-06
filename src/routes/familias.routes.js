@@ -12,15 +12,15 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { nombre, descuento_debito, descuento_efectivo, usa_precio_rendicion, usa_mano_obra } = req.body;
+  const { nombre, descuento_debito, descuento_efectivo, usa_precio_rendicion, usa_mano_obra, pregunta_pila } = req.body;
   if (!nombre || !nombre.trim()) {
     return res.status(400).json({ error: 'El nombre es obligatorio' });
   }
   try {
     const info = db
       .prepare(
-        `INSERT INTO familias (nombre, descuento_debito, descuento_efectivo, usa_precio_rendicion, usa_mano_obra)
-         VALUES (@nombre, @descuento_debito, @descuento_efectivo, @usa_precio_rendicion, @usa_mano_obra)`
+        `INSERT INTO familias (nombre, descuento_debito, descuento_efectivo, usa_precio_rendicion, usa_mano_obra, pregunta_pila)
+         VALUES (@nombre, @descuento_debito, @descuento_efectivo, @usa_precio_rendicion, @usa_mano_obra, @pregunta_pila)`
       )
       .run({
         nombre: nombre.trim().toUpperCase(),
@@ -28,6 +28,7 @@ router.post('/', (req, res) => {
         descuento_efectivo: Number(descuento_efectivo) || 0,
         usa_precio_rendicion: usa_precio_rendicion ? 1 : 0,
         usa_mano_obra: usa_mano_obra ? 1 : 0,
+        pregunta_pila: pregunta_pila ? 1 : 0,
       });
     res.status(201).json(db.prepare('SELECT * FROM familias WHERE id = ?').get(info.lastInsertRowid));
   } catch (err) {
@@ -43,12 +44,13 @@ router.put('/:id', (req, res) => {
   const familia = db.prepare('SELECT * FROM familias WHERE id = ?').get(id);
   if (!familia) return res.status(404).json({ error: 'Familia no encontrada' });
 
-  const { nombre, descuento_debito, descuento_efectivo, usa_precio_rendicion, usa_mano_obra, activo } = req.body;
+  const { nombre, descuento_debito, descuento_efectivo, usa_precio_rendicion, usa_mano_obra, pregunta_pila, activo } = req.body;
   try {
     db.prepare(
       `UPDATE familias SET
          nombre = @nombre, descuento_debito = @descuento_debito, descuento_efectivo = @descuento_efectivo,
-         usa_precio_rendicion = @usa_precio_rendicion, usa_mano_obra = @usa_mano_obra, activo = @activo
+         usa_precio_rendicion = @usa_precio_rendicion, usa_mano_obra = @usa_mano_obra, pregunta_pila = @pregunta_pila,
+         activo = @activo
        WHERE id = @id`
     ).run({
       id,
@@ -57,6 +59,7 @@ router.put('/:id', (req, res) => {
       descuento_efectivo: descuento_efectivo != null ? Number(descuento_efectivo) : familia.descuento_efectivo,
       usa_precio_rendicion: usa_precio_rendicion != null ? (usa_precio_rendicion ? 1 : 0) : familia.usa_precio_rendicion,
       usa_mano_obra: usa_mano_obra != null ? (usa_mano_obra ? 1 : 0) : familia.usa_mano_obra,
+      pregunta_pila: pregunta_pila != null ? (pregunta_pila ? 1 : 0) : familia.pregunta_pila,
       activo: activo != null ? (activo ? 1 : 0) : familia.activo,
     });
     res.json(db.prepare('SELECT * FROM familias WHERE id = ?').get(id));
