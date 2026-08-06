@@ -1,11 +1,26 @@
 const express = require('express');
 const authService = require('../services/auth.service');
 const resetService = require('../services/reset.service');
+const backupService = require('../services/backup.service');
 const { emitSistemaReseteado } = require('../sockets');
 
 const router = express.Router();
 
 const FRASE_CONFIRMACION = 'BORRAR TODO';
+
+router.get('/backup/estado', (req, res) => {
+  res.json(backupService.estado());
+});
+
+router.get('/backup/descargar', async (req, res) => {
+  try {
+    await backupService.hacerBackup();
+    const fecha = new Date().toISOString().slice(0, 10);
+    res.download(backupService.ARCHIVO_BACKUP, `gallopos-backup-${fecha}.db`);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.post('/reset', (req, res) => {
   const { password, confirmacion } = req.body;

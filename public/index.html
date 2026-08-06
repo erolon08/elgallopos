@@ -769,6 +769,20 @@
           <div class="notice" style="margin-top:10px">Estas notas se imprimen en todos los tickets: ventas, presupuestos, rendiciones y cierres de caja.</div>
         </div>
 
+        <div class="card">
+          <div class="section-title"><h3>💾 Copia de seguridad</h3></div>
+          <div class="notice" style="margin-top:4px">
+            Todos los días se guarda una copia de la base en esta misma PC (se reemplaza por la del día, no se acumulan
+            copias viejas). Para estar protegido de verdad ante un robo, incendio o rotura de la PC, de vez en cuando
+            descargá la copia con el botón de abajo y guardala en un pendrive, mail o Google Drive — una copia que vive
+            solo en la misma máquina no te salva de eso.
+          </div>
+          <div class="toolbar" style="margin-top:12px;align-items:center">
+            <button class="btn primary" onclick="descargarBackup()">Descargar copia de seguridad ahora</button>
+            <span class="small" id="backupEstado"></span>
+          </div>
+        </div>
+
         <div class="card" style="border:2px solid var(--red)">
           <div class="section-title"><h3 style="color:var(--red)">⚠️ Zona de peligro — Resetear sistema</h3></div>
           <div class="notice" style="margin-top:4px">

@@ -36,7 +36,7 @@ function showScreen(id) {
   document.querySelector('.main').classList.toggle('venta-compacta', id === 'venta');
   if (id === 'dashboard') cargarDashboard();
   if (id === 'ranking') cargarRanking();
-  if (id === 'configuracion') { cargarCerrajerosAdmin(); cargarConfiguracion(); cargarUsuariosClaves(); }
+  if (id === 'configuracion') { cargarCerrajerosAdmin(); cargarConfiguracion(); cargarUsuariosClaves(); cargarBackupEstado(); }
   if (id === 'productos') cargarProductos();
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
@@ -1893,6 +1893,25 @@ async function guardarNotasTicketConfig() {
   await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   await cargarConfiguracionGlobal();
   alert('Notas del ticket guardadas.');
+}
+
+async function cargarBackupEstado() {
+  const el = document.getElementById('backupEstado');
+  try {
+    const estado = await (await fetch('/api/sistema/backup/estado')).json();
+    if (!estado.fecha) {
+      el.textContent = 'Todavía no se hizo ningún backup automático.';
+      return;
+    }
+    const kb = Math.round(estado.tamanioBytes / 1024);
+    el.textContent = `Último backup automático: ${estado.fecha} (${kb.toLocaleString('es-AR')} KB)`;
+  } catch (err) {
+    el.textContent = '';
+  }
+}
+
+function descargarBackup() {
+  window.location.href = '/api/sistema/backup/descargar';
 }
 
 async function resetearSistema() {

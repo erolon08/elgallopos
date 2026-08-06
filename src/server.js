@@ -4,6 +4,8 @@ const express = require('express');
 
 require('./db'); // asegura que el schema esté creado antes de levantar rutas
 
+require('./services/backup.service').iniciarProgramador();
+
 const sockets = require('./sockets');
 const stockRoutes = require('./routes/stock.routes');
 const familiasRoutes = require('./routes/familias.routes');

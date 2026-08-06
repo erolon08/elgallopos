@@ -84,4 +84,5 @@ if (!yaHayUsuarioStock) {
   );
 }
 
+db.DB_PATH = DB_PATH;
 module.exports = db;
