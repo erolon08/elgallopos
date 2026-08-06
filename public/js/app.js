@@ -1951,10 +1951,10 @@ socket.on('caja:actualizada', () => {
 let session = null;
 const PANTALLAS_POR_ROL = {
   // Stock queda reservado exclusivamente al puesto STOCK, ni ADMIN lo ve.
-  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja'],
+  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
   CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'caja'],
   VENTA: ['venta', 'pendientes', 'presupuestos', 'clientes'],
-  STOCK: ['stock', 'productos'],
+  STOCK: ['stock', 'productos', 'compras'],
 };
 
 function cargarSesion() {
