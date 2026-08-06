@@ -768,6 +768,22 @@
           <button class="btn primary" onclick="guardarNotasTicketConfig()">Guardar</button>
           <div class="notice" style="margin-top:10px">Estas notas se imprimen en todos los tickets: ventas, presupuestos, rendiciones y cierres de caja.</div>
         </div>
+
+        <div class="card" style="border:2px solid var(--red)">
+          <div class="section-title"><h3 style="color:var(--red)">⚠️ Zona de peligro — Resetear sistema</h3></div>
+          <div class="notice" style="margin-top:4px">
+            Borra <b>para siempre</b>: Ventas, Presupuestos, Rendiciones y Cajas (turnos y movimientos), incluido el
+            historial de stock. <b>NO</b> toca Clientes, Productos, Familias ni la Configuración — el catálogo y el stock
+            actual quedan intactos, arrancás de cero solo con la operatoria. Esta acción no se puede deshacer.
+          </div>
+          <div class="two-col-form" style="margin-top:14px">
+            <div class="field"><label>Clave de ADMIN</label><input id="resetPassword" type="password"></div>
+            <div class="field"><label>Escribí "BORRAR TODO" para confirmar</label><input id="resetConfirmacion" placeholder="BORRAR TODO"></div>
+          </div>
+          <div class="toolbar" style="margin-top:14px">
+            <button class="btn" style="background:var(--red);color:#fff" onclick="resetearSistema()">Resetear sistema</button>
+          </div>
+        </div>
       </section>
 
       <section class="screen" id="ticket-screen">

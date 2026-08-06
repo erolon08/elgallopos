@@ -1895,6 +1895,34 @@ async function guardarNotasTicketConfig() {
   alert('Notas del ticket guardadas.');
 }
 
+async function resetearSistema() {
+  const password = document.getElementById('resetPassword').value;
+  const confirmacion = document.getElementById('resetConfirmacion').value;
+  if (!password) {
+    alert('Ingresá la clave de ADMIN.');
+    return;
+  }
+  if (confirmacion.trim().toUpperCase() !== 'BORRAR TODO') {
+    alert('Escribí exactamente "BORRAR TODO" para confirmar.');
+    return;
+  }
+  if (!confirm('Esto borra TODAS las ventas, presupuestos, rendiciones y cajas para siempre. Clientes y productos quedan intactos. ¿Confirmás?')) {
+    return;
+  }
+  const res = await fetch('/api/sistema/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password, confirmacion }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    alert('Error: ' + (data.error || 'No se pudo resetear el sistema.'));
+    return;
+  }
+  alert('Sistema reseteado. La página se va a recargar.');
+  location.reload();
+}
+
 function ticketEncabezadoHtml() {
   const cfg = configCache || {};
   document.getElementById('ticketContenido').style.width = (cfg.impresora_ancho_mm || 80) + 'mm';
@@ -1943,6 +1971,13 @@ socket.on('stock:updated', (producto) => {
 socket.on('caja:actualizada', () => {
   const activa = document.querySelector('.screen.active');
   if (activa && activa.id === 'caja') cargarCaja();
+});
+// Otra terminal reseteó el sistema (Configuración → Zona de peligro): esta
+// PC puede estar en medio de una venta o un turno de caja que ya no existe,
+// así que recarga directo en vez de seguir operando sobre datos borrados.
+socket.on('sistema:reseteado', () => {
+  alert('Se reseteó el sistema desde otra terminal. La página se va a recargar.');
+  location.reload();
 });
 
 // ============================================================

@@ -19,4 +19,11 @@ function emitVentaEvent(evento, venta) {
   if (io) io.emit(evento, venta);
 }
 
-module.exports = { init, emitStockUpdated, emitVentaEvent };
+// Avisa a todas las terminales conectadas (LAN) que se reseteó el sistema,
+// para que recarguen en vez de seguir operando sobre un turno de caja o
+// venta que ya no existe.
+function emitSistemaReseteado() {
+  if (io) io.emit('sistema:reseteado');
+}
+
+module.exports = { init, emitStockUpdated, emitVentaEvent, emitSistemaReseteado };
