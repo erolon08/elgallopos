@@ -103,4 +103,78 @@ function importarClientes(filas) {
   return { creados, recodificados, omitidos, totalErrores: errores.length, errores: errores.slice(0, 50) };
 }
 
-module.exports = { importarClientes };
+// Importación del saldo de cuenta corriente que traían los clientes en
+// posBerry (u otro sistema anterior), para arrancar con el mismo punto de
+// partida en vez de perder esa deuda/a favor. Columnas esperadas:
+//   0 Código (tiene que coincidir con el código ya cargado en Clientes)
+//   1 Saldo (positivo = el cliente debe, negativo = el cliente tiene a favor)
+// No crea clientes nuevos: si el código no existe en la base, se reporta
+// como "no encontrado" para cargarlo a mano después. Es a prueba de doble
+// ejecución accidental: si un cliente ya tiene un saldo inicial cargado, esa
+// fila se salta en vez de sumarle el saldo dos veces.
+function importarSaldos(filas) {
+  const ccService = require('./cc.service');
+
+  let cargados = 0;
+  let noEncontrados = 0;
+  let yaTenianSaldo = 0;
+  let sinSaldo = 0;
+  const errores = [];
+  const noEncontradosDetalle = [];
+
+  const buscarCliente = db.prepare('SELECT id, nombre FROM clientes WHERE codigo = ?');
+  const yaTieneSaldoInicial = db.prepare("SELECT 1 FROM cc_movimientos WHERE cliente_id = ? AND tipo = 'saldo_inicial'");
+
+  const ejecutar = db.transaction((filas) => {
+    filas.forEach((fila, idx) => {
+      const numeroFila = idx + 2;
+      const codigo = limpiar(fila[0]);
+      const saldo = Number(fila[1]);
+
+      if (!codigo) {
+        errores.push({ fila: numeroFila, motivo: 'Falta el código' });
+        return;
+      }
+      if (!Number.isFinite(saldo) || saldo === 0) {
+        sinSaldo++;
+        return;
+      }
+
+      const cliente = buscarCliente.get(codigo);
+      if (!cliente) {
+        noEncontrados++;
+        noEncontradosDetalle.push({ fila: numeroFila, codigo });
+        return;
+      }
+      if (yaTieneSaldoInicial.get(cliente.id)) {
+        yaTenianSaldo++;
+        return;
+      }
+
+      try {
+        ccService.registrarMovimiento({
+          cliente_id: cliente.id,
+          tipo: 'saldo_inicial',
+          monto: saldo,
+          motivo: 'Saldo inicial importado de posBerry',
+        });
+        cargados++;
+      } catch (err) {
+        errores.push({ fila: numeroFila, codigo, motivo: err.message });
+      }
+    });
+  });
+  ejecutar(filas);
+
+  return {
+    cargados,
+    noEncontrados,
+    yaTenianSaldo,
+    sinSaldo,
+    totalErrores: errores.length,
+    errores: errores.slice(0, 50),
+    noEncontradosDetalle: noEncontradosDetalle.slice(0, 100),
+  };
+}
+
+module.exports = { importarClientes, importarSaldos };

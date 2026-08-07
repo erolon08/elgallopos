@@ -48,7 +48,20 @@ function resumenDe(turno, movimientos) {
   const totalIngresos = movimientos.filter((m) => m.tipo === 'ingreso').reduce((a, m) => a + m.monto, 0);
   const totalEgresos = movimientos.filter((m) => m.tipo === 'egreso').reduce((a, m) => a + m.monto, 0);
   const efectivoEsperado = turno.fondo_inicial + ingresosEfectivo - egresosEfectivo;
-  return { totalIngresos, totalEgresos, porFormaPago, efectivoEsperado };
+
+  // Desglose aparte de lo cobrado de cuenta corriente (clientes saldando
+  // deuda vieja) por forma de pago — para que el cierre lo muestre separado
+  // de lo vendido en el día, aunque ambos sumen al mismo total de caja.
+  const ctaCteCobrada = {};
+  movimientos
+    .filter((m) => m.categoria === 'cuenta_corriente' && m.tipo === 'ingreso')
+    .forEach((m) => {
+      const fp = m.forma_pago || 'Otro';
+      ctaCteCobrada[fp] = (ctaCteCobrada[fp] || 0) + m.monto;
+    });
+  const totalCtaCteCobrada = Object.values(ctaCteCobrada).reduce((a, v) => a + v, 0);
+
+  return { totalIngresos, totalEgresos, porFormaPago, efectivoEsperado, ctaCteCobrada, totalCtaCteCobrada };
 }
 
 function obtener(id) {

@@ -1,5 +1,6 @@
 const titles = {
   dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', compras: 'Sugerencia de compra', clientes: 'Clientes',
+  cuentacorriente: 'Cuenta Corriente',
   venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
   caja: 'Caja y turnos', ranking: 'Ranking', resumen: 'Resumen', configuracion: 'Configuración',
@@ -46,6 +47,7 @@ function showScreen(id) {
   if (id === 'rendicion') { cargarCerrajerosAdmin(); cargarRendiciones(); }
   if (id === 'caja') cargarCaja();
   if (id === 'compras') cargarCompras();
+  if (id === 'cuentacorriente') cargarCcDeudas();
   if (id === 'resumen') inicializarResumen();
   if (id === 'venta') { actualizarHintVenta(); cargarBotoneraVenta(); ajustarAltoVenta(); }
 }
@@ -832,7 +834,11 @@ function filaCliente(c) {
     <td>${c.documento || c.cuit || '—'}</td>
     <td>${c.telefono || '—'}</td>
     <td>${c.condicion_iva}</td>
-    <td>${c.venta_a_credito ? `<span class="status s-blue">$ ${money.format(c.limite_credito)}</span>` : '—'}</td>
+    <td>${
+      c.venta_a_credito
+        ? `<span class="status ${Number(c.saldo_cta_cte) > 0 ? 's-bad' : 's-blue'}" style="cursor:pointer" onclick="abrirCtaCte(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" title="Ver movimientos de cuenta corriente">$ ${money.format(c.saldo_cta_cte)}</span>`
+        : '—'
+    }</td>
     <td>${c.patentes || '—'}</td>
     <td>
       <button class="btn light" onclick="openCliente(${c.id})">Ver / Editar</button>
@@ -1027,6 +1033,173 @@ async function importarClientesExcel(event) {
     boton.disabled = false;
     input.value = '';
   }
+}
+
+async function importarSaldosExcel(event) {
+  const input = event.target;
+  const archivo = input.files[0];
+  if (!archivo) return;
+  if (
+    !confirm(
+      `¿Importar "${archivo.name}"? Columnas esperadas: Código (el mismo que ya tiene el cliente cargado acá) y Saldo. Los clientes que ya tenían un saldo inicial cargado se saltean, para no sumarlo dos veces.`
+    )
+  ) {
+    input.value = '';
+    return;
+  }
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+  const boton = document.querySelector('button[onclick*="cliImportarSaldosInput"]');
+  const textoOriginal = boton.textContent;
+  boton.textContent = 'Importando...';
+  boton.disabled = true;
+  try {
+    const res = await fetch('/api/clientes/importar-saldos', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Error al importar: ' + data.error);
+      return;
+    }
+    let msg = `Importación completa.\nSaldos cargados: ${data.cargados}`;
+    if (data.noEncontrados) msg += `\nCódigos no encontrados (revisar a mano): ${data.noEncontrados}`;
+    if (data.yaTenianSaldo) msg += `\nYa tenían saldo inicial cargado (salteados): ${data.yaTenianSaldo}`;
+    if (data.sinSaldo) msg += `\nFilas sin saldo o en $0 (ignoradas): ${data.sinSaldo}`;
+    if (data.totalErrores) msg += `\nFilas con error: ${data.totalErrores}`;
+    alert(msg);
+    cargarClientes();
+  } catch (err) {
+    alert('Error al importar: ' + err.message);
+  } finally {
+    boton.textContent = textoOriginal;
+    boton.disabled = false;
+    input.value = '';
+  }
+}
+
+// ============================================================
+// CUENTA CORRIENTE DE CLIENTES
+// ============================================================
+let ctaCteClienteId = null;
+
+async function abrirCtaCte(clienteId, nombre) {
+  ctaCteClienteId = clienteId;
+  document.getElementById('ctaCteTitulo').textContent = `Cuenta Corriente — ${nombre}`;
+  document.getElementById('ctaCteMontoCobro').value = '';
+  await cargarCtaCte();
+  document.getElementById('ctaCteModal').classList.add('open');
+}
+
+function closeCtaCte() {
+  document.getElementById('ctaCteModal').classList.remove('open');
+  ctaCteClienteId = null;
+}
+
+async function cargarCtaCte() {
+  const cliente = await (await fetch(`/api/clientes/${ctaCteClienteId}`)).json();
+  document.getElementById('ctaCteSaldo').textContent = `$ ${money.format(cliente.saldo_cta_cte)}`;
+  document.getElementById('ctaCteSaldo').className = Number(cliente.saldo_cta_cte) > 0 ? 'status s-bad' : 'status s-blue';
+
+  const movs = await (await fetch(`/api/clientes/${ctaCteClienteId}/cta-cte/movimientos`)).json();
+  const tbody = document.getElementById('ctaCteBody');
+  tbody.innerHTML = '';
+  if (!movs.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Todavía no hay movimientos.</td></tr>';
+    return;
+  }
+  const TIPO_LABEL = { saldo_inicial: 'Saldo inicial', venta: 'Venta', pago: 'Pago', ajuste: 'Ajuste', nota_credito: 'Nota de crédito' };
+  movs.forEach((m) => {
+    const tr = document.createElement('tr');
+    const fecha = new Date(m.creado_en.replace(' ', 'T')).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    tr.innerHTML = `
+      <td>${fecha}</td>
+      <td>${TIPO_LABEL[m.tipo] || m.tipo}${m.venta_numero ? ` (Venta N° ${m.venta_numero})` : ''}<br><span class="small" style="color:var(--muted)">${m.motivo || ''}</span></td>
+      <td style="text-align:right;color:${m.monto > 0 ? 'var(--red)' : 'inherit'}">${m.monto > 0 ? '+' : ''}$ ${money.format(m.monto)}</td>
+      <td style="text-align:right"><b>$ ${money.format(m.saldo_resultante)}</b></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function registrarCobroCtaCte() {
+  const monto = Number(document.getElementById('ctaCteMontoCobro').value);
+  const forma_pago = document.getElementById('ctaCteFormaPago').value;
+  if (!monto || monto <= 0) {
+    alert('Ingresá un monto válido.');
+    return;
+  }
+  const res = await fetch(`/api/clientes/${ctaCteClienteId}/cta-cte/cobro`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ monto, forma_pago, usuario_id: session.id, terminal: session.rol }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  document.getElementById('ctaCteMontoCobro').value = '';
+  closeCtaCte();
+  await cargarClientes();
+  mostrarTicketCtaCte(data);
+}
+
+// ============================================================
+// PANTALLA "CUENTA CORRIENTE" — todas las deudas de clientes
+// ============================================================
+async function cargarCcDeudas() {
+  const rows = await (await fetch('/api/clientes/cta-cte/deudas')).json();
+  const tbody = document.getElementById('ccDeudasBody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No hay clientes con cuenta corriente pendiente.</td></tr>';
+    return;
+  }
+  rows.forEach((c) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${c.codigo}</td>
+      <td>${c.nombre}</td>
+      <td>${c.telefono || '—'}</td>
+      <td><span class="status ${Number(c.saldo_cta_cte) > 0 ? 's-bad' : 's-blue'}">$ ${money.format(c.saldo_cta_cte)}</span></td>
+      <td><button class="btn light" onclick="abrirCtaCte(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')">Ver / Cobrar</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Comprobante imprimible de un cobro de Cta. Cte.: cuánto debía, cuánto pagó
+// y con qué, y cuánto le queda (o "CUENTA SALDADA" si llegó a $0).
+function construirTicketCtaCteHtml(data) {
+  const saldada = Number(data.saldo_nuevo) <= 0;
+  const ventasHtml =
+    data.ventas_afectadas && data.ventas_afectadas.length
+      ? `<b>VENTAS ABONADAS</b><br>${data.ventas_afectadas
+          .map((v) => `Venta N° ${v.numero}&nbsp;&nbsp;${moneyStr(v.aplicado)}${v.saldada ? ' (saldada)' : ' (parcial)'}<br>`)
+          .join('')}<hr>`
+      : '';
+  return `
+    ${ticketEncabezadoHtml()}
+    <div class="center">COMPROBANTE DE PAGO — CUENTA CORRIENTE</div><hr>
+    Cliente: ${data.cliente_nombre}<br>
+    Fecha: ${new Date().toLocaleString('es-AR')}<hr>
+    SALDO ANTERIOR&nbsp;&nbsp;${moneyStr(data.saldo_anterior)}<br>
+    PAGO (${data.forma_pago})&nbsp;&nbsp;${moneyStr(-data.monto_pagado)}<hr>
+    ${ventasHtml}
+    SALDO ACTUAL&nbsp;&nbsp;<b>${moneyStr(data.saldo_nuevo)}</b><br>
+    ${saldada ? '<hr><div class="center"><b>CUENTA SALDADA</b></div>' : ''}
+    ${ticketPieHtml()}
+  `;
+}
+
+function mostrarTicketCtaCte(data) {
+  ultimoDocumentoParaTicket = { tipo: 'cta-cte', data };
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
+  document.getElementById('btnImprimirA4').style.display = 'none';
+  document.getElementById('btnEditarTicketRendicion').style.display = 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  mostrarTicketComoTermico(construirTicketCtaCteHtml(data));
+  showScreen('ticket-screen');
 }
 
 // ============================================================
@@ -1273,7 +1446,21 @@ function construirTicketCierreHtml(t) {
     .map(([fp, monto]) => `${fp}&nbsp;&nbsp;${moneyStr(monto)}<br>`)
     .join('') || 'Sin ventas.<br>';
 
-  const gastosMov = t.movimientos.filter((m) => m.categoria !== 'venta' && m.categoria !== 'caja_fuerte');
+  // Los cobros de Cuenta Corriente (clientes saldando deuda vieja) se
+  // muestran aparte, por forma de pago, igual que las ventas del día —
+  // aunque ambos sumen al mismo total de caja, no son lo mismo.
+  const ctaCteMov = t.movimientos.filter((m) => m.categoria === 'cuenta_corriente');
+  const porFormaCtaCte = {};
+  ctaCteMov.forEach((m) => {
+    const fp = m.forma_pago || 'Otro';
+    porFormaCtaCte[fp] = (porFormaCtaCte[fp] || 0) + m.monto;
+  });
+  const totalCtaCteCobrada = Object.values(porFormaCtaCte).reduce((a, b) => a + b, 0);
+  const ctaCteHtml = Object.entries(porFormaCtaCte)
+    .map(([fp, monto]) => `${fp}&nbsp;&nbsp;${moneyStr(monto)}<br>`)
+    .join('');
+
+  const gastosMov = t.movimientos.filter((m) => m.categoria !== 'venta' && m.categoria !== 'caja_fuerte' && m.categoria !== 'cuenta_corriente');
   const totalGastos = gastosMov.reduce((a, m) => a + (m.tipo === 'egreso' ? m.monto : -m.monto), 0);
   const gastosHtml = gastosMov.length
     ? gastosMov.map((m) => `${m.concepto || m.categoria}&nbsp;&nbsp;${moneyStr(m.tipo === 'egreso' ? -m.monto : m.monto)}<br>`).join('')
@@ -1297,6 +1484,7 @@ function construirTicketCierreHtml(t) {
     <b>VENTAS POR FORMA DE PAGO</b><br>
     ${ventasHtml}
     TOTAL VENTAS&nbsp;&nbsp;<b>${moneyStr(totalVentas)}</b><hr>
+    ${totalCtaCteCobrada > 0 ? `<b>CTA. CTE. COBRADA</b><br>${ctaCteHtml}TOTAL CTA. CTE. COBRADA&nbsp;&nbsp;<b>${moneyStr(totalCtaCteCobrada)}</b><hr>` : ''}
     <b>MOVIMIENTOS DE CAJA</b><br>
     ${gastosHtml}
     TOTAL MOVIMIENTOS&nbsp;&nbsp;<b>${moneyStr(-totalGastos)}</b><hr>
@@ -2005,9 +2193,9 @@ socket.on('sistema:reseteado', () => {
 let session = null;
 const PANTALLAS_POR_ROL = {
   // Stock queda reservado exclusivamente al puesto STOCK, ni ADMIN lo ve.
-  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
-  CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'caja'],
-  VENTA: ['venta', 'pendientes', 'presupuestos', 'clientes'],
+  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'cuentacorriente', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
+  CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'caja'],
+  VENTA: ['venta', 'pendientes', 'presupuestos', 'clientes', 'cuentacorriente'],
   STOCK: ['stock', 'productos', 'compras'],
 };
 
@@ -4743,9 +4931,16 @@ function filaVentaHistorial(v) {
   const botonFacturar = puedeFacturar
     ? `<button class="btn green" onclick='abrirFacturarVenta(${v.id}, ${JSON.stringify(v.cliente_nombre || null)}, ${v.cliente_id || 'null'})'>Facturar</button>`
     : '';
+  // Igual que en posBerry: una venta a Cuenta Corriente se marca en rojo
+  // mientras el cliente no la termine de pagar, y en verde una vez saldada.
+  let formaPagoCelda = v.forma_pago || '—';
+  if (v.estado === 'cobrada' && v.forma_pago === 'Cuenta Corriente') {
+    const saldada = Number(v.cta_cte_saldo_pendiente) <= 0;
+    formaPagoCelda = `<span class="status ${saldada ? 's-ok' : 's-bad'}" title="${saldada ? 'Cta. Cte. saldada' : 'Cta. Cte. pendiente de cobro'}">Cta. Cte. ${saldada ? '✓' : `($ ${money.format(v.cta_cte_saldo_pendiente)})`}</span>`;
+  }
   tr.innerHTML = `
     <td>${v.numero}</td><td>${hora}</td><td>${v.cliente_nombre || 'Consumidor Final'}</td>
-    <td>${v.tipo_comprobante}</td><td>${v.forma_pago || '—'}</td><td>$ ${money.format(v.total)}</td>
+    <td>${v.tipo_comprobante}</td><td>${formaPagoCelda}</td><td>$ ${money.format(v.total)}</td>
     <td><span class="status ${estadoCls}">${v.estado}</span></td>
     <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button> ${botonFacturar}</td>
   `;

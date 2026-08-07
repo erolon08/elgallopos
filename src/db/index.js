@@ -53,6 +53,8 @@ ensureColumn('presupuesto_items', 'pila_producto_id', 'INTEGER REFERENCES produc
 ensureColumn('presupuesto_items', 'precio_final', 'REAL');
 ensureColumn('presupuesto_items', 'precio_debito', 'REAL');
 ensureColumn('presupuesto_items', 'precio_efectivo', 'REAL');
+ensureColumn('clientes', 'saldo_cta_cte', 'REAL NOT NULL DEFAULT 0');
+ensureColumn('ventas', 'cta_cte_saldo_pendiente', 'REAL NOT NULL DEFAULT 0');
 
 // El CHECK de la columna "rol" no se puede tocar con ALTER TABLE ADD COLUMN:
 // hay que recrear la tabla. Se evita renombrar la tabla "usuarios" original

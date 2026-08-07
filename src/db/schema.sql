@@ -139,12 +139,35 @@ CREATE TABLE IF NOT EXISTS clientes (
   tipo_cliente TEXT NOT NULL DEFAULT 'GENERAL',
   venta_a_credito INTEGER NOT NULL DEFAULT 0,
   limite_credito REAL NOT NULL DEFAULT 0,
+  saldo_cta_cte REAL NOT NULL DEFAULT 0, -- cuánto debe hoy (positivo = debe); se mueve solo vía cc_movimientos
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_clientes_nombre ON clientes(nombre);
 CREATE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono);
 CREATE INDEX IF NOT EXISTS idx_clientes_documento ON clientes(documento);
+
+-- ============================================================
+-- CUENTA CORRIENTE DE CLIENTES (kardex, mismo patrón que stock_movimientos)
+-- tipo: saldo_inicial (carga de migración) | venta (Cta. Cte. al cobrar) |
+-- pago (el cliente paga, resta) | ajuste (manual) | nota_credito (reversa una venta anulada)
+-- monto: positivo = suma deuda, negativo = resta deuda (pago)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS cc_movimientos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+  tipo TEXT NOT NULL CHECK (tipo IN ('saldo_inicial','venta','pago','ajuste','nota_credito')),
+  monto REAL NOT NULL,
+  saldo_resultante REAL NOT NULL,
+  motivo TEXT,
+  forma_pago TEXT, -- solo en tipo='pago': cómo pagó (Efectivo, Transferencia, etc.)
+  referencia_tipo TEXT, -- 'venta' | null
+  referencia_id INTEGER,
+  usuario_id INTEGER REFERENCES usuarios(id),
+  terminal TEXT,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ccmov_cliente ON cc_movimientos(cliente_id, creado_en);
 
 -- patente: única por vehículo, se busca como identificador principal.
 CREATE TABLE IF NOT EXISTS vehiculos (
@@ -244,11 +267,18 @@ CREATE TABLE IF NOT EXISTS ventas (
   iva_neto REAL,
   iva_monto REAL,
   enviado_whatsapp INTEGER NOT NULL DEFAULT 0,
+  -- Cuánto de la parte pagada "Cuenta Corriente" de ESTA venta sigue sin
+  -- cobrarse (0 = saldada). Se inicializa al cobrar y baja a medida que el
+  -- cliente paga (registrarPago en cc.service.js la reparte de la venta más
+  -- vieja a la más nueva). No es lo mismo que clientes.saldo_cta_cte (que es
+  -- el total del cliente); esto es para poder pintar cada venta de rojo/verde.
+  cta_cte_saldo_pendiente REAL NOT NULL DEFAULT 0,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   cobrado_en TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_ventas_estado ON ventas(estado);
 CREATE INDEX IF NOT EXISTS idx_ventas_cliente ON ventas(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_ventas_ctacte_pendiente ON ventas(cta_cte_saldo_pendiente);
 
 -- venta_items.monto_mano_obra: solo se carga en líneas de productos de familias
 -- con usa_mano_obra = 1 (SERVICIOS). Es la base para calcular la rendición del

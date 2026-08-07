@@ -1,6 +1,7 @@
 const db = require('../db');
 const stockService = require('./stock.service');
 const cajaService = require('./caja.service');
+const ccService = require('./cc.service');
 const configuracionService = require('./configuracion.service');
 const arcaFacturacionService = require('./arca-facturacion.service');
 
@@ -300,14 +301,33 @@ const cobrarTx = db.transaction((id, datos) => {
       referencia_id: id,
       usuario_id: datos.usuario_id || null,
     });
+    // La parte pagada "Cuenta Corriente" suma como deuda del cliente.
+    if (p.forma_pago === 'Cuenta Corriente' && venta.cliente_id) {
+      ccService.registrarMovimiento({
+        cliente_id: venta.cliente_id,
+        tipo: 'venta',
+        monto: Math.abs(Number(p.monto) || 0),
+        motivo: `Venta N° ${venta.numero}`,
+        referencia_tipo: 'venta',
+        referencia_id: id,
+        usuario_id: datos.usuario_id,
+        terminal: datos.terminal,
+      });
+    }
   });
 
   const formaPagoResumen = datos.pagos.length > 1 ? 'Pago combinado' : datos.pagos[0].forma_pago;
+  // Cuánto de esta venta quedó a Cuenta Corriente sin cobrar todavía — arranca
+  // pendiente del total (si tuvo parte Cta. Cte.), y baja después con cada
+  // pago del cliente (ver registrarPago en cc.service.js).
+  const totalCtaCte = datos.pagos
+    .filter((p) => p.forma_pago === 'Cuenta Corriente')
+    .reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
 
   db.prepare(
     `UPDATE ventas SET estado = 'cobrada', forma_pago = ?, tipo_comprobante = ?,
        numero_comprobante = ?, cae = ?, cae_vencimiento = ?, iva_neto = ?, iva_monto = ?,
-       caja_turno_id = ?, cobrado_en = datetime('now','localtime') WHERE id = ?`
+       caja_turno_id = ?, cta_cte_saldo_pendiente = ?, cobrado_en = datetime('now','localtime') WHERE id = ?`
   ).run(
     formaPagoResumen,
     datos.tipo_comprobante || venta.tipo_comprobante,
@@ -317,6 +337,7 @@ const cobrarTx = db.transaction((id, datos) => {
     datos.iva_neto ?? null,
     datos.iva_monto ?? null,
     turno.id,
+    totalCtaCte,
     id
   );
 
@@ -500,10 +521,23 @@ const anular = db.transaction((id, { motivo, usuario_id, terminal } = {}) => {
         id,
         usuario_id || null
       );
+      // Revierte la deuda que había sumado esta venta a la cuenta corriente.
+      if (p.forma_pago === 'Cuenta Corriente' && venta.cliente_id) {
+        ccService.registrarMovimiento({
+          cliente_id: venta.cliente_id,
+          tipo: 'nota_credito',
+          monto: -Math.abs(Number(p.monto) || 0),
+          motivo: `Anulación venta N° ${venta.numero}${motivo ? ' — ' + motivo : ''}`,
+          referencia_tipo: 'venta',
+          referencia_id: id,
+          usuario_id,
+          terminal,
+        });
+      }
     });
   }
 
-  db.prepare("UPDATE ventas SET estado = 'anulada' WHERE id = ?").run(id);
+  db.prepare("UPDATE ventas SET estado = 'anulada', cta_cte_saldo_pendiente = 0 WHERE id = ?").run(id);
   return obtener(id);
 });
 
