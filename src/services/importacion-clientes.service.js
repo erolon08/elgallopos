@@ -103,40 +103,59 @@ function importarClientes(filas) {
   return { creados, recodificados, omitidos, totalErrores: errores.length, errores: errores.slice(0, 50) };
 }
 
-// Importación del saldo de cuenta corriente que traían los clientes en
-// posBerry (u otro sistema anterior), para arrancar con el mismo punto de
-// partida en vez de perder esa deuda/a favor. Columnas esperadas:
+// Importación de la cuenta corriente que traían los clientes en posBerry (u
+// otro sistema anterior), factura por factura, para poder después cancelar
+// cada una individualmente igual que una venta a Cta. Cte. Columnas
+// esperadas:
 //   0 Código (tiene que coincidir con el código ya cargado en Clientes)
-//   1 Saldo (positivo = el cliente debe, negativo = el cliente tiene a favor)
+//   1 Razón Social (solo informativa, no se usa para nada — el cliente ya
+//     tiene su nombre cargado; sirve para que quien arma la planilla pueda
+//     revisarla a ojo)
+//   2 Número de factura
+//   3 Monto (positivo = el cliente debe esa factura)
 // No crea clientes nuevos: si el código no existe en la base, se reporta
-// como "no encontrado" para cargarlo a mano después. Es a prueba de doble
-// ejecución accidental: si un cliente ya tiene un saldo inicial cargado, esa
-// fila se salta en vez de sumarle el saldo dos veces.
+// como "no encontrado" para cargarlo a mano después. Cada factura queda
+// como una deuda propia (tabla cc_deudas_migradas), separada de "ventas"
+// porque no es una venta real hecha en este sistema. Es a prueba de doble
+// ejecución accidental: si la combinación cliente + número de factura ya fue
+// importada, esa fila se salta en vez de duplicar la deuda.
 function importarSaldos(filas) {
   const ccService = require('./cc.service');
 
   let cargados = 0;
   let noEncontrados = 0;
-  let yaTenianSaldo = 0;
-  let sinSaldo = 0;
+  let yaImportadas = 0;
+  let sinMonto = 0;
   const errores = [];
   const noEncontradosDetalle = [];
 
   const buscarCliente = db.prepare('SELECT id, nombre FROM clientes WHERE codigo = ?');
-  const yaTieneSaldoInicial = db.prepare("SELECT 1 FROM cc_movimientos WHERE cliente_id = ? AND tipo = 'saldo_inicial'");
+  const yaImportada = db.prepare(
+    'SELECT 1 FROM cc_deudas_migradas WHERE cliente_id = ? AND numero_factura = ?'
+  );
+  const insertarDeuda = db.prepare(`
+    INSERT INTO cc_deudas_migradas (cliente_id, numero_factura, razon_social, monto_original, saldo_pendiente)
+    VALUES (@cliente_id, @numero_factura, @razon_social, @monto, @monto)
+  `);
 
   const ejecutar = db.transaction((filas) => {
     filas.forEach((fila, idx) => {
       const numeroFila = idx + 2;
       const codigo = limpiar(fila[0]);
-      const saldo = Number(fila[1]);
+      const razonSocial = limpiar(fila[1]);
+      const numeroFactura = limpiar(fila[2]);
+      const monto = Number(fila[3]);
 
       if (!codigo) {
         errores.push({ fila: numeroFila, motivo: 'Falta el código' });
         return;
       }
-      if (!Number.isFinite(saldo) || saldo === 0) {
-        sinSaldo++;
+      if (!numeroFactura) {
+        errores.push({ fila: numeroFila, codigo, motivo: 'Falta el número de factura' });
+        return;
+      }
+      if (!Number.isFinite(monto) || monto === 0) {
+        sinMonto++;
         return;
       }
 
@@ -146,17 +165,18 @@ function importarSaldos(filas) {
         noEncontradosDetalle.push({ fila: numeroFila, codigo });
         return;
       }
-      if (yaTieneSaldoInicial.get(cliente.id)) {
-        yaTenianSaldo++;
+      if (yaImportada.get(cliente.id, numeroFactura)) {
+        yaImportadas++;
         return;
       }
 
       try {
+        insertarDeuda.run({ cliente_id: cliente.id, numero_factura: numeroFactura, razon_social: razonSocial, monto });
         ccService.registrarMovimiento({
           cliente_id: cliente.id,
           tipo: 'saldo_inicial',
-          monto: saldo,
-          motivo: 'Saldo inicial importado de posBerry',
+          monto,
+          motivo: `Factura N° ${numeroFactura} importada de posBerry`,
         });
         cargados++;
       } catch (err) {
@@ -169,8 +189,8 @@ function importarSaldos(filas) {
   return {
     cargados,
     noEncontrados,
-    yaTenianSaldo,
-    sinSaldo,
+    yaImportadas,
+    sinMonto,
     totalErrores: errores.length,
     errores: errores.slice(0, 50),
     noEncontradosDetalle: noEncontradosDetalle.slice(0, 100),

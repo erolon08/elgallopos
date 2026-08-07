@@ -97,7 +97,8 @@ router.post('/:id/cta-cte/cobro', (req, res) => {
       motivo: req.body.motivo,
       usuario_id: req.body.usuario_id,
       terminal: req.body.terminal,
-      venta_id: req.body.venta_id || null,
+      deuda_id: req.body.deuda_id || null,
+      deuda_tipo: req.body.deuda_tipo || null,
     });
     res.json(resultado);
   } catch (err) {

@@ -169,6 +169,22 @@ CREATE TABLE IF NOT EXISTS cc_movimientos (
 );
 CREATE INDEX IF NOT EXISTS idx_ccmov_cliente ON cc_movimientos(cliente_id, creado_en);
 
+-- Deuda migrada desde otro sistema (posBerry) por factura puntual, separada
+-- de "ventas" a propósito: no es una venta real hecha acá (no tiene items,
+-- no descuenta stock, no debe aparecer en reportes/rankings de ventas), pero
+-- sí tiene que poder listarse y cancelarse individualmente igual que una
+-- venta a Cta. Cte., por eso comparte el concepto de "saldo_pendiente".
+CREATE TABLE IF NOT EXISTS cc_deudas_migradas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+  numero_factura TEXT,
+  razon_social TEXT,
+  monto_original REAL NOT NULL,
+  saldo_pendiente REAL NOT NULL,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ccdeudas_cliente ON cc_deudas_migradas(cliente_id, saldo_pendiente);
+
 -- patente: única por vehículo, se busca como identificador principal.
 CREATE TABLE IF NOT EXISTS vehiculos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

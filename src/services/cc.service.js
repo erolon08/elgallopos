@@ -66,18 +66,37 @@ function movimientos(cliente_id, { desde, hasta } = {}) {
   return db.prepare(sql).all(params);
 }
 
-// Todas las ventas a Cta. Cte. de un cliente que todavía tienen saldo
-// pendiente — para elegir una factura puntual a cancelar en vez de un pago
-// libre.
+// Todas las deudas pendientes de un cliente — ventas reales a Cta. Cte. Y
+// facturas migradas de posBerry — unificadas en una sola lista cronológica
+// para elegir una factura puntual a cancelar en vez de un pago libre.
 function pendientesDeCliente(cliente_id) {
-  return db
+  const deVentas = db
     .prepare(
-      `SELECT id, numero, total, cta_cte_saldo_pendiente, creado_en
+      `SELECT id, 'venta' AS tipo, numero, total, cta_cte_saldo_pendiente AS saldo_pendiente, creado_en
        FROM ventas
-       WHERE cliente_id = ? AND estado = 'cobrada' AND cta_cte_saldo_pendiente > 0
-       ORDER BY creado_en ASC, id ASC`
+       WHERE cliente_id = ? AND estado = 'cobrada' AND cta_cte_saldo_pendiente > 0`
     )
     .all(cliente_id);
+  const migradas = db
+    .prepare(
+      `SELECT id, 'migrada' AS tipo, numero_factura AS numero, monto_original AS total, saldo_pendiente, creado_en
+       FROM cc_deudas_migradas
+       WHERE cliente_id = ? AND saldo_pendiente > 0`
+    )
+    .all(cliente_id);
+  return [...deVentas, ...migradas].sort((a, b) => a.creado_en.localeCompare(b.creado_en) || a.id - b.id);
+}
+
+// Aplica "aplicado" pesos a una deuda puntual (venta real o factura
+// migrada) y devuelve el dato para armar el ticket/historial.
+function aplicarAdeuda(deuda, aplicado) {
+  const nuevoSaldo = Math.round((deuda.saldo_pendiente - aplicado) * 100) / 100;
+  if (deuda.tipo === 'migrada') {
+    db.prepare('UPDATE cc_deudas_migradas SET saldo_pendiente = ? WHERE id = ?').run(nuevoSaldo, deuda.id);
+  } else {
+    db.prepare('UPDATE ventas SET cta_cte_saldo_pendiente = ? WHERE id = ?').run(nuevoSaldo, deuda.id);
+  }
+  return { numero: deuda.numero, tipo: deuda.tipo, aplicado, saldada: nuevoSaldo <= 0 };
 }
 
 // Registra que el cliente pagó (total o parcial) su deuda: resta del saldo y
@@ -85,15 +104,20 @@ function pendientesDeCliente(cliente_id) {
 // negocio igual que una venta cobrada, con la forma de pago que sea
 // (efectivo, transferencia, cheque, tarjeta, QR...). Lo pagado se aplica de
 // dos formas posibles:
-//   - venta_id puntual: cancela ESA factura (no puede superar lo que le
-//     queda pendiente a esa venta en particular).
-//   - sin venta_id (pago libre): se reparte entre las ventas pendientes del
-//     cliente de la más vieja a la más nueva, como se paga una cuenta real.
-// En ambos casos se marcan las ventas afectadas como saldadas si llegan a
+//   - deuda_id + deuda_tipo puntual ('venta' o 'migrada'): cancela ESA
+//     factura (no puede superar lo que le queda pendiente a ella sola).
+//   - sin deuda_id (pago libre): se reparte entre TODAS las deudas
+//     pendientes del cliente (ventas y facturas migradas mezcladas) de la
+//     más vieja a la más nueva, como se paga una cuenta real.
+// En ambos casos se marcan las deudas afectadas como saldadas si llegan a
 // $0, para poder pintarlas de rojo/verde en el historial.
-const registrarPago = db.transaction(({ cliente_id, monto, forma_pago, motivo, usuario_id, terminal, venta_id }) => {
+const registrarPago = db.transaction(({ cliente_id, monto, forma_pago, motivo, usuario_id, terminal, venta_id, deuda_id, deuda_tipo }) => {
   const montoNum = Number(monto);
   if (!montoNum || montoNum <= 0) throw new Error('El monto a cobrar tiene que ser mayor a 0');
+
+  // venta_id queda como alias viejo de deuda_id/deuda_tipo='venta' por compatibilidad.
+  const deudaIdSel = deuda_id || venta_id || null;
+  const deudaTipoSel = deuda_id ? deuda_tipo || 'venta' : venta_id ? 'venta' : null;
 
   const clienteAntes = db.prepare('SELECT id, nombre, saldo_cta_cte FROM clientes WHERE id = ?').get(cliente_id);
   if (!clienteAntes) throw new Error('Cliente no encontrado');
@@ -109,34 +133,26 @@ const registrarPago = db.transaction(({ cliente_id, monto, forma_pago, motivo, u
     terminal,
   });
 
-  const updateVenta = db.prepare('UPDATE ventas SET cta_cte_saldo_pendiente = ? WHERE id = ?');
   const ventasAfectadas = [];
 
-  if (venta_id) {
-    const venta = db
-      .prepare(
-        `SELECT id, numero, cta_cte_saldo_pendiente FROM ventas
-         WHERE id = ? AND cliente_id = ? AND estado = 'cobrada' AND cta_cte_saldo_pendiente > 0`
-      )
-      .get(venta_id, cliente_id);
-    if (!venta) throw new Error('Esa factura no existe, no es de este cliente, o ya está saldada.');
-    if (montoNum > venta.cta_cte_saldo_pendiente + 0.01) {
+  if (deudaIdSel) {
+    const deuda = pendientesDeCliente(cliente_id).find(
+      (d) => d.tipo === deudaTipoSel && Number(d.id) === Number(deudaIdSel)
+    );
+    if (!deuda) throw new Error('Esa factura no existe, no es de este cliente, o ya está saldada.');
+    if (montoNum > deuda.saldo_pendiente + 0.01) {
       throw new Error(
-        `El monto ($${montoNum}) no puede superar el saldo pendiente de la Venta N° ${venta.numero} ($${venta.cta_cte_saldo_pendiente}). Para pagar más, hacelo como pago libre.`
+        `El monto ($${montoNum}) no puede superar el saldo pendiente de la factura N° ${deuda.numero} ($${deuda.saldo_pendiente}). Para pagar más, hacelo como pago libre.`
       );
     }
-    const nuevoSaldoVenta = Math.round((venta.cta_cte_saldo_pendiente - montoNum) * 100) / 100;
-    updateVenta.run(nuevoSaldoVenta, venta.id);
-    ventasAfectadas.push({ numero: venta.numero, aplicado: montoNum, saldada: nuevoSaldoVenta <= 0 });
+    ventasAfectadas.push(aplicarAdeuda(deuda, montoNum));
   } else {
     let restante = montoNum;
     const pendientes = pendientesDeCliente(cliente_id);
-    for (const v of pendientes) {
+    for (const d of pendientes) {
       if (restante <= 0) break;
-      const aplicado = Math.min(restante, v.cta_cte_saldo_pendiente);
-      const nuevoSaldoVenta = Math.round((v.cta_cte_saldo_pendiente - aplicado) * 100) / 100;
-      updateVenta.run(nuevoSaldoVenta, v.id);
-      ventasAfectadas.push({ numero: v.numero, aplicado, saldada: nuevoSaldoVenta <= 0 });
+      const aplicado = Math.min(restante, d.saldo_pendiente);
+      ventasAfectadas.push(aplicarAdeuda(d, aplicado));
       restante -= aplicado;
     }
   }

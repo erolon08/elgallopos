@@ -1041,7 +1041,7 @@ async function importarSaldosExcel(event) {
   if (!archivo) return;
   if (
     !confirm(
-      `¿Importar "${archivo.name}"? Columnas esperadas: Código (el mismo que ya tiene el cliente cargado acá) y Saldo. Los clientes que ya tenían un saldo inicial cargado se saltean, para no sumarlo dos veces.`
+      `¿Importar "${archivo.name}"? Columnas esperadas, en este orden: Código (el mismo que ya tiene el cliente cargado acá) | Razón Social (solo informativa) | Número de Factura | Monto. Cada factura queda como una deuda que se puede cancelar por separado. Si una factura ya fue importada antes para ese cliente, se saltea, para no duplicarla.`
     )
   ) {
     input.value = '';
@@ -1060,10 +1060,10 @@ async function importarSaldosExcel(event) {
       alert('Error al importar: ' + data.error);
       return;
     }
-    let msg = `Importación completa.\nSaldos cargados: ${data.cargados}`;
+    let msg = `Importación completa.\nFacturas cargadas: ${data.cargados}`;
     if (data.noEncontrados) msg += `\nCódigos no encontrados (revisar a mano): ${data.noEncontrados}`;
-    if (data.yaTenianSaldo) msg += `\nYa tenían saldo inicial cargado (salteados): ${data.yaTenianSaldo}`;
-    if (data.sinSaldo) msg += `\nFilas sin saldo o en $0 (ignoradas): ${data.sinSaldo}`;
+    if (data.yaImportadas) msg += `\nFacturas ya importadas antes (salteadas): ${data.yaImportadas}`;
+    if (data.sinMonto) msg += `\nFilas sin monto o en $0 (ignoradas): ${data.sinMonto}`;
     if (data.totalErrores) msg += `\nFilas con error: ${data.totalErrores}`;
     alert(msg);
     cargarClientes();
@@ -1106,7 +1106,10 @@ async function cargarCtaCte() {
   select.innerHTML =
     '<option value="">Pago libre (se aplica a la factura más vieja primero)</option>' +
     ctaCtePendientesCache
-      .map((v) => `<option value="${v.id}">Venta N° ${v.numero} — $ ${money.format(v.cta_cte_saldo_pendiente)} pendiente</option>`)
+      .map(
+        (v, i) =>
+          `<option value="${i}">${v.tipo === 'migrada' ? `Factura N° ${v.numero} (migrada)` : `Venta N° ${v.numero}`} — $ ${money.format(v.saldo_pendiente)} pendiente</option>`
+      )
       .join('');
 
   const movs = await (await fetch(`/api/clientes/${ctaCteClienteId}/cta-cte/movimientos`)).json();
@@ -1134,16 +1137,17 @@ async function cargarCtaCte() {
 // pendiente a ESA venta (se puede bajar a mano para un pago parcial de esa
 // misma factura, pero no puede superarlo — eso lo valida el servidor).
 function cambiarVentaSeleccionadaCtaCte() {
-  const ventaId = document.getElementById('ctaCteVentaSelect').value;
-  if (!ventaId) return;
-  const venta = ctaCtePendientesCache.find((v) => String(v.id) === ventaId);
-  if (venta) document.getElementById('ctaCteMontoCobro').value = venta.cta_cte_saldo_pendiente;
+  const idx = document.getElementById('ctaCteVentaSelect').value;
+  if (idx === '') return;
+  const deuda = ctaCtePendientesCache[Number(idx)];
+  if (deuda) document.getElementById('ctaCteMontoCobro').value = deuda.saldo_pendiente;
 }
 
 async function registrarCobroCtaCte() {
   const monto = Number(document.getElementById('ctaCteMontoCobro').value);
   const forma_pago = document.getElementById('ctaCteFormaPago').value;
-  const venta_id = document.getElementById('ctaCteVentaSelect').value || null;
+  const idx = document.getElementById('ctaCteVentaSelect').value;
+  const deudaSeleccionada = idx === '' ? null : ctaCtePendientesCache[Number(idx)];
   if (!monto || monto <= 0) {
     alert('Ingresá un monto válido.');
     return;
@@ -1151,7 +1155,14 @@ async function registrarCobroCtaCte() {
   const res = await fetch(`/api/clientes/${ctaCteClienteId}/cta-cte/cobro`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ monto, forma_pago, venta_id, usuario_id: session.id, terminal: session.rol }),
+    body: JSON.stringify({
+      monto,
+      forma_pago,
+      deuda_id: deudaSeleccionada ? deudaSeleccionada.id : null,
+      deuda_tipo: deudaSeleccionada ? deudaSeleccionada.tipo : null,
+      usuario_id: session.id,
+      terminal: session.rol,
+    }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -1194,8 +1205,11 @@ function construirTicketCtaCteHtml(data) {
   const saldada = Number(data.saldo_nuevo) <= 0;
   const ventasHtml =
     data.ventas_afectadas && data.ventas_afectadas.length
-      ? `<b>VENTAS ABONADAS</b><br>${data.ventas_afectadas
-          .map((v) => `Venta N° ${v.numero}&nbsp;&nbsp;${moneyStr(v.aplicado)}${v.saldada ? ' (saldada)' : ' (parcial)'}<br>`)
+      ? `<b>FACTURAS ABONADAS</b><br>${data.ventas_afectadas
+          .map(
+            (v) =>
+              `${v.tipo === 'migrada' ? `Factura N° ${v.numero}` : `Venta N° ${v.numero}`}&nbsp;&nbsp;${moneyStr(v.aplicado)}${v.saldada ? ' (saldada)' : ' (parcial)'}<br>`
+          )
           .join('')}<hr>`
       : '';
   return `
