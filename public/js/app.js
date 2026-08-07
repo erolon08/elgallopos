@@ -3218,7 +3218,11 @@ function agregarProductoACarritoInterno(p, tipoElegido, pila) {
       precio_unico: true,
       precios: { final: precioConPila, debito: precioConPila, efectivo: precioConPila },
       precio_unitario: precioConPila,
-      tipo_precio: 'final',
+      // Con pila el precio deja de ser el de catálogo puro: se marca
+      // "manual" para que un presupuesto no lo vuelva a recalcular desde el
+      // producto solo (perdiendo el agregado de la pila) — ver
+      // calcularPreciosPresupuestoItem.
+      tipo_precio: pila ? 'manual' : 'final',
       descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
       pila_producto_id: pilaProductoId,
@@ -3238,7 +3242,10 @@ function agregarProductoACarritoInterno(p, tipoElegido, pila) {
       es_servicio: false,
       precios,
       precio_unitario: precios[tipo],
-      tipo_precio: tipo,
+      // Ídem: con pila el precio ya no es el de catálogo puro, se marca
+      // "manual" para que los presupuestos respeten el precio con pila
+      // incluida en vez de recalcularlo desde el producto solo.
+      tipo_precio: pila ? 'manual' : tipo,
       descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
       pila_producto_id: pilaProductoId,
