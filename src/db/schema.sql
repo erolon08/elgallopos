@@ -378,7 +378,15 @@ CREATE TABLE IF NOT EXISTS presupuesto_items (
   tipo_precio TEXT NOT NULL DEFAULT 'final', -- final | debito | efectivo | manual
   descuento REAL NOT NULL DEFAULT 0,
   monto_mano_obra REAL,
-  pila_producto_id INTEGER REFERENCES productos(id) -- solo familias con pregunta_pila=1: qué pila se usó
+  pila_producto_id INTEGER REFERENCES productos(id), -- solo familias con pregunta_pila=1: qué pila se usó
+  -- Desglose F/D/E "congelado" tal como quedó calculado en el carrito al
+  -- armar el presupuesto (incluye pila si correspondía, y si el precio se
+  -- editó a mano, las otras 2 formas de pago recalculadas por el % de la
+  -- familia) — evita depender de volver a mirar el precio de catálogo, que
+  -- puede haber cambiado o no reflejar una edición manual.
+  precio_final REAL,
+  precio_debito REAL,
+  precio_efectivo REAL
 );
 
 -- ============================================================

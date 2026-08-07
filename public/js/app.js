@@ -3242,6 +3242,11 @@ function agregarProductoACarritoInterno(p, tipoElegido, pila) {
       descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
       pila_producto_id: pilaProductoId,
+      // % de descuento débito/efectivo de la familia del producto, para
+      // poder recalcular los otros 2 precios si se edita este a mano (ver
+      // cambiarPrecioLinea).
+      descuento_debito_pct: Number(p.descuento_debito) || 0,
+      descuento_efectivo_pct: Number(p.descuento_efectivo) || 0,
     });
   }
   renderVenta();
@@ -3360,9 +3365,41 @@ function cambiarCantidadLinea(i, v) {
   carritoVenta[i].cantidad = Math.max(1, Number(v) || 1);
   actualizarFilaEnVivoVenta(i);
 }
+// Al editar a mano el precio de un producto normal (no pila, no servicio),
+// se recalculan los otros 2 precios usando el % de descuento débito/efectivo
+// de la familia, tomando como base la forma de pago que estaba tildada (F,
+// D o E) — así "Final $77.900" también actualiza Débito y Efectivo en vez de
+// congelar un solo número (que era lo que pasaba antes).
 function cambiarPrecioLinea(i, v) {
-  carritoVenta[i].precio_unitario = Number(v) || 0;
-  carritoVenta[i].tipo_precio = 'manual';
+  const it = carritoVenta[i];
+  const nuevo = Number(v) || 0;
+  if (it.es_servicio || it.precio_unico || !it.precios) {
+    it.precio_unitario = nuevo;
+    it.tipo_precio = 'manual';
+    actualizarFilaEnVivoVenta(i);
+    return;
+  }
+  const tipoBase = ['final', 'debito', 'efectivo'].includes(it.tipo_precio) ? it.tipo_precio : 'final';
+  const dDebito = Math.min(99, Math.max(0, Number(it.descuento_debito_pct) || 0));
+  const dEfectivo = Math.min(99, Math.max(0, Number(it.descuento_efectivo_pct) || 0));
+  let final;
+  if (tipoBase === 'final') {
+    final = nuevo;
+  } else if (tipoBase === 'debito') {
+    final = nuevo / (1 - dDebito / 100);
+  } else {
+    final = nuevo / (1 - dEfectivo / 100);
+  }
+  // Igual que el redondeo del catálogo (roundUpTo100): solo se redondean
+  // las 2 formas de pago que se derivan, la que el cajero tipeó se respeta
+  // tal cual la escribió.
+  it.precios = {
+    final: tipoBase === 'final' ? final : roundUpTo100(final),
+    debito: tipoBase === 'debito' ? nuevo : roundUpTo100(final * (1 - dDebito / 100)),
+    efectivo: tipoBase === 'efectivo' ? nuevo : roundUpTo100(final * (1 - dEfectivo / 100)),
+  };
+  it.precio_unitario = nuevo;
+  it.tipo_precio = tipoBase;
   actualizarFilaEnVivoVenta(i);
 }
 function cambiarDescuentoLineaPct(i, v) {
@@ -3549,6 +3586,13 @@ function itemsParaApi() {
       monto_mano_obra: it.es_servicio ? it.monto_mano_obra : null,
       cerrajero_id: it.cerrajero_id || null,
       pila_producto_id: it.pila_producto_id || null,
+      // Desglose F/D/E de la línea (incluye pila y/o precio editado a mano
+      // ya recalculado) — se guarda en el presupuesto para no depender de
+      // volver a mirar el catálogo. No aplica a servicios (se calculan
+      // siempre desde la mano de obra) ni a líneas sin producto vinculado.
+      precio_final: !it.es_servicio && it.precios ? it.precios.final : null,
+      precio_debito: !it.es_servicio && it.precios ? it.precios.debito : null,
+      precio_efectivo: !it.es_servicio && it.precios ? it.precios.efectivo : null,
     };
   });
 }
@@ -3977,9 +4021,24 @@ function calcularPreciosPresupuestoItem(it) {
   const descPct = bruto > 0 ? (Number(it.descuento || 0) / bruto) * 100 : 0;
   const factor = Number(it.cantidad) * (1 - descPct / 100);
 
-  // Precio tocado a mano: no sigue el % de recargo/descuento por forma de
-  // pago del catálogo (por algo se cambió a mano), así que se respeta ese
-  // precio igual en las 3 columnas en vez de recalcularlo desde el producto.
+  if (!esServicio && it.precio_final != null && it.precio_debito != null && it.precio_efectivo != null) {
+    // La línea ya trae el desglose F/D/E calculado y guardado en el
+    // carrito al armar el presupuesto (incluye pila si correspondía, y si
+    // el precio se editó a mano, las otras 2 formas de pago recalculadas
+    // por el % de la familia) — se usa directo, sin volver a mirar el
+    // catálogo actual ni "aplanar" las 3 columnas a un solo número.
+    return {
+      esServicio: false,
+      tieneDebito: true,
+      final: Number(it.precio_final) * factor,
+      debito: Number(it.precio_debito) * factor,
+      efectivo: Number(it.precio_efectivo) * factor,
+    };
+  }
+
+  // Precio tocado a mano en una línea vieja (sin el desglose de arriba
+  // guardado): no hay forma de saber cómo se dividía por forma de pago, así
+  // que se respeta ese precio igual en las 3 columnas.
   if (it.tipo_precio === 'manual') {
     const unico = (Number(it.precio_unitario) || 0) * factor;
     return { esServicio, tieneDebito: false, final: unico, debito: unico, efectivo: unico };
@@ -3995,9 +4054,9 @@ function calcularPreciosPresupuestoItem(it) {
       const unico = (Number(it.precio_unitario) || 0) * factor;
       return { esServicio: false, tieneDebito: false, final: unico, debito: unico, efectivo: unico };
     }
-    // Si la línea llevó pila (ej. codificados), su precio se suma al del
-    // producto en cada columna de forma de pago — igual que en la venta —
-    // en vez de mostrar solo el precio del producto solo.
+    // Presupuesto viejo sin el desglose guardado: si la línea llevó pila
+    // (ej. codificados), su precio se suma al del producto en cada columna
+    // de forma de pago, leyendo el catálogo actual como mejor esfuerzo.
     const pilaFinal = Number(it.pila_precio_final) || 0;
     const pilaDebito = Number(it.pila_precio_debito) || 0;
     const pilaEfectivo = Number(it.pila_precio_efectivo) || 0;
@@ -4623,6 +4682,8 @@ async function abrirPendienteParaEditar(id) {
         };
         linea.precio_unitario = it.precio_unitario;
         linea.tipo_precio = it.tipo_precio || 'manual';
+        linea.descuento_debito_pct = Number(producto.descuento_debito) || 0;
+        linea.descuento_efectivo_pct = Number(producto.descuento_efectivo) || 0;
       }
     } else {
       carritoVenta.push({
@@ -4932,10 +4993,19 @@ async function convertirPresupuestoEnVenta(id) {
         linea.precio_unitario = it.precio_unitario;
         linea.precios = { final: it.precio_unitario, debito: it.precio_unitario, efectivo: it.precio_unitario };
         linea.tipo_precio = 'final';
+      } else if (it.precio_final != null && it.precio_debito != null && it.precio_efectivo != null) {
+        // El presupuesto ya trae el desglose F/D/E congelado tal como se
+        // cotizó (incluye pila y/o un precio editado a mano con las otras
+        // formas de pago recalculadas) — se usa directo, sin volver a mirar
+        // el catálogo (que puede haber cambiado desde que se cotizó).
+        linea.precios = { final: Number(it.precio_final), debito: Number(it.precio_debito), efectivo: Number(it.precio_efectivo) };
+        linea.precio_unitario = it.precio_unitario;
+        linea.tipo_precio = ['final', 'debito', 'efectivo'].includes(it.tipo_precio) ? it.tipo_precio : 'manual';
+        linea.descuento_debito_pct = Number(producto.descuento_debito) || 0;
+        linea.descuento_efectivo_pct = Number(producto.descuento_efectivo) || 0;
       } else {
-        // Reconstruye los 3 precios (con la pila ya sumada, si la línea
-        // llevó una) para que los botones F/D/E de Venta sigan andando bien
-        // si el cliente termina pagando distinto a como se cotizó.
+        // Presupuesto viejo, sin el desglose guardado: se reconstruye desde
+        // el catálogo actual + la pila, como antes.
         const pilaFinal = Number(it.pila_precio_final) || 0;
         const pilaDebito = Number(it.pila_precio_debito) || 0;
         const pilaEfectivo = Number(it.pila_precio_efectivo) || 0;
@@ -4946,6 +5016,8 @@ async function convertirPresupuestoEnVenta(id) {
         };
         linea.precio_unitario = it.precio_unitario;
         linea.tipo_precio = ['final', 'debito', 'efectivo'].includes(it.tipo_precio) ? it.tipo_precio : 'manual';
+        linea.descuento_debito_pct = Number(producto.descuento_debito) || 0;
+        linea.descuento_efectivo_pct = Number(producto.descuento_efectivo) || 0;
       }
     } else {
       carritoVenta.push({

@@ -31,10 +31,13 @@ const crear = db.transaction((datos) => {
   const presupuesto_id = info.lastInsertRowid;
 
   const insertItem = db.prepare(`
-    INSERT INTO presupuesto_items (presupuesto_id, producto_id, descripcion, cantidad, precio_unitario, descuento, monto_mano_obra, tipo_precio, pila_producto_id)
-    VALUES (@presupuesto_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @descuento, @monto_mano_obra, @tipo_precio, @pila_producto_id)
+    INSERT INTO presupuesto_items
+      (presupuesto_id, producto_id, descripcion, cantidad, precio_unitario, descuento, monto_mano_obra, tipo_precio, pila_producto_id, precio_final, precio_debito, precio_efectivo)
+    VALUES
+      (@presupuesto_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @descuento, @monto_mano_obra, @tipo_precio, @pila_producto_id, @precio_final, @precio_debito, @precio_efectivo)
   `);
   const TIPOS_PRECIO_ITEM = ['final', 'debito', 'efectivo', 'manual'];
+  const numOrNull = (v) => (v != null && v !== '' ? Number(v) : null);
   datos.items.forEach((it) => {
     insertItem.run({
       presupuesto_id,
@@ -46,6 +49,9 @@ const crear = db.transaction((datos) => {
       monto_mano_obra: it.monto_mano_obra != null && it.monto_mano_obra !== '' ? Number(it.monto_mano_obra) : null,
       tipo_precio: TIPOS_PRECIO_ITEM.includes(it.tipo_precio) ? it.tipo_precio : 'final',
       pila_producto_id: it.pila_producto_id || null,
+      precio_final: numOrNull(it.precio_final),
+      precio_debito: numOrNull(it.precio_debito),
+      precio_efectivo: numOrNull(it.precio_efectivo),
     });
   });
 
