@@ -4606,7 +4606,21 @@ async function abrirPendienteParaEditar(id) {
         linea.monto_mano_obra = it.monto_mano_obra || 0;
         linea.tipo_precio = ['final', 'debito', 'efectivo'].includes(it.tipo_precio) ? it.tipo_precio : 'manual';
         linea.precio_unitario = it.precio_unitario;
+      } else if (linea.precio_unico) {
+        linea.precio_unitario = it.precio_unitario;
+        linea.precios = { final: it.precio_unitario, debito: it.precio_unitario, efectivo: it.precio_unitario };
+        linea.tipo_precio = 'final';
       } else {
+        // Reconstruye los 3 precios (con la pila ya sumada, si la línea
+        // llevó una) para que los botones F/D/E sigan andando bien.
+        const pilaFinal = Number(it.pila_precio_final) || 0;
+        const pilaDebito = Number(it.pila_precio_debito) || 0;
+        const pilaEfectivo = Number(it.pila_precio_efectivo) || 0;
+        linea.precios = {
+          final: (Number(producto.precio_final) || 0) + pilaFinal,
+          debito: (Number(producto.precio_debito) || 0) + pilaDebito,
+          efectivo: (Number(producto.precio_efectivo) || 0) + pilaEfectivo,
+        };
         linea.precio_unitario = it.precio_unitario;
         linea.tipo_precio = it.tipo_precio || 'manual';
       }
@@ -4914,9 +4928,24 @@ async function convertirPresupuestoEnVenta(id) {
         const tipoDetectado = Object.keys(precios).find((k) => Math.abs(precios[k] - it.precio_unitario) < 0.01);
         linea.tipo_precio = tipoDetectado || 'manual';
         linea.precio_unitario = it.precio_unitario;
-      } else {
+      } else if (linea.precio_unico) {
         linea.precio_unitario = it.precio_unitario;
-        linea.tipo_precio = 'manual';
+        linea.precios = { final: it.precio_unitario, debito: it.precio_unitario, efectivo: it.precio_unitario };
+        linea.tipo_precio = 'final';
+      } else {
+        // Reconstruye los 3 precios (con la pila ya sumada, si la línea
+        // llevó una) para que los botones F/D/E de Venta sigan andando bien
+        // si el cliente termina pagando distinto a como se cotizó.
+        const pilaFinal = Number(it.pila_precio_final) || 0;
+        const pilaDebito = Number(it.pila_precio_debito) || 0;
+        const pilaEfectivo = Number(it.pila_precio_efectivo) || 0;
+        linea.precios = {
+          final: (Number(producto.precio_final) || 0) + pilaFinal,
+          debito: (Number(producto.precio_debito) || 0) + pilaDebito,
+          efectivo: (Number(producto.precio_efectivo) || 0) + pilaEfectivo,
+        };
+        linea.precio_unitario = it.precio_unitario;
+        linea.tipo_precio = ['final', 'debito', 'efectivo'].includes(it.tipo_precio) ? it.tipo_precio : 'manual';
       }
     } else {
       carritoVenta.push({

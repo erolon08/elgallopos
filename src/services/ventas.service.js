@@ -124,7 +124,9 @@ function obtener(id) {
   const items = db
     .prepare(
       `SELECT vi.*, c.nombre AS cerrajero_nombre, p.codigo AS producto_codigo,
-              pp.codigo AS pila_codigo, pp.descripcion AS pila_descripcion
+              pp.codigo AS pila_codigo, pp.descripcion AS pila_descripcion,
+              pp.precio_final AS pila_precio_final, pp.precio_debito AS pila_precio_debito,
+              pp.precio_efectivo AS pila_precio_efectivo
        FROM venta_items vi
        LEFT JOIN cerrajeros c ON c.id = vi.cerrajero_id
        LEFT JOIN productos p ON p.id = vi.producto_id
