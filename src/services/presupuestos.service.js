@@ -31,8 +31,8 @@ const crear = db.transaction((datos) => {
   const presupuesto_id = info.lastInsertRowid;
 
   const insertItem = db.prepare(`
-    INSERT INTO presupuesto_items (presupuesto_id, producto_id, descripcion, cantidad, precio_unitario, descuento, monto_mano_obra, tipo_precio)
-    VALUES (@presupuesto_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @descuento, @monto_mano_obra, @tipo_precio)
+    INSERT INTO presupuesto_items (presupuesto_id, producto_id, descripcion, cantidad, precio_unitario, descuento, monto_mano_obra, tipo_precio, pila_producto_id)
+    VALUES (@presupuesto_id, @producto_id, @descripcion, @cantidad, @precio_unitario, @descuento, @monto_mano_obra, @tipo_precio, @pila_producto_id)
   `);
   const TIPOS_PRECIO_ITEM = ['final', 'debito', 'efectivo', 'manual'];
   datos.items.forEach((it) => {
@@ -45,6 +45,7 @@ const crear = db.transaction((datos) => {
       descuento: Number(it.descuento) || 0,
       monto_mano_obra: it.monto_mano_obra != null && it.monto_mano_obra !== '' ? Number(it.monto_mano_obra) : null,
       tipo_precio: TIPOS_PRECIO_ITEM.includes(it.tipo_precio) ? it.tipo_precio : 'final',
+      pila_producto_id: it.pila_producto_id || null,
     });
   });
 
@@ -59,10 +60,14 @@ function obtener(id) {
       `SELECT pi.*, p.codigo AS producto_codigo, f.usa_mano_obra,
               p.recargos_mano_obra, f.descuento_debito AS familia_descuento_debito,
               p.precio_final AS producto_precio_final, p.precio_debito AS producto_precio_debito,
-              p.precio_efectivo AS producto_precio_efectivo
+              p.precio_efectivo AS producto_precio_efectivo,
+              pila.codigo AS pila_codigo, pila.descripcion AS pila_descripcion,
+              pila.precio_final AS pila_precio_final, pila.precio_debito AS pila_precio_debito,
+              pila.precio_efectivo AS pila_precio_efectivo
        FROM presupuesto_items pi
        LEFT JOIN productos p ON p.id = pi.producto_id
        LEFT JOIN familias f ON f.id = p.familia_id
+       LEFT JOIN productos pila ON pila.id = pi.pila_producto_id
        WHERE pi.presupuesto_id = ? ORDER BY pi.id`
     )
     .all(id);

@@ -3218,11 +3218,7 @@ function agregarProductoACarritoInterno(p, tipoElegido, pila) {
       precio_unico: true,
       precios: { final: precioConPila, debito: precioConPila, efectivo: precioConPila },
       precio_unitario: precioConPila,
-      // Con pila el precio deja de ser el de catálogo puro: se marca
-      // "manual" para que un presupuesto no lo vuelva a recalcular desde el
-      // producto solo (perdiendo el agregado de la pila) — ver
-      // calcularPreciosPresupuestoItem.
-      tipo_precio: pila ? 'manual' : 'final',
+      tipo_precio: 'final',
       descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
       pila_producto_id: pilaProductoId,
@@ -3242,10 +3238,7 @@ function agregarProductoACarritoInterno(p, tipoElegido, pila) {
       es_servicio: false,
       precios,
       precio_unitario: precios[tipo],
-      // Ídem: con pila el precio ya no es el de catálogo puro, se marca
-      // "manual" para que los presupuestos respeten el precio con pila
-      // incluida en vez de recalcularlo desde el producto solo.
-      tipo_precio: pila ? 'manual' : tipo,
+      tipo_precio: tipo,
       descuento_pct: 0,
       cerrajero_id: cerrajeroDefault,
       pila_producto_id: pilaProductoId,
@@ -4002,12 +3995,18 @@ function calcularPreciosPresupuestoItem(it) {
       const unico = (Number(it.precio_unitario) || 0) * factor;
       return { esServicio: false, tieneDebito: false, final: unico, debito: unico, efectivo: unico };
     }
+    // Si la línea llevó pila (ej. codificados), su precio se suma al del
+    // producto en cada columna de forma de pago — igual que en la venta —
+    // en vez de mostrar solo el precio del producto solo.
+    const pilaFinal = Number(it.pila_precio_final) || 0;
+    const pilaDebito = Number(it.pila_precio_debito) || 0;
+    const pilaEfectivo = Number(it.pila_precio_efectivo) || 0;
     return {
       esServicio: false,
       tieneDebito: true,
-      final: Number(it.producto_precio_final) * factor,
-      debito: Number(it.producto_precio_debito) * factor,
-      efectivo: Number(it.producto_precio_efectivo) * factor,
+      final: (Number(it.producto_precio_final) + pilaFinal) * factor,
+      debito: (Number(it.producto_precio_debito) + pilaDebito) * factor,
+      efectivo: (Number(it.producto_precio_efectivo) + pilaEfectivo) * factor,
     };
   }
 
@@ -4908,6 +4907,7 @@ async function convertirPresupuestoEnVenta(id) {
       linea.descripcion = it.descripcion;
       linea.cantidad = it.cantidad;
       linea.descuento_pct = descuentoPctGuardado;
+      linea.pila_producto_id = it.pila_producto_id || null;
       if (linea.es_servicio) {
         linea.monto_mano_obra = it.monto_mano_obra || 0;
         const precios = calcularPreciosServicio(linea);

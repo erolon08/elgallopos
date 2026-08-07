@@ -49,6 +49,7 @@ ensureColumn('configuracion', 'mp_qr_fijo_template_url', 'TEXT');
 ensureColumn('familias', 'pregunta_pila', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('productos', 'es_pila', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('venta_items', 'pila_producto_id', 'INTEGER REFERENCES productos(id)');
+ensureColumn('presupuesto_items', 'pila_producto_id', 'INTEGER REFERENCES productos(id)');
 
 // El CHECK de la columna "rol" no se puede tocar con ALTER TABLE ADD COLUMN:
 // hay que recrear la tabla. Se evita renombrar la tabla "usuarios" original

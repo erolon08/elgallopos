@@ -377,7 +377,8 @@ CREATE TABLE IF NOT EXISTS presupuesto_items (
   precio_unitario REAL NOT NULL,
   tipo_precio TEXT NOT NULL DEFAULT 'final', -- final | debito | efectivo | manual
   descuento REAL NOT NULL DEFAULT 0,
-  monto_mano_obra REAL
+  monto_mano_obra REAL,
+  pila_producto_id INTEGER REFERENCES productos(id) -- solo familias con pregunta_pila=1: qué pila se usó
 );
 
 -- ============================================================
