@@ -82,6 +82,12 @@ router.get('/:id/cta-cte/movimientos', (req, res) => {
   res.json(ccService.movimientos(Number(req.params.id), { desde: req.query.desde, hasta: req.query.hasta }));
 });
 
+router.get('/:id/cta-cte/pendientes', (req, res) => {
+  const cliente = clientesService.obtener(Number(req.params.id));
+  if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+  res.json(ccService.pendientesDeCliente(Number(req.params.id)));
+});
+
 router.post('/:id/cta-cte/cobro', (req, res) => {
   try {
     const resultado = ccService.registrarPago({
@@ -91,6 +97,7 @@ router.post('/:id/cta-cte/cobro', (req, res) => {
       motivo: req.body.motivo,
       usuario_id: req.body.usuario_id,
       terminal: req.body.terminal,
+      venta_id: req.body.venta_id || null,
     });
     res.json(resultado);
   } catch (err) {

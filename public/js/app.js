@@ -1094,10 +1094,20 @@ function closeCtaCte() {
   ctaCteClienteId = null;
 }
 
+let ctaCtePendientesCache = [];
+
 async function cargarCtaCte() {
   const cliente = await (await fetch(`/api/clientes/${ctaCteClienteId}`)).json();
   document.getElementById('ctaCteSaldo').textContent = `$ ${money.format(cliente.saldo_cta_cte)}`;
   document.getElementById('ctaCteSaldo').className = Number(cliente.saldo_cta_cte) > 0 ? 'status s-bad' : 'status s-blue';
+
+  ctaCtePendientesCache = await (await fetch(`/api/clientes/${ctaCteClienteId}/cta-cte/pendientes`)).json();
+  const select = document.getElementById('ctaCteVentaSelect');
+  select.innerHTML =
+    '<option value="">Pago libre (se aplica a la factura más vieja primero)</option>' +
+    ctaCtePendientesCache
+      .map((v) => `<option value="${v.id}">Venta N° ${v.numero} — $ ${money.format(v.cta_cte_saldo_pendiente)} pendiente</option>`)
+      .join('');
 
   const movs = await (await fetch(`/api/clientes/${ctaCteClienteId}/cta-cte/movimientos`)).json();
   const tbody = document.getElementById('ctaCteBody');
@@ -1120,9 +1130,20 @@ async function cargarCtaCte() {
   });
 }
 
+// Al elegir una factura puntual, precarga el monto con lo que le queda
+// pendiente a ESA venta (se puede bajar a mano para un pago parcial de esa
+// misma factura, pero no puede superarlo — eso lo valida el servidor).
+function cambiarVentaSeleccionadaCtaCte() {
+  const ventaId = document.getElementById('ctaCteVentaSelect').value;
+  if (!ventaId) return;
+  const venta = ctaCtePendientesCache.find((v) => String(v.id) === ventaId);
+  if (venta) document.getElementById('ctaCteMontoCobro').value = venta.cta_cte_saldo_pendiente;
+}
+
 async function registrarCobroCtaCte() {
   const monto = Number(document.getElementById('ctaCteMontoCobro').value);
   const forma_pago = document.getElementById('ctaCteFormaPago').value;
+  const venta_id = document.getElementById('ctaCteVentaSelect').value || null;
   if (!monto || monto <= 0) {
     alert('Ingresá un monto válido.');
     return;
@@ -1130,7 +1151,7 @@ async function registrarCobroCtaCte() {
   const res = await fetch(`/api/clientes/${ctaCteClienteId}/cta-cte/cobro`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ monto, forma_pago, usuario_id: session.id, terminal: session.rol }),
+    body: JSON.stringify({ monto, forma_pago, venta_id, usuario_id: session.id, terminal: session.rol }),
   });
   const data = await res.json();
   if (!res.ok) {

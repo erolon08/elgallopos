@@ -1070,6 +1070,12 @@
       <span class="small">Saldo actual</span><br>
       <span id="ctaCteSaldo" class="status" style="font-size:20px;padding:6px 16px">$ 0</span>
     </div>
+    <div class="field">
+      <label>Qué cancela</label>
+      <select id="ctaCteVentaSelect" onchange="cambiarVentaSeleccionadaCtaCte()">
+        <option value="">Pago libre (se aplica a la factura más vieja primero)</option>
+      </select>
+    </div>
     <div class="two-col-form">
       <div class="field"><label>Monto a cobrar</label><input id="ctaCteMontoCobro" type="number" step="any" min="0"></div>
       <div class="field">
