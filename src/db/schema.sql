@@ -278,7 +278,6 @@ CREATE TABLE IF NOT EXISTS ventas (
 );
 CREATE INDEX IF NOT EXISTS idx_ventas_estado ON ventas(estado);
 CREATE INDEX IF NOT EXISTS idx_ventas_cliente ON ventas(cliente_id);
-CREATE INDEX IF NOT EXISTS idx_ventas_ctacte_pendiente ON ventas(cta_cte_saldo_pendiente);
 
 -- venta_items.monto_mano_obra: solo se carga en líneas de productos de familias
 -- con usa_mano_obra = 1 (SERVICIOS). Es la base para calcular la rendición del

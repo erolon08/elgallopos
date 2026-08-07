@@ -55,6 +55,11 @@ ensureColumn('presupuesto_items', 'precio_debito', 'REAL');
 ensureColumn('presupuesto_items', 'precio_efectivo', 'REAL');
 ensureColumn('clientes', 'saldo_cta_cte', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('ventas', 'cta_cte_saldo_pendiente', 'REAL NOT NULL DEFAULT 0');
+// Va acá (no en schema.sql) porque necesita que la columna de arriba ya
+// exista: en una base migrada, schema.sql corre ANTES que estos
+// ensureColumn, así que un CREATE INDEX sobre esa columna ahí arriba
+// fallaba en bases ya existentes que todavía no la tenían.
+db.exec('CREATE INDEX IF NOT EXISTS idx_ventas_ctacte_pendiente ON ventas(cta_cte_saldo_pendiente)');
 
 // El CHECK de la columna "rol" no se puede tocar con ALTER TABLE ADD COLUMN:
 // hay que recrear la tabla. Se evita renombrar la tabla "usuarios" original
