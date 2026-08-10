@@ -4756,8 +4756,12 @@ async function enviarImagenPorWhatsapp(elId, prefijoArchivo) {
   }
 
   if (copiadoAlPortapapeles) {
-    abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket 📎');
-    alert('Se copió la imagen al portapapeles. En el chat que se acaba de abrir, hacé clic en el cuadro de mensaje y pegala con Ctrl+V.');
+    // Si se pudo copiar al portapapeles no hace falta redirigir a WhatsApp
+    // Web: el usuario ya tiene WhatsApp abierto (web o de escritorio) y
+    // solo necesita pegar (Ctrl+V) ahí — abrir otra pestaña de más solo
+    // generaba una ventana en blanco esperando de fondo.
+    if (ventana) ventana.close();
+    alert('Se copió la imagen al portapapeles. Pegala (Ctrl+V) en el chat de WhatsApp donde la quieras mandar.');
     return;
   }
 
