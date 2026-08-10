@@ -4659,17 +4659,6 @@ function telefonoWhatsappCompleto(telefono) {
   return soloNumeros.startsWith('54') ? soloNumeros : '549' + soloNumeros;
 }
 
-function urlWhatsapp(telefono, texto) {
-  const destino = telefono ? telefonoWhatsappCompleto(telefono) : '';
-  return `https://wa.me/${destino}?text=${encodeURIComponent(texto)}`;
-}
-
-function abrirVentanaWhatsapp(ventanaPreabierta, telefono, texto) {
-  const url = urlWhatsapp(telefono, texto);
-  if (ventanaPreabierta) ventanaPreabierta.location.href = url;
-  else window.open(url, '_blank');
-}
-
 // El A4 (igual que la rendición/cierre) normalmente está oculto (display:none,
 // solo se muestra al imprimir); para poder capturarlo con html2canvas hay que
 // mostrarlo un instante, pero fuera de la vista (position:fixed a la
@@ -4720,11 +4709,14 @@ function generarBlobJpeg(elId) {
   );
 }
 
+// No abre ni redirige a ninguna ventana/pestaña de WhatsApp: al llamar acá
+// a window.open() sin especificar tamaño de ventana, Chrome no arma un
+// popup aparte, sino que mete la pestaña nueva en la ventana normal de
+// Chrome del usuario (la de sus pestañas de siempre) y le saca el foco a
+// esa ventana — quedaba pareciendo que "salía del sistema". Se copia (o
+// descarga) la imagen nomás; ya con WhatsApp abierto de antes alcanza con
+// pegarla (Ctrl+V) o adjuntarla a mano.
 async function enviarImagenPorWhatsapp(elId, prefijoArchivo) {
-  const doc = ultimoDocumentoParaTicket.data;
-  const telefono = doc.cliente ? doc.cliente.telefono : null;
-  const ventana = window.open('', '_blank');
-
   // canvas.toBlob() y el html2canvas de atrás tardan un poco, y si recién
   // ahí (con la imagen ya lista) se llama a clipboard.write(), el
   // navegador ya no lo cuenta como respuesta directa al clic del usuario y
@@ -4750,24 +4742,17 @@ async function enviarImagenPorWhatsapp(elId, prefijoArchivo) {
   try {
     blob = await jpegBlobPromise;
   } catch (err) {
-    if (ventana) ventana.close();
     alert('No se pudo generar la imagen: ' + err.message);
     return;
   }
 
   if (copiadoAlPortapapeles) {
-    // Si se pudo copiar al portapapeles no hace falta redirigir a WhatsApp
-    // Web: el usuario ya tiene WhatsApp abierto (web o de escritorio) y
-    // solo necesita pegar (Ctrl+V) ahí — abrir otra pestaña de más solo
-    // generaba una ventana en blanco esperando de fondo.
-    if (ventana) ventana.close();
     alert('Se copió la imagen al portapapeles. Pegala (Ctrl+V) en el chat de WhatsApp donde la quieras mandar.');
     return;
   }
 
   const archivo = new File([blob], `${prefijoArchivo}-${Date.now()}.jpg`, { type: 'image/jpeg' });
   if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
-    if (ventana) ventana.close();
     try {
       await navigator.share({ files: [archivo], title: 'Ticket', text: 'Te envío el ticket.' });
       return;
@@ -4782,8 +4767,7 @@ async function enviarImagenPorWhatsapp(elId, prefijoArchivo) {
   a.download = archivo.name;
   a.click();
   URL.revokeObjectURL(url);
-  abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket adjunto 📎');
-  alert('Se descargó la imagen. WhatsApp no permite adjuntarla sola desde el navegador: adjuntala manualmente en el chat que se acaba de abrir (clip 📎 → Galería/Archivo → elegí el archivo recién descargado).');
+  alert('Se descargó la imagen. Adjuntala a mano en WhatsApp (clip 📎 → Galería/Archivo → elegí el archivo recién descargado).');
 }
 
 // El portapapeles del navegador solo acepta PNG, y el ticket se genera en JPEG
