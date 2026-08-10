@@ -27,7 +27,18 @@ const sistemaRoutes = require('./routes/sistema.routes');
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// no-cache (no "no-store"): el navegador puede seguir usando su copia
+// guardada, pero tiene que preguntarle primero al server si cambió. Sin
+// esto, el sistema quedaba pegado a una versión vieja de app.js/index.html
+// en la ventana "app" del acceso directo después de cada actualización,
+// aunque el server ya tuviera el código nuevo — achicar esa ventana entre
+// "actualicé" y "se nota" es la parte importante acá, más que el ahorro de
+// ancho de banda de la caché.
+app.use(
+  express.static(path.join(__dirname, '..', 'public'), {
+    setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+  })
+);
 
 app.use('/api/stock', stockRoutes);
 app.use('/api/familias', familiasRoutes);
