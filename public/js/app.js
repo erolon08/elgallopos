@@ -4711,53 +4711,75 @@ async function generarCanvasElemento(elId) {
 // siempre en algunas PC, nunca en otras, según qué tan estricto sea cada
 // Chrome). Abriendo la ventana ya mismo y rellenándola después evita el
 // bloqueo en cualquier navegador.
+function generarBlobJpeg(elId) {
+  return generarCanvasElemento(elId).then(
+    (canvas) =>
+      new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('No se pudo generar la imagen.'))), 'image/jpeg', 0.92);
+      })
+  );
+}
+
 async function enviarImagenPorWhatsapp(elId, prefijoArchivo) {
   const doc = ultimoDocumentoParaTicket.data;
   const telefono = doc.cliente ? doc.cliente.telefono : null;
   const ventana = window.open('', '_blank');
-  let canvas;
+
+  // canvas.toBlob() y el html2canvas de atrás tardan un poco, y si recién
+  // ahí (con la imagen ya lista) se llama a clipboard.write(), el
+  // navegador ya no lo cuenta como respuesta directa al clic del usuario y
+  // lo rechaza en silencio (siempre terminaba en la descarga). Por eso acá
+  // se le pasa a ClipboardItem la PROMESA de la imagen en vez de la imagen
+  // ya resuelta: el llamado a write() queda hecho ya mismo, todavía dentro
+  // del gesto del usuario, y el contenido se completa después.
+  const jpegBlobPromise = generarBlobJpeg(elId);
+
+  let copiadoAlPortapapeles = false;
+  if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': jpegBlobPromise.then((blob) => convertirAPng(blob)) }),
+      ]);
+      copiadoAlPortapapeles = true;
+    } catch (err) {
+      copiadoAlPortapapeles = false;
+    }
+  }
+
+  let blob;
   try {
-    canvas = await generarCanvasElemento(elId);
+    blob = await jpegBlobPromise;
   } catch (err) {
     if (ventana) ventana.close();
     alert('No se pudo generar la imagen: ' + err.message);
     return;
   }
-  canvas.toBlob(async (blob) => {
-    if (!blob) {
-      if (ventana) ventana.close();
-      alert('No se pudo generar la imagen.');
+
+  if (copiadoAlPortapapeles) {
+    abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket 📎');
+    alert('Se copió la imagen al portapapeles. En el chat que se acaba de abrir, hacé clic en el cuadro de mensaje y pegala con Ctrl+V.');
+    return;
+  }
+
+  const archivo = new File([blob], `${prefijoArchivo}-${Date.now()}.jpg`, { type: 'image/jpeg' });
+  if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+    if (ventana) ventana.close();
+    try {
+      await navigator.share({ files: [archivo], title: 'Ticket', text: 'Te envío el ticket.' });
       return;
+    } catch (err) {
+      if (err.name === 'AbortError') return; // el usuario canceló el selector, no hacer nada más
     }
-    const archivo = new File([blob], `${prefijoArchivo}-${Date.now()}.jpg`, { type: 'image/jpeg' });
-    if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
-      if (ventana) ventana.close();
-      try {
-        await navigator.share({ files: [archivo], title: 'Ticket', text: 'Te envío el ticket.' });
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return; // el usuario canceló el selector, no hacer nada más
-      }
-    }
-    if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
-      try {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': await convertirAPng(blob) })]);
-        abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket 📎');
-        alert('Se copió la imagen al portapapeles. En el chat que se acaba de abrir, hacé clic en el cuadro de mensaje y pegala con Ctrl+V.');
-        return;
-      } catch (err) {
-        // si falla el portapapeles, seguir con la descarga como último recurso
-      }
-    }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = archivo.name;
-    a.click();
-    URL.revokeObjectURL(url);
-    abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket adjunto 📎');
-    alert('Se descargó la imagen. WhatsApp no permite adjuntarla sola desde el navegador: adjuntala manualmente en el chat que se acaba de abrir (clip 📎 → Galería/Archivo → elegí el archivo recién descargado).');
-  }, 'image/jpeg', 0.92);
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = archivo.name;
+  a.click();
+  URL.revokeObjectURL(url);
+  abrirVentanaWhatsapp(ventana, telefono, 'Te envío el ticket adjunto 📎');
+  alert('Se descargó la imagen. WhatsApp no permite adjuntarla sola desde el navegador: adjuntala manualmente en el chat que se acaba de abrir (clip 📎 → Galería/Archivo → elegí el archivo recién descargado).');
 }
 
 // El portapapeles del navegador solo acepta PNG, y el ticket se genera en JPEG
@@ -4784,32 +4806,45 @@ function convertirAPng(blobJpeg) {
 async function copiarImagenTicket() {
   const elA4 = document.getElementById('ticketA4Contenido');
   const elId = elA4 && elA4.style.display !== 'none' && elA4.innerHTML ? 'ticketA4Contenido' : 'ticketContenido';
-  let canvas;
+
+  // Mismo truco que en enviarImagenPorWhatsapp: se le pasa a ClipboardItem
+  // la promesa de la imagen (no la imagen ya resuelta), para que
+  // clipboard.write() quede llamado ya mismo, todavía dentro del gesto del
+  // usuario, y no lo rechace el navegador por haber tardado en generarla.
+  const jpegBlobPromise = generarBlobJpeg(elId);
+
+  let copiado = false;
+  if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': jpegBlobPromise.then((blob) => convertirAPng(blob)) }),
+      ]);
+      copiado = true;
+    } catch (err) {
+      copiado = false;
+    }
+  }
+
+  let blob;
   try {
-    canvas = await generarCanvasElemento(elId);
+    blob = await jpegBlobPromise;
   } catch (err) {
     alert('No se pudo generar la imagen: ' + err.message);
     return;
   }
-  canvas.toBlob(async (blob) => {
-    if (!blob) return alert('No se pudo generar la imagen.');
-    if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
-      try {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': await convertirAPng(blob) })]);
-        alert('Imagen copiada. Pegala donde quieras con Ctrl+V.');
-        return;
-      } catch (err) {
-        // si falla el portapapeles, seguir con la descarga como último recurso
-      }
-    }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ticket-${Date.now()}.jpg`;
-    a.click();
-    URL.revokeObjectURL(url);
-    alert('No se pudo copiar al portapapeles (el navegador lo bloquea sin conexión segura). Se descargó la imagen en su lugar.');
-  }, 'image/jpeg', 0.92);
+
+  if (copiado) {
+    alert('Imagen copiada. Pegala donde quieras con Ctrl+V.');
+    return;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ticket-${Date.now()}.jpg`;
+  a.click();
+  URL.revokeObjectURL(url);
+  alert('No se pudo copiar la imagen al portapapeles. Se descargó en su lugar.');
 }
 
 // ============================================================
