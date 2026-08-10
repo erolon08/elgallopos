@@ -11,6 +11,13 @@ function init(server) {
   return io;
 }
 
+// Suma otro servidor HTTP(S) al mismo io — se usa para que el server HTTP
+// (puerto 3000) y el HTTPS (puerto 3443) compartan las mismas salas y
+// eventos en tiempo real en vez de quedar aislados entre sí.
+function attach(server) {
+  if (io) io.attach(server, { cors: { origin: '*' } });
+}
+
 function emitStockUpdated(producto) {
   if (io) io.emit('stock:updated', producto);
 }
@@ -26,4 +33,4 @@ function emitSistemaReseteado() {
   if (io) io.emit('sistema:reseteado');
 }
 
-module.exports = { init, emitStockUpdated, emitVentaEvent, emitSistemaReseteado };
+module.exports = { init, attach, emitStockUpdated, emitVentaEvent, emitSistemaReseteado };

@@ -1,5 +1,6 @@
 const path = require('node:path');
 const http = require('node:http');
+const https = require('node:https');
 const express = require('express');
 
 require('./db'); // asegura que el schema esté creado antes de levantar rutas
@@ -52,3 +53,22 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`EL GALLO POS escuchando en http://0.0.0.0:${PORT}`);
 });
+
+// Servidor HTTPS en paralelo (certificado autofirmado, generado solo, sin
+// depender de internet): el navegador solo permite copiar/pegar imágenes al
+// portapapeles en un "contexto seguro" (HTTPS o localhost), así que por
+// http:// plano esa función siempre queda bloqueada. La primera vez que se
+// entra por https:// desde cada PC, el navegador va a mostrar una
+// advertencia de certificado ("no seguro") — hay que aceptar avanzar una
+// sola vez, después la recuerda.
+try {
+  const { obtenerCertificado } = require('./services/https-cert.service');
+  const httpsServer = https.createServer(obtenerCertificado(), app);
+  sockets.attach(httpsServer);
+  const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
+  httpsServer.listen(HTTPS_PORT, () => {
+    console.log(`EL GALLO POS también en https://0.0.0.0:${HTTPS_PORT} (certificado autofirmado)`);
+  });
+} catch (err) {
+  console.error('No se pudo iniciar el servidor HTTPS (sigue funcionando por HTTP normal):', err.message);
+}
