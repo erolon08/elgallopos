@@ -37,7 +37,7 @@ function generarCertificado() {
 
   const attrs = [
     { name: 'commonName', value: 'El Gallo POS' },
-    { name: 'organizationName', value: 'Cerrajería El Gallo' },
+    { name: 'organizationName', value: 'Cerrajeria El Gallo' },
     { name: 'countryName', value: 'AR' },
   ];
   cert.setSubject(attrs);
