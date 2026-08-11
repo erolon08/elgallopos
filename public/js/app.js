@@ -2658,16 +2658,22 @@ function guardarGastoExtraRendicion() {
   renderRendicionDescuentos();
 }
 
-// El aporte se descuenta a valor completo; los gastos (repuesto/adelanto/otro)
-// reducen la base ANTES de aplicar el % de rendición del cerrajero, así que
-// se restan del bruto ya escalados a ese mismo % (ver nota en
+// El aporte y el adelanto se descuentan a valor completo (el adelanto ya es
+// plata entregada en mano al cerrajero, no una fracción). El repuesto/otro
+// en cambio reduce la base ANTES de aplicar el % de rendición del cerrajero,
+// así que se resta del bruto ya escalado a ese mismo % (ver nota en
 // rendiciones.service.js calcularTotalDescuentos, misma cuenta en el server).
 function actualizarTotalesRendicionPreview() {
   const total_bruto = rendicionPreviewActual.total_bruto;
   const pct = rendicionPreviewActual.cerrajero.porcentaje_rendicion;
   const aporte = rendicionPreviewActual.cerrajero.aporte_fijo || 0;
-  const gastos = rendicionDescuentosExtra.reduce((s, d) => s + (Number(d.monto) || 0), 0);
-  const total_descuentos = aporte + gastos * (pct / 100);
+  const adelantos = rendicionDescuentosExtra
+    .filter((d) => d.tipo === 'adelanto')
+    .reduce((s, d) => s + (Number(d.monto) || 0), 0);
+  const gastos = rendicionDescuentosExtra
+    .filter((d) => d.tipo !== 'adelanto')
+    .reduce((s, d) => s + (Number(d.monto) || 0), 0);
+  const total_descuentos = aporte + adelantos + gastos * (pct / 100);
   const total_pagar = roundUpTo100(total_bruto - total_descuentos);
   document.getElementById('rendTotalBruto').textContent = '$ ' + money.format(total_bruto);
   document.getElementById('rendTotalDescuentos').textContent = '$ ' + money.format(total_descuentos);

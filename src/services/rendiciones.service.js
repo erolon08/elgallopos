@@ -106,15 +106,21 @@ function previsualizar({ cerrajero_id, fecha_desde, fecha_hasta }) {
 
 const TIPOS_DESCUENTO_EXTRA = ['repuesto', 'otro', 'adelanto'];
 
-// El aporte fijo se descuenta a valor completo (ya es la parte del cerrajero,
-// se le resta directo). Los gastos (repuesto/adelanto/otro) en cambio reducen
-// la base ANTES de aplicar el % de rendición: como monto_rendido ya viene
-// multiplicado por ese %, restar el gasto "escalado" al mismo % (en vez de a
-// valor completo) es matemáticamente lo mismo que restarlo de la base antes
-// de aplicar el %. Ej: base 229.000, gasto 50.000, % 30 ->
-// (229.000-50.000)*0.30 = 53.700, que es lo mismo que 229.000*0.30 - 50.000*0.30.
+// El aporte fijo y el adelanto se descuentan a valor completo: el aporte ya
+// es la parte del cerrajero (se le resta directo) y el adelanto es plata que
+// ya se le entregó en mano, así que hay que restarle eso exacto, no una
+// fracción. El repuesto/otro en cambio reduce la base ANTES de aplicar el %
+// de rendición: como monto_rendido ya viene multiplicado por ese %, restar
+// el gasto "escalado" al mismo % (en vez de a valor completo) es
+// matemáticamente lo mismo que restarlo de la base antes de aplicar el %.
+// Ej: base 229.000, gasto 50.000, % 30 -> (229.000-50.000)*0.30 = 53.700,
+// que es lo mismo que 229.000*0.30 - 50.000*0.30.
+const TIPOS_DESCUENTO_VALOR_COMPLETO = ['aporte', 'adelanto'];
 function calcularTotalDescuentos(descuentos, porcentaje_rendicion) {
-  return descuentos.reduce((s, d) => s + (d.tipo === 'aporte' ? d.monto : d.monto * (porcentaje_rendicion / 100)), 0);
+  return descuentos.reduce(
+    (s, d) => s + (TIPOS_DESCUENTO_VALOR_COMPLETO.includes(d.tipo) ? d.monto : d.monto * (porcentaje_rendicion / 100)),
+    0
+  );
 }
 
 function generar({ cerrajero_id, fecha_desde, fecha_hasta, descuentos_extra = [] }) {
