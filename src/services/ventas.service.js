@@ -175,7 +175,11 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, e
     params.cerrajero_id = cerrajero_id;
   }
   if (estado === 'activas') {
-    sql += " AND v.estado != 'anulada'";
+    // Las pendientes son borradores sin cobrar (viven en la bandeja de
+    // Pendientes, donde sí se pueden retomar); acá en el historial de
+    // Ventas no tiene sentido mostrarlas mezcladas con las cobradas, ya
+    // que desde "Ver detalle" no hay forma de completarlas.
+    sql += " AND v.estado NOT IN ('anulada', 'pendiente')";
   } else if (estado) {
     sql += ' AND v.estado = @estado';
     params.estado = estado;
