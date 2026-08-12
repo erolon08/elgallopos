@@ -1534,7 +1534,7 @@ function construirCierreA4Html(t) {
       <thead><tr><th>Forma de pago</th><th>Monto</th></tr></thead>
       <tbody>${filasVentas || '<tr><td colspan="2">Sin ventas.</td></tr>'}</tbody>
     </table>
-    <p style="margin:-8px 0 14px"><b>Total ventas: $${money.format(totalVentas)}</b></p>
+    <div class="a4-total a4-total-verde a4-total-inline">TOTAL VENTAS&nbsp; $${money.format(totalVentas)}</div>
     ${
       totalCtaCteCobrada > 0
         ? `<h3 style="margin:14px 0 6px;font-size:13px">Cuenta corriente cobrada</h3>
@@ -1542,7 +1542,7 @@ function construirCierreA4Html(t) {
       <thead><tr><th>Forma de pago</th><th>Monto</th></tr></thead>
       <tbody>${filasCtaCte}</tbody>
     </table>
-    <p style="margin:-8px 0 14px"><b>Total Cta. Cte. cobrada: $${money.format(totalCtaCteCobrada)}</b></p>`
+    <div class="a4-total a4-total-verde a4-total-inline">TOTAL CTA. CTE. COBRADA&nbsp; $${money.format(totalCtaCteCobrada)}</div>`
         : ''
     }
     <h3 style="margin:14px 0 6px;font-size:13px">Movimientos de caja</h3>
@@ -1550,15 +1550,13 @@ function construirCierreA4Html(t) {
       <thead><tr><th>Concepto</th><th>Monto</th></tr></thead>
       <tbody>${filasGastos || '<tr><td colspan="2">Sin movimientos.</td></tr>'}</tbody>
     </table>
-    <p style="margin:-8px 0 14px"><b>Total movimientos: $${money.format(-totalGastos)}</b></p>
+    <div class="a4-total a4-total-verde a4-total-inline">TOTAL MOVIMIENTOS&nbsp; $${money.format(-totalGastos)}</div>
     <div class="a4-abajo">
       <div class="a4-observaciones">Observaciones / Firma</div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        <div class="a4-total">SALDO ESPERADO<br>$${money.format(t.efectivo_esperado)}</div>
-        <div class="a4-total">EFECTIVO CONTADO<br>$${money.format(t.efectivo_contado)}</div>
         <div class="a4-total">DIFERENCIA (${estadoDif})<br>$${money.format(diferencia)}</div>
         <div class="a4-total">FONDO PRÓXIMO TURNO<br>$${money.format(t.fondo_turno_siguiente)}</div>
-        ${totalCajaFuerte > 0 ? `<div class="a4-total">ENVÍO CAJA FUERTE<br>$${money.format(totalCajaFuerte)}</div>` : ''}
+        ${totalCajaFuerte > 0 ? `<div class="a4-total a4-total-verde">ENVÍO CAJA FUERTE<br>$${money.format(totalCajaFuerte)}</div>` : ''}
       </div>
     </div>
     <p class="a4-muted a4-impreso">Impreso: ${new Date().toLocaleDateString('es-AR')}</p>
