@@ -1468,7 +1468,13 @@ async function cerrarTurnoCaja() {
   mostrarTicketCierre(data);
 }
 
-function construirTicketCierreHtml(t) {
+// Igual que la rendición, siempre en A4 (nunca como ticket térmico): tiene
+// varias tablas y no entra bien en 80mm. A diferencia de venta/presupuesto/
+// rendición, acá arriba NO va el encabezado completo del negocio (logo,
+// domicilio, etc.) — es un comprobante interno, no algo que se le entrega a
+// un cliente, así que alcanza con un recuadro chico que diga "CIERRE DE
+// CAJA" para no alargarlo de más.
+function construirCierreA4Html(t) {
   const ventasMov = t.movimientos.filter((m) => m.categoria === 'venta');
   const porFormaVentas = {};
   ventasMov.forEach((m) => {
@@ -1476,10 +1482,10 @@ function construirTicketCierreHtml(t) {
     porFormaVentas[fp] = (porFormaVentas[fp] || 0) + (m.tipo === 'ingreso' ? m.monto : -m.monto);
   });
   const totalVentas = Object.values(porFormaVentas).reduce((a, b) => a + b, 0);
-  const ventasHtml = Object.entries(porFormaVentas)
+  const filasVentas = Object.entries(porFormaVentas)
     .filter(([, monto]) => monto !== 0)
-    .map(([fp, monto]) => `${fp}&nbsp;&nbsp;${moneyStr(monto)}<br>`)
-    .join('') || 'Sin ventas.<br>';
+    .map(([fp, monto]) => `<tr><td>${fp}</td><td class="a4-num">$${money.format(monto)}</td></tr>`)
+    .join('');
 
   // Los cobros de Cuenta Corriente (clientes saldando deuda vieja) se
   // muestran aparte, por forma de pago, igual que las ventas del día —
@@ -1491,45 +1497,71 @@ function construirTicketCierreHtml(t) {
     porFormaCtaCte[fp] = (porFormaCtaCte[fp] || 0) + m.monto;
   });
   const totalCtaCteCobrada = Object.values(porFormaCtaCte).reduce((a, b) => a + b, 0);
-  const ctaCteHtml = Object.entries(porFormaCtaCte)
-    .map(([fp, monto]) => `${fp}&nbsp;&nbsp;${moneyStr(monto)}<br>`)
+  const filasCtaCte = Object.entries(porFormaCtaCte)
+    .map(([fp, monto]) => `<tr><td>${fp}</td><td class="a4-num">$${money.format(monto)}</td></tr>`)
     .join('');
 
   const gastosMov = t.movimientos.filter((m) => m.categoria !== 'venta' && m.categoria !== 'caja_fuerte' && m.categoria !== 'cuenta_corriente');
   const totalGastos = gastosMov.reduce((a, m) => a + (m.tipo === 'egreso' ? m.monto : -m.monto), 0);
-  const gastosHtml = gastosMov.length
-    ? gastosMov.map((m) => `${m.concepto || m.categoria}&nbsp;&nbsp;${moneyStr(m.tipo === 'egreso' ? -m.monto : m.monto)}<br>`).join('')
-    : 'Sin movimientos.<br>';
+  const filasGastos = gastosMov
+    .map((m) => `<tr><td>${m.concepto || m.categoria}</td><td class="a4-num">$${money.format(m.tipo === 'egreso' ? -m.monto : m.monto)}</td></tr>`)
+    .join('');
 
   // Suma todos los envíos a caja fuerte del turno, no solo el automático del
   // cierre: también puede haber traslados cargados a mano durante el turno
-  // (categoría "Caja fuerte" en Movimientos), y el ticket tiene que mostrar
-  // el total real enviado, no solo el primero que encuentre.
+  // (categoría "Caja fuerte" en Movimientos), y el comprobante tiene que
+  // mostrar el total real enviado, no solo el primero que encuentre.
   const totalCajaFuerte = t.movimientos.filter((m) => m.categoria === 'caja_fuerte').reduce((a, m) => a + m.monto, 0);
   const diferencia = t.diferencia || 0;
   const estadoDif = Math.abs(diferencia) < 1 ? 'CAJA EXACTA' : diferencia > 0 ? 'SOBRANTE' : 'FALTANTE';
 
   return `
-    ${ticketEncabezadoHtml()}
-    <div class="center">CIERRE DE CAJA</div><hr>
-    Terminal: ${t.terminal} &nbsp; Turno: ${t.numero}<br>
-    Apertura: ${new Date(t.abierto_en).toLocaleString('es-AR')}<br>
-    Cierre: ${t.cerrado_en ? new Date(t.cerrado_en).toLocaleString('es-AR') : '—'}<hr>
-    SALDO INICIAL&nbsp;&nbsp;<b>${moneyStr(t.fondo_inicial)}</b><hr>
-    <b>VENTAS POR FORMA DE PAGO</b><br>
-    ${ventasHtml}
-    TOTAL VENTAS&nbsp;&nbsp;<b>${moneyStr(totalVentas)}</b><hr>
-    ${totalCtaCteCobrada > 0 ? `<b>CTA. CTE. COBRADA</b><br>${ctaCteHtml}TOTAL CTA. CTE. COBRADA&nbsp;&nbsp;<b>${moneyStr(totalCtaCteCobrada)}</b><hr>` : ''}
-    <b>MOVIMIENTOS DE CAJA</b><br>
-    ${gastosHtml}
-    TOTAL MOVIMIENTOS&nbsp;&nbsp;<b>${moneyStr(-totalGastos)}</b><hr>
-    SALDO DE CAJA (esperado)&nbsp;&nbsp;${moneyStr(t.efectivo_esperado)}<br>
-    EFECTIVO CONTADO&nbsp;&nbsp;${moneyStr(t.efectivo_contado)}<br>
-    DIFERENCIA&nbsp;&nbsp;<b>${moneyStr(diferencia)} (${estadoDif})</b><hr>
-    FONDO PRÓXIMO TURNO&nbsp;&nbsp;<b>${moneyStr(t.fondo_turno_siguiente)}</b><br>
-    ${totalCajaFuerte > 0 ? `ENVÍO A CAJA FUERTE&nbsp;&nbsp;<b>${moneyStr(totalCajaFuerte)}</b><br>` : ''}
-    ${t.observacion ? `<hr>Observación: ${t.observacion}<br>` : ''}
-    ${ticketPieHtml()}
+    <div class="a4-top" style="grid-template-columns:auto 1fr">
+      <div style="border:1px solid #000;padding:10px 18px;font-weight:800;font-size:15px;text-align:center;white-space:nowrap">CIERRE DE CAJA</div>
+      <div class="a4-doc-info">
+        <div class="a4-doc-numero">Turno N° ${t.numero}</div>
+        <div>Terminal: ${t.terminal}</div>
+      </div>
+    </div>
+    <div class="a4-datos">
+      <p><b>Apertura:</b> ${new Date(t.abierto_en).toLocaleString('es-AR')}</p>
+      <p><b>Cierre:</b> ${t.cerrado_en ? new Date(t.cerrado_en).toLocaleString('es-AR') : '—'}</p>
+      <p><b>Saldo inicial:</b> $${money.format(t.fondo_inicial)}</p>
+      ${t.observacion ? `<p><b>Observación:</b> ${t.observacion}</p>` : ''}
+    </div>
+    <h3 style="margin:14px 0 6px;font-size:13px">Ventas por forma de pago</h3>
+    <table class="a4-tabla">
+      <thead><tr><th>Forma de pago</th><th>Monto</th></tr></thead>
+      <tbody>${filasVentas || '<tr><td colspan="2">Sin ventas.</td></tr>'}</tbody>
+    </table>
+    <p style="margin:-8px 0 14px"><b>Total ventas: $${money.format(totalVentas)}</b></p>
+    ${
+      totalCtaCteCobrada > 0
+        ? `<h3 style="margin:14px 0 6px;font-size:13px">Cuenta corriente cobrada</h3>
+    <table class="a4-tabla">
+      <thead><tr><th>Forma de pago</th><th>Monto</th></tr></thead>
+      <tbody>${filasCtaCte}</tbody>
+    </table>
+    <p style="margin:-8px 0 14px"><b>Total Cta. Cte. cobrada: $${money.format(totalCtaCteCobrada)}</b></p>`
+        : ''
+    }
+    <h3 style="margin:14px 0 6px;font-size:13px">Movimientos de caja</h3>
+    <table class="a4-tabla">
+      <thead><tr><th>Concepto</th><th>Monto</th></tr></thead>
+      <tbody>${filasGastos || '<tr><td colspan="2">Sin movimientos.</td></tr>'}</tbody>
+    </table>
+    <p style="margin:-8px 0 14px"><b>Total movimientos: $${money.format(-totalGastos)}</b></p>
+    <div class="a4-abajo">
+      <div class="a4-observaciones">Observaciones / Firma</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="a4-total">SALDO ESPERADO<br>$${money.format(t.efectivo_esperado)}</div>
+        <div class="a4-total">EFECTIVO CONTADO<br>$${money.format(t.efectivo_contado)}</div>
+        <div class="a4-total">DIFERENCIA (${estadoDif})<br>$${money.format(diferencia)}</div>
+        <div class="a4-total">FONDO PRÓXIMO TURNO<br>$${money.format(t.fondo_turno_siguiente)}</div>
+        ${totalCajaFuerte > 0 ? `<div class="a4-total">ENVÍO CAJA FUERTE<br>$${money.format(totalCajaFuerte)}</div>` : ''}
+      </div>
+    </div>
+    <p class="a4-muted a4-impreso">Impreso: ${new Date().toLocaleDateString('es-AR')}</p>
   `;
 }
 
@@ -1557,11 +1589,11 @@ async function mostrarTicketCierre(t) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
-  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = '';
-  mostrarTicketComoTermico(construirTicketCierreHtml(t));
+  mostrarTicketComoA4(construirCierreA4Html(t));
   showScreen('ticket-screen');
 }
 
@@ -4645,19 +4677,21 @@ function enviarImagenWhatsapp() {
   if (!ultimoDocumentoParaTicket) return;
   enviarImagenPorWhatsapp('ticketContenido', 'ticket');
 }
+const PREFIJO_ARCHIVO_A4 = { rendicion: 'rendicion-a4', cierre: 'cierre-caja-a4' };
+
 // El A4 normalmente solo se arma al imprimir; acá se genera igual pero sin
 // disparar el diálogo de impresión, para poder capturarlo como imagen.
 function enviarImagenA4Whatsapp() {
   if (!ultimoDocumentoParaTicket) return;
   const { tipo, data } = ultimoDocumentoParaTicket;
-  // La rendición ya se muestra siempre en A4 (mostrarTicketComoA4), así que
-  // el contenido a capturar ya está armado; venta/presupuesto en cambio
-  // muestran el ticket térmico por defecto, así que hay que generar el A4
-  // recién en este momento (no se arma de entrada).
+  // La rendición y el cierre de caja ya se muestran siempre en A4
+  // (mostrarTicketComoA4), así que el contenido a capturar ya está armado;
+  // venta/presupuesto en cambio muestran el ticket térmico por defecto, así
+  // que hay que generar el A4 recién en este momento (no se arma de entrada).
   if (tipo === 'venta' || tipo === 'presupuesto') {
     document.getElementById('ticketA4Contenido').innerHTML = construirDocumentoA4Html(tipo, data);
   }
-  enviarImagenPorWhatsapp('ticketA4Contenido', tipo === 'rendicion' ? 'rendicion-a4' : 'presupuesto-a4');
+  enviarImagenPorWhatsapp('ticketA4Contenido', PREFIJO_ARCHIVO_A4[tipo] || 'presupuesto-a4');
 }
 
 function telefonoWhatsappCompleto(telefono) {
