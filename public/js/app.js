@@ -1550,7 +1550,7 @@ function construirCierreA4Html(t) {
       <thead><tr><th>Concepto</th><th>Monto</th></tr></thead>
       <tbody>${filasGastos || '<tr><td colspan="2">Sin movimientos.</td></tr>'}</tbody>
     </table>
-    <div class="a4-total a4-total-verde a4-total-inline">TOTAL MOVIMIENTOS&nbsp; $${money.format(-totalGastos)}</div>
+    <div class="a4-total a4-total-rojo a4-total-inline">TOTAL MOVIMIENTOS&nbsp; $${money.format(-totalGastos)}</div>
     <div class="a4-abajo">
       <div class="a4-observaciones">Observaciones / Firma</div>
       <div style="display:flex;flex-direction:column;gap:6px">
