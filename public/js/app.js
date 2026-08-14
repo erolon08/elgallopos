@@ -1035,6 +1035,50 @@ async function importarClientesExcel(event) {
   }
 }
 
+// Carga masiva del stock físico real al poner el sistema en marcha, para no
+// tener que tipear el stock de cada producto a mano uno por uno. Se puede
+// correr más de una vez sin duplicar nada: siempre DEJA el stock en la
+// cantidad de la fila (no lo suma).
+async function importarStockExcel(event) {
+  const input = event.target;
+  const archivo = input.files[0];
+  if (!archivo) return;
+  if (
+    !confirm(
+      `¿Importar "${archivo.name}"? Columnas esperadas: Código (el mismo que ya tiene el producto cargado acá) y Cantidad. El stock del producto queda en esa cantidad exacta (no se suma a lo que ya tenía).`
+    )
+  ) {
+    input.value = '';
+    return;
+  }
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+  const boton = document.querySelector('button[onclick*="stockImportarInput"]');
+  const textoOriginal = boton.textContent;
+  boton.textContent = 'Importando...';
+  boton.disabled = true;
+  try {
+    const res = await fetch('/api/productos/importar-stock', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Error al importar: ' + data.error);
+      return;
+    }
+    let msg = `Importación completa.\nProductos actualizados: ${data.cargados}`;
+    if (data.sinCambios) msg += `\nYa tenían esa misma cantidad (sin cambios): ${data.sinCambios}`;
+    if (data.noEncontrados) msg += `\nCódigos no encontrados (revisar a mano): ${data.noEncontrados}`;
+    if (data.totalErrores) msg += `\nFilas con error: ${data.totalErrores}`;
+    alert(msg);
+    cargarStock();
+  } catch (err) {
+    alert('Error al importar: ' + err.message);
+  } finally {
+    boton.textContent = textoOriginal;
+    boton.disabled = false;
+    input.value = '';
+  }
+}
+
 async function importarSaldosExcel(event) {
   const input = event.target;
   const archivo = input.files[0];

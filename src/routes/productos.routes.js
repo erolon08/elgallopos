@@ -125,6 +125,27 @@ router.post('/importar', upload.single('archivo'), (req, res) => {
   }
 });
 
+router.post('/importar-stock', upload.single('archivo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+
+  let workbook;
+  try {
+    workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+  } catch (err) {
+    return res.status(400).json({ error: 'No se pudo leer el archivo. ¿Es un Excel válido (.xlsx)?' });
+  }
+
+  const hoja = workbook.Sheets[workbook.SheetNames[0]];
+  const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, range: 1, defval: null, blankrows: false });
+
+  try {
+    const resultado = importacionService.importarStock(filas);
+    res.json(resultado);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.post('/:id/favorito', (req, res) => {
   const producto = productosService.toggleFavorito(Number(req.params.id));
   if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });

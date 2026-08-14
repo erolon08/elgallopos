@@ -153,4 +153,77 @@ function importarProductos(filas) {
   return { creados, actualizados, familiasNuevas, totalErrores: errores.length, errores: errores.slice(0, 50) };
 }
 
-module.exports = { importarProductos, normalizarFamilia };
+// Carga inicial de stock desde Excel, para no tener que tipear el stock de
+// cada producto a mano al poner el sistema en marcha. Columnas esperadas:
+//   0 Código (tiene que coincidir con el código ya cargado en Productos)
+//   1 Cantidad (el stock físico real de ese producto, no un delta)
+// No crea productos nuevos: si el código no existe, se reporta como "no
+// encontrado" para cargarlo a mano después. Se puede correr más de una vez
+// sin problema (por ejemplo si se corrige la planilla): siempre DEJA el
+// stock en la cantidad de la fila, no la suma — así que reimportar el mismo
+// archivo no duplica nada.
+function importarStock(filas) {
+  const stockService = require('./stock.service');
+
+  let cargados = 0;
+  let sinCambios = 0;
+  let noEncontrados = 0;
+  const errores = [];
+  const noEncontradosDetalle = [];
+
+  const buscarProducto = db.prepare('SELECT id, stock_actual FROM productos WHERE codigo = ?');
+
+  const ejecutar = db.transaction((filas) => {
+    filas.forEach((fila, idx) => {
+      const numeroFila = idx + 2;
+      const codigo = String(fila[0] ?? '').trim();
+      const cantidad = Number(fila[1]);
+
+      if (!codigo) {
+        errores.push({ fila: numeroFila, motivo: 'Falta el código' });
+        return;
+      }
+      if (!Number.isFinite(cantidad) || fila[1] === null || fila[1] === '') {
+        errores.push({ fila: numeroFila, codigo, motivo: 'Falta la cantidad o no es un número' });
+        return;
+      }
+
+      const producto = buscarProducto.get(codigo);
+      if (!producto) {
+        noEncontrados++;
+        noEncontradosDetalle.push({ fila: numeroFila, codigo });
+        return;
+      }
+
+      const delta = Math.round(cantidad) - producto.stock_actual;
+      if (delta === 0) {
+        sinCambios++;
+        return;
+      }
+
+      try {
+        stockService.registrarMovimiento({
+          producto_id: producto.id,
+          tipo: 'ajuste',
+          cantidad: delta,
+          motivo: 'Carga inicial de stock (importado)',
+        });
+        cargados++;
+      } catch (err) {
+        errores.push({ fila: numeroFila, codigo, motivo: err.message });
+      }
+    });
+  });
+  ejecutar(filas);
+
+  return {
+    cargados,
+    sinCambios,
+    noEncontrados,
+    totalErrores: errores.length,
+    errores: errores.slice(0, 50),
+    noEncontradosDetalle: noEncontradosDetalle.slice(0, 100),
+  };
+}
+
+module.exports = { importarProductos, importarStock, normalizarFamilia };

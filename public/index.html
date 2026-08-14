@@ -434,7 +434,14 @@
 
       <section class="screen" id="stock">
         <div class="card">
-          <div class="section-title"><h3>Stock en tiempo real</h3><span class="badge green" id="liveBadge">Sincronizado</span></div>
+          <div class="section-title">
+            <h3>Stock en tiempo real</h3>
+            <div class="toolbar" style="margin:0">
+              <span class="badge green" id="liveBadge">Sincronizado</span>
+              <button class="btn outline" onclick="document.getElementById('stockImportarInput').click()">Importar stock inicial</button>
+              <input type="file" id="stockImportarInput" accept=".xlsx,.xls" style="display:none" onchange="importarStockExcel(event)">
+            </div>
+          </div>
           <div class="toolbar">
             <div class="field"><label>Buscar</label><input id="stockSearch" placeholder="Código o descripción..."></div>
             <div class="field"><label>Familia</label><select id="stockFamilia"><option value="">Todas</option></select></div>
