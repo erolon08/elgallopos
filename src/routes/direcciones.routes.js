@@ -4,6 +4,8 @@ const direccionesService = require('../services/direcciones.service');
 const router = express.Router();
 
 router.get('/', (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q) return res.json(direccionesService.buscar(q));
   res.json(direccionesService.listar(req.query.estado));
 });
 

@@ -20,6 +20,16 @@ function listar(estado) {
   return db.prepare(`${SELECT_CON_CERRAJERO} ORDER BY d.id DESC`).all();
 }
 
+// Para ubicar una dirección ante un reclamo ("¿quién fue y qué se hizo?"),
+// sin importar en qué estado esté (pendiente, ya convertida o facturada) ni
+// hace cuánto se cargó — por eso ignora el filtro de estado.
+function buscar(q) {
+  const like = `%${q}%`;
+  return db
+    .prepare(`${SELECT_CON_CERRAJERO} WHERE d.direccion LIKE ? OR d.telefono LIKE ? OR d.trabajo LIKE ? ORDER BY d.id DESC LIMIT 200`)
+    .all(like, like, like);
+}
+
 function obtener(id) {
   return db.prepare(`${SELECT_CON_CERRAJERO} WHERE d.id = ?`).get(id);
 }
@@ -40,4 +50,4 @@ function eliminar(id) {
   return info.changes > 0;
 }
 
-module.exports = { listar, obtener, crear, eliminar };
+module.exports = { listar, buscar, obtener, crear, eliminar };

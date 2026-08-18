@@ -3202,8 +3202,19 @@ async function anularRendicion(id) {
 let direccionesCache = [];
 
 async function cargarDirecciones() {
-  const estado = document.getElementById('direccionesEstado').value;
-  const url = estado ? `/api/direcciones?estado=${estado}` : '/api/direcciones';
+  const buscar = document.getElementById('direccionesBuscar').value.trim();
+  const estadoSelect = document.getElementById('direccionesEstado');
+  let url;
+  if (buscar) {
+    // Un reclamo puede ser sobre un trabajo ya facturado hace tiempo: la
+    // búsqueda ignora el filtro de estado a propósito, para no tener que
+    // acordarse en qué lista quedó.
+    estadoSelect.value = '';
+    url = `/api/direcciones?q=${encodeURIComponent(buscar)}`;
+  } else {
+    const estado = estadoSelect.value;
+    url = estado ? `/api/direcciones?estado=${estado}` : '/api/direcciones';
+  }
   const filas = await (await fetch(url)).json();
   direccionesCache = filas;
   const tbody = document.getElementById('direccionesBody');
@@ -3213,7 +3224,7 @@ async function cargarDirecciones() {
     return;
   }
   filas.forEach((d) => {
-    const hora = new Date(d.creado_en).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const fechaHora = new Date(d.creado_en).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     let accionesPendiente;
     if (d.estado !== 'pendiente' && d.venta_estado === 'cobrada') {
       accionesPendiente = `<button class="btn green" disabled>✓ Facturado</button>`;
@@ -3223,14 +3234,15 @@ async function cargarDirecciones() {
       accionesPendiente = `<button class="btn primary" onclick="pasarDireccionAVenta(${d.id})">Pasar a venta</button>
            <button class="btn light" onclick="eliminarDireccion(${d.id})">🗑</button>`;
     }
+    const verVenta = d.venta_id ? `<button class="btn light" onclick="verDetalleVenta(${d.venta_id})">Ver venta</button>` : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${d.direccion}</td>
       <td>${d.trabajo}</td>
       <td>${d.telefono || '—'}</td>
       <td>${d.cerrajero_nombre || '—'}</td>
-      <td>${hora}</td>
-      <td><button class="btn light" onclick="copiarDireccion(${d.id})" title="Copiar como texto para pegar en WhatsApp">📋 Copiar</button> ${accionesPendiente}</td>
+      <td>${fechaHora}</td>
+      <td><button class="btn light" onclick="copiarDireccion(${d.id})" title="Copiar como texto para pegar en WhatsApp">📋 Copiar</button> ${verVenta} ${accionesPendiente}</td>
     `;
     tbody.appendChild(tr);
   });

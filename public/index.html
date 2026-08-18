@@ -618,6 +618,9 @@
         <div class="card">
           <div class="section-title">
             <h3>Direcciones</h3>
+            <div class="field" style="flex:1;min-width:220px">
+              <input id="direccionesBuscar" placeholder="Buscar por dirección o teléfono (ante un reclamo)..." oninput="cargarDirecciones()">
+            </div>
             <div class="field" style="max-width:220px">
               <select id="direccionesEstado" onchange="cargarDirecciones()">
                 <option value="pendiente">Pendientes</option>
@@ -628,7 +631,7 @@
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Dirección</th><th>Trabajo</th><th>Teléfono</th><th>Cerrajero</th><th>Hora</th><th></th></tr></thead>
+              <thead><tr><th>Dirección</th><th>Trabajo</th><th>Teléfono</th><th>Cerrajero</th><th>Fecha</th><th></th></tr></thead>
               <tbody id="direccionesBody"></tbody>
             </table>
           </div>
