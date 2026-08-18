@@ -3329,19 +3329,48 @@ async function eliminarDireccion(id) {
   cargarDirecciones();
 }
 
-// Pasa la dirección a la pantalla de Venta como una línea manual (sin
-// precio todavía, el cerrajero lo carga cuando vuelve del trabajo) con el
-// cerrajero ya asignado, y arranca un carrito nuevo — igual que "Convertir
-// en venta" desde Presupuestos. La dirección recién queda "convertida" (y
-// el botón se pone verde "Facturado") cuando la venta se guarda de verdad
-// y se cobra — no acá, así un clic sin llegar a guardar no la deja
-// marcada como si ya se hubiera facturado.
+// Pasa la dirección a la pantalla de Venta y arranca un carrito nuevo —
+// igual que "Convertir en venta" desde Presupuestos. La dirección recién
+// queda "convertida" (y el botón se pone verde "Facturado") cuando la
+// venta se guarda de verdad y se cobra — no acá, así un clic sin llegar a
+// guardar no la deja marcada como si ya se hubiera facturado.
 let direccionOrigenId = null;
-function pasarDireccionAVenta(id) {
+async function pasarDireccionAVenta(id) {
   const direccion = direccionesCache.find((d) => d.id === id);
   if (!direccion) return;
   limpiarCarrito();
   direccionOrigenId = id;
+  if (direccion.cerrajero_id) {
+    document.getElementById('ventaCerrajeroDefault').value = direccion.cerrajero_id;
+  }
+  await agregarLineaDesdeDireccion(direccion);
+  const partes = [`Dirección: ${direccion.direccion}`];
+  if (direccion.telefono) partes.push(`Tel: ${direccion.telefono}`);
+  document.getElementById('direccionOrigenAviso').textContent = partes.join(' — ') + '. Revisá precio y mano de obra antes de cobrar.';
+  showScreen('venta');
+}
+
+// "Trabajo a realizar" puede traer el código real del producto/servicio
+// entre paréntesis al final (ej: "Apertura de puerta (1001)") — si está,
+// se busca ese código en el catálogo y se agrega el producto de verdad
+// (con su precio, mano de obra, etc.), igual que si se hubiera buscado a
+// mano en la pantalla de Venta. Si no hay código o no se encuentra, se
+// agrega como línea manual sin precio para completar a mano.
+async function agregarLineaDesdeDireccion(direccion) {
+  const match = direccion.trabajo.match(/\(([^()]+)\)\s*$/);
+  const codigo = match ? match[1].trim() : '';
+  if (codigo) {
+    try {
+      const productos = await (await fetch('/api/productos?q=' + encodeURIComponent(codigo))).json();
+      const producto = productos.find((p) => p.codigo.toLowerCase() === codigo.toLowerCase());
+      if (producto) {
+        agregarProductoACarrito(producto);
+        return;
+      }
+    } catch (err) {
+      // sigue a la línea manual
+    }
+  }
   carritoVenta.push({
     producto_id: null,
     descripcion: direccion.trabajo,
@@ -3353,14 +3382,7 @@ function pasarDireccionAVenta(id) {
     descuento_pct: 0,
     cerrajero_id: direccion.cerrajero_id || null,
   });
-  if (direccion.cerrajero_id) {
-    document.getElementById('ventaCerrajeroDefault').value = direccion.cerrajero_id;
-  }
   renderVenta();
-  const partes = [`Dirección: ${direccion.direccion}`];
-  if (direccion.telefono) partes.push(`Tel: ${direccion.telefono}`);
-  document.getElementById('direccionOrigenAviso').textContent = partes.join(' — ') + '. Completá el precio antes de cobrar.';
-  showScreen('venta');
 }
 
 // ============================================================
