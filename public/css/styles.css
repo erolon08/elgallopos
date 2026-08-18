@@ -99,6 +99,16 @@ table{width:100%;border-collapse:collapse;min-width:640px} th,td{padding:10px 11
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;align-items:center;justify-content:center;padding:20px}
 .modal.open{display:flex} .modal-box{background:var(--card);border-radius:14px;max-width:420px;width:100%;max-height:92vh;overflow:auto;padding:18px}
 .two-col-form{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+
+.mensajes-badge{display:none;background:var(--red);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;min-width:16px;text-align:center;line-height:16px}
+.mensajes-badge.visible{display:inline-block}
+#btnMensajes .mensajes-badge{position:absolute;right:10px;top:50%;transform:translateY(-50%)}
+.mensajes-rol-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.mensajes-hilo{height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.mensaje-burbuja{max-width:80%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.35;word-wrap:break-word}
+.mensaje-burbuja.propio{align-self:flex-end;background:var(--red);color:#fff;border-bottom-right-radius:3px}
+.mensaje-burbuja.ajeno{align-self:flex-start;background:var(--card);color:var(--ink);border:1px solid var(--line);border-bottom-left-radius:3px}
+.mensaje-burbuja .hora{font-size:10px;opacity:.7;margin-top:3px}
 .small{font-size:12px;color:var(--muted)}
 .text-red{color:var(--red);font-weight:600} .text-green{color:#1f9d55;font-weight:600}
 .grid{display:grid;gap:14px} .g2{grid-template-columns:repeat(2,minmax(0,1fr))} .g3{grid-template-columns:repeat(3,minmax(0,1fr))}

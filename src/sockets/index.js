@@ -33,4 +33,8 @@ function emitSistemaReseteado() {
   if (io) io.emit('sistema:reseteado');
 }
 
-module.exports = { init, attach, emitStockUpdated, emitVentaEvent, emitSistemaReseteado };
+function emitMensajeNuevo(mensaje) {
+  if (io) io.emit('mensaje:nuevo', mensaje);
+}
+
+module.exports = { init, attach, emitStockUpdated, emitVentaEvent, emitSistemaReseteado, emitMensajeNuevo };

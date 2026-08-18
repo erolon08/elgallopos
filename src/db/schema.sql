@@ -233,6 +233,19 @@ CREATE TABLE IF NOT EXISTS direcciones (
 );
 CREATE INDEX IF NOT EXISTS idx_direcciones_estado ON direcciones(estado);
 
+-- Chat interno entre puestos (ADMIN/CAJA/VENTA/STOCK): el login es por rol
+-- compartido, no por empleado individual, así que un mensaje va dirigido a
+-- un ROL — lo ve cualquier terminal que esté conectada con ese puesto.
+CREATE TABLE IF NOT EXISTS mensajes_internos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  de_rol TEXT NOT NULL,
+  para_rol TEXT NOT NULL,
+  texto TEXT NOT NULL,
+  leido INTEGER NOT NULL DEFAULT 0,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mensajes_para_rol ON mensajes_internos(para_rol, leido);
+
 -- ============================================================
 -- CAJA — TURNOS Y MOVIMIENTOS
 -- ============================================================

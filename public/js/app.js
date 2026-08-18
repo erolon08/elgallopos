@@ -2296,6 +2296,17 @@ socket.on('sistema:reseteado', () => {
   alert('Se reseteó el sistema desde otra terminal. La página se va a recargar.');
   location.reload();
 });
+socket.on('mensaje:nuevo', (mensaje) => {
+  if (!session || mensaje.para_rol !== session.rol) return;
+  const modalAbierto = document.getElementById('mensajesModal').classList.contains('open');
+  const viendoEsaConversacion = modalAbierto && mensajesConversacionActual === mensaje.de_rol;
+  if (viendoEsaConversacion) {
+    abrirConversacion(mensaje.de_rol);
+  } else {
+    actualizarBadgeMensajes();
+    alert(`💬 Nuevo mensaje de ${mensaje.de_rol}: ${mensaje.texto}`);
+  }
+});
 
 // ============================================================
 // SESIÓN / LOGIN POR ROL
@@ -2424,6 +2435,8 @@ function logout() {
   session = null;
   localStorage.removeItem('gallo_session');
   document.getElementById('loginScreen').style.display = 'flex';
+  cerrarMensajes();
+  document.getElementById('mensajesBadge').classList.remove('visible');
 }
 
 function aplicarSesion() {
@@ -2435,6 +2448,7 @@ function aplicarSesion() {
   });
   const inicio = session.rol === 'VENTA' ? 'venta' : session.rol === 'CAJA' ? 'pendientes' : session.rol === 'STOCK' ? 'stock' : 'dashboard';
   showScreen(inicio);
+  actualizarBadgeMensajes();
 }
 
 function actualizarHintVenta() {
@@ -3384,6 +3398,100 @@ async function agregarLineaDesdeDireccion(direccion) {
     cerrajero_id: direccion.cerrajero_id || null,
   });
   renderVenta();
+}
+
+// ============================================================
+// MENSAJES INTERNOS — chat entre puestos (ADMIN/CAJA/VENTA/STOCK)
+// ============================================================
+const ROLES_MENSAJES = ['ADMIN', 'CAJA', 'VENTA', 'STOCK'];
+let mensajesConversacionActual = null;
+let mensajesNoLeidos = {};
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function actualizarBadgeMensajes() {
+  if (!session) return;
+  mensajesNoLeidos = await (await fetch(`/api/mensajes/no-leidos?rol=${session.rol}`)).json();
+  const total = Object.values(mensajesNoLeidos).reduce((a, b) => a + b, 0);
+  const badge = document.getElementById('mensajesBadge');
+  badge.textContent = total > 9 ? '9+' : String(total);
+  badge.classList.toggle('visible', total > 0);
+}
+
+function renderRolesMensajes() {
+  const cont = document.getElementById('mensajesRolesLista');
+  cont.innerHTML = '';
+  ROLES_MENSAJES.filter((r) => r !== session.rol).forEach((r) => {
+    const noLeidos = mensajesNoLeidos[r] || 0;
+    const btn = document.createElement('button');
+    btn.className = 'btn mensajes-rol-btn ' + (mensajesConversacionActual === r ? 'primary' : 'light');
+    btn.innerHTML = `<span>${r}</span>${noLeidos ? `<span class="mensajes-badge visible" style="position:static">${noLeidos > 9 ? '9+' : noLeidos}</span>` : ''}`;
+    btn.onclick = () => abrirConversacion(r);
+    cont.appendChild(btn);
+  });
+}
+
+async function abrirMensajes() {
+  document.getElementById('mensajesModal').classList.add('open');
+  await actualizarBadgeMensajes();
+  const primerRol = ROLES_MENSAJES.filter((r) => r !== session.rol)[0];
+  await abrirConversacion(mensajesConversacionActual || primerRol);
+}
+
+function cerrarMensajes() {
+  document.getElementById('mensajesModal').classList.remove('open');
+}
+
+async function abrirConversacion(rol) {
+  mensajesConversacionActual = rol;
+  renderRolesMensajes();
+  const mensajes = await (await fetch(`/api/mensajes/conversacion?rol=${session.rol}&con=${rol}`)).json();
+  renderHiloMensajes(mensajes);
+  await fetch('/api/mensajes/leidos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rol: session.rol, con: rol }),
+  });
+  await actualizarBadgeMensajes();
+  renderRolesMensajes();
+}
+
+function renderHiloMensajes(mensajes) {
+  const cont = document.getElementById('mensajesHilo');
+  cont.innerHTML = '';
+  if (!mensajes.length) {
+    cont.innerHTML = '<p class="small">Todavía no hay mensajes.</p>';
+    return;
+  }
+  mensajes.forEach((m) => {
+    const propio = m.de_rol === session.rol;
+    const hora = new Date(m.creado_en).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const div = document.createElement('div');
+    div.className = 'mensaje-burbuja ' + (propio ? 'propio' : 'ajeno');
+    div.innerHTML = `${escapeHtml(m.texto)}<div class="hora">${hora}</div>`;
+    cont.appendChild(div);
+  });
+  cont.scrollTop = cont.scrollHeight;
+}
+
+async function enviarMensajeInterno() {
+  const input = document.getElementById('mensajeTextoInput');
+  const texto = input.value.trim();
+  if (!texto || !mensajesConversacionActual) return;
+  const res = await fetch('/api/mensajes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ de_rol: session.rol, para_rol: mensajesConversacionActual, texto }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  input.value = '';
+  await abrirConversacion(mensajesConversacionActual);
 }
 
 // ============================================================

@@ -25,6 +25,7 @@ const usuariosRoutes = require('./routes/usuarios.routes');
 const mercadopagoRoutes = require('./routes/mercadopago.routes');
 const sistemaRoutes = require('./routes/sistema.routes');
 const direccionesRoutes = require('./routes/direcciones.routes');
+const mensajesRoutes = require('./routes/mensajes.routes');
 
 const app = express();
 app.use(express.json());
@@ -58,6 +59,7 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/mercadopago', mercadopagoRoutes);
 app.use('/api/sistema', sistemaRoutes);
 app.use('/api/direcciones', direccionesRoutes);
+app.use('/api/mensajes', mensajesRoutes);
 
 const server = http.createServer(app);
 sockets.init(server);
