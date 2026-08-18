@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS direcciones (
   telefono TEXT,
   cerrajero_id INTEGER REFERENCES cerrajeros(id),
   estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','convertida')),
+  venta_id INTEGER REFERENCES ventas(id),
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   convertido_en TEXT
 );

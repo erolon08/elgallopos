@@ -3,10 +3,14 @@ const db = require('../db');
 // Anotador de "adónde va cada cerrajero" antes de facturar. No tiene
 // precio ni productos todavía — eso se completa recién al "pasar a venta".
 
+// venta_estado viene de la venta ya creada a partir de esta dirección (si
+// la hay): permite distinguir en la lista entre "convertida pero todavía
+// sin cobrar" y "ya facturada" (venta_estado = 'cobrada').
 const SELECT_CON_CERRAJERO = `
-  SELECT d.*, c.nombre AS cerrajero_nombre
+  SELECT d.*, c.nombre AS cerrajero_nombre, v.estado AS venta_estado
   FROM direcciones d
   LEFT JOIN cerrajeros c ON c.id = d.cerrajero_id
+  LEFT JOIN ventas v ON v.id = d.venta_id
 `;
 
 function listar(estado) {
@@ -36,11 +40,4 @@ function eliminar(id) {
   return info.changes > 0;
 }
 
-function marcarConvertida(id) {
-  const info = db
-    .prepare("UPDATE direcciones SET estado = 'convertida', convertido_en = datetime('now','localtime') WHERE id = ? AND estado = 'pendiente'")
-    .run(id);
-  return info.changes > 0;
-}
-
-module.exports = { listar, obtener, crear, eliminar, marcarConvertida };
+module.exports = { listar, obtener, crear, eliminar };

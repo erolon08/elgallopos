@@ -55,6 +55,7 @@ ensureColumn('presupuesto_items', 'precio_debito', 'REAL');
 ensureColumn('presupuesto_items', 'precio_efectivo', 'REAL');
 ensureColumn('clientes', 'saldo_cta_cte', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('ventas', 'cta_cte_saldo_pendiente', 'REAL NOT NULL DEFAULT 0');
+ensureColumn('direcciones', 'venta_id', 'INTEGER REFERENCES ventas(id)');
 // Va acá (no en schema.sql) porque necesita que la columna de arriba ya
 // exista: en una base migrada, schema.sql corre ANTES que estos
 // ensureColumn, así que un CREATE INDEX sobre esa columna ahí arriba

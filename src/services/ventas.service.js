@@ -116,6 +116,10 @@ const crear = db.transaction((datos) => {
     db.prepare("UPDATE presupuestos SET estado = 'convertido', venta_id = ? WHERE id = ?").run(venta_id, datos.presupuesto_id);
   }
 
+  if (datos.direccion_id) {
+    db.prepare("UPDATE direcciones SET estado = 'convertida', venta_id = ?, convertido_en = datetime('now','localtime') WHERE id = ?").run(venta_id, datos.direccion_id);
+  }
+
   return obtener(venta_id);
 });
 

@@ -2491,6 +2491,7 @@ async function enviarACajaDesdeVenta() {
     descuento_general: calcularDescuentoGeneralMonto(),
     items: itemsParaApi(),
     presupuesto_id: presupuestoOrigenId,
+    direccion_id: direccionOrigenId,
   };
   const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const data = await res.json();
@@ -3213,11 +3214,15 @@ async function cargarDirecciones() {
   }
   filas.forEach((d) => {
     const hora = new Date(d.creado_en).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-    const accionesPendiente =
-      d.estado === 'pendiente'
-        ? `<button class="btn primary" onclick="pasarDireccionAVenta(${d.id})">Pasar a venta</button>
-           <button class="btn light" onclick="eliminarDireccion(${d.id})">🗑</button>`
-        : '<span class="status s-blue">Convertida</span>';
+    let accionesPendiente;
+    if (d.estado !== 'pendiente' && d.venta_estado === 'cobrada') {
+      accionesPendiente = `<button class="btn green" disabled>✓ Facturado</button>`;
+    } else if (d.estado !== 'pendiente') {
+      accionesPendiente = '<span class="status s-blue">Convertida</span>';
+    } else {
+      accionesPendiente = `<button class="btn primary" onclick="pasarDireccionAVenta(${d.id})">Pasar a venta</button>
+           <button class="btn light" onclick="eliminarDireccion(${d.id})">🗑</button>`;
+    }
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${d.direccion}</td>
@@ -3315,15 +3320,16 @@ async function eliminarDireccion(id) {
 // Pasa la dirección a la pantalla de Venta como una línea manual (sin
 // precio todavía, el cerrajero lo carga cuando vuelve del trabajo) con el
 // cerrajero ya asignado, y arranca un carrito nuevo — igual que "Convertir
-// en venta" desde Presupuestos.
-async function pasarDireccionAVenta(id) {
-  const res = await fetch(`/api/direcciones/${id}/convertir`, { method: 'POST' });
-  const direccion = await res.json();
-  if (!res.ok) {
-    alert('Error: ' + direccion.error);
-    return;
-  }
+// en venta" desde Presupuestos. La dirección recién queda "convertida" (y
+// el botón se pone verde "Facturado") cuando la venta se guarda de verdad
+// y se cobra — no acá, así un clic sin llegar a guardar no la deja
+// marcada como si ya se hubiera facturado.
+let direccionOrigenId = null;
+function pasarDireccionAVenta(id) {
+  const direccion = direccionesCache.find((d) => d.id === id);
+  if (!direccion) return;
   limpiarCarrito();
+  direccionOrigenId = id;
   carritoVenta.push({
     producto_id: null,
     descripcion: direccion.trabajo,
@@ -3343,7 +3349,6 @@ async function pasarDireccionAVenta(id) {
   if (direccion.telefono) partes.push(`Tel: ${direccion.telefono}`);
   document.getElementById('direccionOrigenAviso').textContent = partes.join(' — ') + '. Completá el precio antes de cobrar.';
   showScreen('venta');
-  cargarDirecciones();
 }
 
 // ============================================================
@@ -4016,6 +4021,7 @@ function limpiarCarrito() {
   clienteVentaActual = null;
   ventaPendienteIdEnCurso = null;
   presupuestoOrigenId = null;
+  direccionOrigenId = null;
   document.getElementById('ventaClienteNombre').textContent = 'Consumidor Final';
   document.getElementById('ventaDescuentoGeneral').value = 0;
   document.getElementById('presupuestoOrigenAviso').textContent = '';
@@ -4076,6 +4082,7 @@ async function guardarPendiente() {
     payload.usuario_id = session.id;
     payload.estado = 'pendiente';
     payload.presupuesto_id = presupuestoOrigenId;
+    payload.direccion_id = direccionOrigenId;
     res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   }
   const data = await res.json();
@@ -4119,6 +4126,7 @@ async function cobrarOEnviar() {
     descuento_general: calcularDescuentoGeneralMonto(),
     items: itemsParaApi(),
     presupuesto_id: presupuestoOrigenId,
+    direccion_id: direccionOrigenId,
   };
   const res = await fetch('/api/ventas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const data = await res.json();
