@@ -3198,10 +3198,13 @@ async function anularRendicion(id) {
 // ============================================================
 // DIRECCIONES — anotador de "adónde va cada cerrajero" antes de vender
 // ============================================================
+let direccionesCache = [];
+
 async function cargarDirecciones() {
   const estado = document.getElementById('direccionesEstado').value;
   const url = estado ? `/api/direcciones?estado=${estado}` : '/api/direcciones';
   const filas = await (await fetch(url)).json();
+  direccionesCache = filas;
   const tbody = document.getElementById('direccionesBody');
   tbody.innerHTML = '';
   if (!filas.length) {
@@ -3210,7 +3213,7 @@ async function cargarDirecciones() {
   }
   filas.forEach((d) => {
     const hora = new Date(d.creado_en).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-    const acciones =
+    const accionesPendiente =
       d.estado === 'pendiente'
         ? `<button class="btn primary" onclick="pasarDireccionAVenta(${d.id})">Pasar a venta</button>
            <button class="btn light" onclick="eliminarDireccion(${d.id})">🗑</button>`
@@ -3222,10 +3225,59 @@ async function cargarDirecciones() {
       <td>${d.telefono || '—'}</td>
       <td>${d.cerrajero_nombre || '—'}</td>
       <td>${hora}</td>
-      <td>${acciones}</td>
+      <td><button class="btn light" onclick="copiarDireccion(${d.id})" title="Copiar como texto para pegar en WhatsApp">📋 Copiar</button> ${accionesPendiente}</td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+function textoDireccionParaCopiar(d) {
+  const lineas = [`Dirección: ${d.direccion}`, `Trabajo: ${d.trabajo}`];
+  if (d.telefono) lineas.push(`Teléfono: ${d.telefono}`);
+  if (d.cerrajero_nombre) lineas.push(`Cerrajero: ${d.cerrajero_nombre}`);
+  return lineas.join('\n');
+}
+
+async function copiarDireccion(id) {
+  const d = direccionesCache.find((x) => x.id === id);
+  if (!d) return;
+  const texto = textoDireccionParaCopiar(d);
+  const ok = await copiarTextoAlPortapapeles(texto);
+  if (ok) {
+    alert('Se copió al portapapeles. Pegalo (Ctrl+V) en el chat de WhatsApp donde lo quieras mandar.');
+  } else {
+    alert('No se pudo copiar automáticamente. Copiá este texto a mano:\n\n' + texto);
+  }
+}
+
+// Copia texto plano al portapapeles. navigator.clipboard solo funciona en
+// "contexto seguro" (HTTPS o localhost); si alguna terminal entra por LAN
+// con http:// plano, se usa el método viejo (textarea + execCommand) como
+// respaldo, que sí funciona ahí.
+async function copiarTextoAlPortapapeles(texto) {
+  if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    } catch (err) {
+      // sigue al método de respaldo
+    }
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = texto;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch (err) {
+    ok = false;
+  }
+  document.body.removeChild(textarea);
+  return ok;
 }
 
 async function agregarDireccion() {
