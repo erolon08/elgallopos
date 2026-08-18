@@ -216,6 +216,22 @@ CREATE TABLE IF NOT EXISTS cerrajeros (
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- Direcciones: anotador rápido de "adónde va cada cerrajero" antes de que
+-- exista una venta (todavía no hay precio ni productos definidos). Desde
+-- ahí se "pasa a venta" para armar el carrito y facturar; en ese momento
+-- queda marcada como convertida y sale de la lista activa.
+CREATE TABLE IF NOT EXISTS direcciones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  direccion TEXT NOT NULL,
+  trabajo TEXT NOT NULL,
+  telefono TEXT,
+  cerrajero_id INTEGER REFERENCES cerrajeros(id),
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','convertida')),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  convertido_en TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_direcciones_estado ON direcciones(estado);
+
 -- ============================================================
 -- CAJA — TURNOS Y MOVIMIENTOS
 -- ============================================================

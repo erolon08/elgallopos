@@ -1,7 +1,7 @@
 const titles = {
   dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', compras: 'Sugerencia de compra', clientes: 'Clientes',
   cuentacorriente: 'Cuenta Corriente',
-  venta: 'Venta', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
+  venta: 'Venta', direcciones: 'Direcciones', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
   caja: 'Caja y turnos', ranking: 'Ranking', resumen: 'Resumen', configuracion: 'Configuración',
 };
@@ -41,6 +41,7 @@ function showScreen(id) {
   if (id === 'productos') cargarProductos();
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
+  if (id === 'direcciones') cargarDirecciones();
   if (id === 'pendientes') cargarPendientes();
   if (id === 'ventas') cargarVentasHistorial();
   if (id === 'presupuestos') cargarPresupuestos();
@@ -2302,9 +2303,9 @@ socket.on('sistema:reseteado', () => {
 let session = null;
 const PANTALLAS_POR_ROL = {
   // Stock queda reservado exclusivamente al puesto STOCK, ni ADMIN lo ve.
-  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'cuentacorriente', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
-  CAJA: ['venta', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'caja'],
-  VENTA: ['venta', 'pendientes', 'presupuestos', 'clientes', 'cuentacorriente'],
+  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'cuentacorriente', 'direcciones', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
+  CAJA: ['venta', 'direcciones', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'caja'],
+  VENTA: ['venta', 'direcciones', 'pendientes', 'presupuestos', 'clientes', 'cuentacorriente'],
   STOCK: ['stock', 'productos', 'compras'],
 };
 
@@ -2521,6 +2522,7 @@ async function cargarCerrajerosGlobal() {
   };
   opts(document.getElementById('ventaCerrajeroDefault'));
   opts(document.getElementById('ventasCerrajero'));
+  opts(document.getElementById('direccionCerrajero'));
 }
 
 // ============================================================
@@ -3191,6 +3193,105 @@ async function anularRendicion(id) {
     return;
   }
   cargarRendiciones();
+}
+
+// ============================================================
+// DIRECCIONES — anotador de "adónde va cada cerrajero" antes de vender
+// ============================================================
+async function cargarDirecciones() {
+  const estado = document.getElementById('direccionesEstado').value;
+  const url = estado ? `/api/direcciones?estado=${estado}` : '/api/direcciones';
+  const filas = await (await fetch(url)).json();
+  const tbody = document.getElementById('direccionesBody');
+  tbody.innerHTML = '';
+  if (!filas.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="small">No hay direcciones cargadas.</td></tr>';
+    return;
+  }
+  filas.forEach((d) => {
+    const hora = new Date(d.creado_en).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const acciones =
+      d.estado === 'pendiente'
+        ? `<button class="btn primary" onclick="pasarDireccionAVenta(${d.id})">Pasar a venta</button>
+           <button class="btn light" onclick="eliminarDireccion(${d.id})">🗑</button>`
+        : '<span class="status s-blue">Convertida</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${d.direccion}</td>
+      <td>${d.trabajo}</td>
+      <td>${d.telefono || '—'}</td>
+      <td>${d.cerrajero_nombre || '—'}</td>
+      <td>${hora}</td>
+      <td>${acciones}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function agregarDireccion() {
+  const direccion = document.getElementById('direccionInputDireccion').value.trim();
+  const trabajo = document.getElementById('direccionInputTrabajo').value.trim();
+  const telefono = document.getElementById('direccionInputTelefono').value.trim();
+  const cerrajero_id = document.getElementById('direccionCerrajero').value || null;
+  if (!direccion || !trabajo) {
+    alert('Completá dirección y trabajo a realizar.');
+    return;
+  }
+  const res = await fetch('/api/direcciones', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ direccion, trabajo, telefono, cerrajero_id }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  document.getElementById('direccionInputDireccion').value = '';
+  document.getElementById('direccionInputTrabajo').value = '';
+  document.getElementById('direccionInputTelefono').value = '';
+  document.getElementById('direccionCerrajero').value = '';
+  cargarDirecciones();
+}
+
+async function eliminarDireccion(id) {
+  if (!confirm('¿Eliminar esta dirección?')) return;
+  await fetch(`/api/direcciones/${id}`, { method: 'DELETE' });
+  cargarDirecciones();
+}
+
+// Pasa la dirección a la pantalla de Venta como una línea manual (sin
+// precio todavía, el cerrajero lo carga cuando vuelve del trabajo) con el
+// cerrajero ya asignado, y arranca un carrito nuevo — igual que "Convertir
+// en venta" desde Presupuestos.
+async function pasarDireccionAVenta(id) {
+  const res = await fetch(`/api/direcciones/${id}/convertir`, { method: 'POST' });
+  const direccion = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + direccion.error);
+    return;
+  }
+  limpiarCarrito();
+  carritoVenta.push({
+    producto_id: null,
+    descripcion: direccion.trabajo,
+    cantidad: 1,
+    es_servicio: false,
+    precios: { final: 0, debito: 0, efectivo: 0 },
+    precio_unitario: 0,
+    tipo_precio: 'manual',
+    descuento_pct: 0,
+    cerrajero_id: direccion.cerrajero_id || null,
+  });
+  if (direccion.cerrajero_id) {
+    document.getElementById('ventaCerrajeroDefault').value = direccion.cerrajero_id;
+  }
+  renderVenta();
+  const partes = [`Dirección: ${direccion.direccion}`];
+  if (direccion.telefono) partes.push(`Tel: ${direccion.telefono}`);
+  document.getElementById('direccionOrigenAviso').textContent = partes.join(' — ') + '. Completá el precio antes de cobrar.';
+  showScreen('venta');
+  cargarDirecciones();
 }
 
 // ============================================================
@@ -3866,6 +3967,7 @@ function limpiarCarrito() {
   document.getElementById('ventaClienteNombre').textContent = 'Consumidor Final';
   document.getElementById('ventaDescuentoGeneral').value = 0;
   document.getElementById('presupuestoOrigenAviso').textContent = '';
+  document.getElementById('direccionOrigenAviso').textContent = '';
   actualizarComprobanteYCondicionSegunCliente();
   actualizarDatosClienteVenta();
   renderVenta();

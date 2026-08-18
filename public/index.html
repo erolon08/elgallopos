@@ -58,6 +58,7 @@
     <div class="nav" id="nav">
       <button data-screen="dashboard" class="active">📊 Dashboard</button>
       <button data-screen="venta">🛒 Venta</button>
+      <button data-screen="direcciones">📍 Direcciones</button>
       <button data-screen="pendientes">💾 Pendientes</button>
       <button data-screen="ventas">🧾 Ventas</button>
       <button data-screen="presupuestos">📄 Presupuestos</button>
@@ -598,6 +599,38 @@
             <button class="btn outline" onclick="cancelarVenta()">Cancelar<br><span class="key key-dark">F6</span></button>
             <div class="sale-footer-hint" id="ventaHint">En esta terminal, F10 abre el cobro directamente.</div>
             <p class="small" id="presupuestoOrigenAviso" style="flex-basis:100%;margin:0;color:#bcdcff"></p>
+            <p class="small" id="direccionOrigenAviso" style="flex-basis:100%;margin:0;color:#bcdcff"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="direcciones">
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Nueva dirección</h3></div>
+          <div class="toolbar">
+            <div class="field" style="flex:2"><label>Dirección</label><input id="direccionInputDireccion" placeholder="Ej: San Martín 1234"></div>
+            <div class="field" style="flex:2"><label>Trabajo a realizar</label><input id="direccionInputTrabajo" placeholder="Ej: Apertura de puerta (1001)"></div>
+            <div class="field"><label>Teléfono</label><input id="direccionInputTelefono" placeholder="Ej: 3794 123456"></div>
+            <div class="field"><label>Cerrajero</label><select id="direccionCerrajero"><option value="">Sin asignar</option></select></div>
+            <button class="btn primary" onclick="agregarDireccion()">+ Agregar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">
+            <h3>Direcciones</h3>
+            <div class="field" style="max-width:220px">
+              <select id="direccionesEstado" onchange="cargarDirecciones()">
+                <option value="pendiente">Pendientes</option>
+                <option value="convertida">Historial (pasadas a venta)</option>
+                <option value="">Todas</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Dirección</th><th>Trabajo</th><th>Teléfono</th><th>Cerrajero</th><th>Hora</th><th></th></tr></thead>
+              <tbody id="direccionesBody"></tbody>
+            </table>
           </div>
         </div>
       </section>
