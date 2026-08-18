@@ -3350,27 +3350,28 @@ async function pasarDireccionAVenta(id) {
   showScreen('venta');
 }
 
-// "Trabajo a realizar" puede traer el código real del producto/servicio
-// entre paréntesis al final (ej: "Apertura de puerta (1001)") — si está,
-// se busca ese código en el catálogo y se agrega el producto de verdad
-// (con su precio, mano de obra, etc.), igual que si se hubiera buscado a
-// mano en la pantalla de Venta. Si no hay código o no se encuentra, se
-// agrega como línea manual sin precio para completar a mano.
+// Toda dirección se carga siempre bajo este mismo código de servicio del
+// catálogo (precio y mano de obra salen de ahí), pero con la descripción
+// real que se anotó en "Trabajo a realizar" en vez del nombre genérico del
+// catálogo — así la factura muestra qué se hizo de verdad.
+const CODIGO_SERVICIO_DIRECCIONES = '1001';
+
 async function agregarLineaDesdeDireccion(direccion) {
-  const match = direccion.trabajo.match(/\(([^()]+)\)\s*$/);
-  const codigo = match ? match[1].trim() : '';
-  if (codigo) {
-    try {
-      const productos = await (await fetch('/api/productos?q=' + encodeURIComponent(codigo))).json();
-      const producto = productos.find((p) => p.codigo.toLowerCase() === codigo.toLowerCase());
-      if (producto) {
-        agregarProductoACarrito(producto);
-        return;
-      }
-    } catch (err) {
-      // sigue a la línea manual
+  try {
+    const productos = await (await fetch('/api/productos?q=' + encodeURIComponent(CODIGO_SERVICIO_DIRECCIONES))).json();
+    const producto = productos.find((p) => p.codigo === CODIGO_SERVICIO_DIRECCIONES);
+    if (producto) {
+      agregarProductoACarritoInterno(producto, undefined, null);
+      const linea = carritoVenta[carritoVenta.length - 1];
+      linea.descripcion = direccion.trabajo;
+      renderVenta();
+      return;
     }
+  } catch (err) {
+    // sigue a la línea manual
   }
+  // Si todavía no existe el código 1001 en el catálogo (Productos), se
+  // agrega igual como línea manual sin precio, para no bloquear la venta.
   carritoVenta.push({
     producto_id: null,
     descripcion: direccion.trabajo,
