@@ -527,6 +527,27 @@ CREATE TABLE IF NOT EXISTS configuracion (
   mp_pos_external_id TEXT,
   mp_qr_fijo_image_url TEXT,
   mp_qr_fijo_template_url TEXT,
+  -- Bot de WhatsApp (API oficial de Meta + Claude): whatsapp_activo arranca
+  -- en 0 a propósito, igual que arca_facturacion_activa/mp_activo — hasta no
+  -- cargar las credenciales y prenderlo a mano desde Configuración, el
+  -- webhook no contesta nada.
+  whatsapp_token TEXT,
+  whatsapp_phone_number_id TEXT,
+  whatsapp_verify_token TEXT,
+  whatsapp_activo INTEGER NOT NULL DEFAULT 0,
+  whatsapp_instrucciones TEXT,
+  anthropic_api_key TEXT,
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 INSERT OR IGNORE INTO configuracion (id) VALUES (1);
+
+-- Historial de la conversación de WhatsApp por número de teléfono, para que
+-- el bot tenga contexto de los últimos mensajes (no arranca de cero cada vez).
+CREATE TABLE IF NOT EXISTS whatsapp_mensajes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  telefono TEXT NOT NULL,
+  rol TEXT NOT NULL CHECK (rol IN ('user','assistant')),
+  texto TEXT NOT NULL,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_mensajes_telefono ON whatsapp_mensajes(telefono, id);

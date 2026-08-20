@@ -56,6 +56,12 @@ ensureColumn('presupuesto_items', 'precio_efectivo', 'REAL');
 ensureColumn('clientes', 'saldo_cta_cte', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('ventas', 'cta_cte_saldo_pendiente', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('direcciones', 'venta_id', 'INTEGER REFERENCES ventas(id)');
+ensureColumn('configuracion', 'whatsapp_token', 'TEXT');
+ensureColumn('configuracion', 'whatsapp_phone_number_id', 'TEXT');
+ensureColumn('configuracion', 'whatsapp_verify_token', 'TEXT');
+ensureColumn('configuracion', 'whatsapp_activo', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('configuracion', 'whatsapp_instrucciones', 'TEXT');
+ensureColumn('configuracion', 'anthropic_api_key', 'TEXT');
 // Va acá (no en schema.sql) porque necesita que la columna de arriba ya
 // exista: en una base migrada, schema.sql corre ANTES que estos
 // ensureColumn, así que un CREATE INDEX sobre esa columna ahí arriba

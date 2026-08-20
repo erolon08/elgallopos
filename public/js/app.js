@@ -2074,6 +2074,16 @@ async function cargarConfiguracion() {
   document.getElementById('cfgMpAccessToken').value = configCache.mp_access_token || '';
   document.getElementById('cfgMpActiva').checked = !!configCache.mp_activo;
   mostrarEstadoQrFijoMp();
+  document.getElementById('cfgWaToken').value = configCache.whatsapp_token || '';
+  document.getElementById('cfgWaPhoneId').value = configCache.whatsapp_phone_number_id || '';
+  document.getElementById('cfgWaVerifyToken').value = configCache.whatsapp_verify_token || '';
+  document.getElementById('cfgAnthropicKey').value = configCache.anthropic_api_key || '';
+  document.getElementById('cfgWaInstrucciones').value = configCache.whatsapp_instrucciones || '';
+  document.getElementById('cfgWaActivo').checked = !!configCache.whatsapp_activo;
+  // No se puede armar la URL pública real acá (esta pantalla se ve por la
+  // dirección local/Tailscale, no por el túnel de Cloudflare) — se muestra
+  // el path fijo como referencia, para pegar después de tu dominio del túnel.
+  document.getElementById('cfgWaWebhookUrl').value = 'https://TU-DOMINIO-DE-CLOUDFLARE/api/whatsapp/webhook';
 }
 
 function mostrarEstadoQrFijoMp() {
@@ -2132,6 +2142,39 @@ async function guardarMpConfig() {
   await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   await cargarConfiguracionGlobal();
   alert('Configuración de cobro con QR guardada.');
+}
+
+async function guardarWaConfig() {
+  const payload = {
+    whatsapp_token: document.getElementById('cfgWaToken').value.trim(),
+    whatsapp_phone_number_id: document.getElementById('cfgWaPhoneId').value.trim(),
+    whatsapp_verify_token: document.getElementById('cfgWaVerifyToken').value.trim(),
+    anthropic_api_key: document.getElementById('cfgAnthropicKey').value.trim(),
+    whatsapp_instrucciones: document.getElementById('cfgWaInstrucciones').value.trim(),
+    whatsapp_activo: document.getElementById('cfgWaActivo').checked,
+  };
+  await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  await cargarConfiguracionGlobal();
+  alert('Configuración del bot de WhatsApp guardada.');
+}
+
+async function probarWaConexion() {
+  const telefono = document.getElementById('cfgWaProbarTelefono').value.trim();
+  if (!telefono) {
+    alert('Escribí un número de teléfono para mandarle el mensaje de prueba.');
+    return;
+  }
+  const res = await fetch('/api/whatsapp/probar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ telefono }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  alert('Mensaje de prueba enviado. Revisá el WhatsApp de ese número.');
 }
 
 async function guardarTelefonoRecuperacionConfig() {

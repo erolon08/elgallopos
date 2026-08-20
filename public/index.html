@@ -825,6 +825,38 @@
           </div>
         </div>
 
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Bot de WhatsApp</h3></div>
+          <div class="notice" style="margin-bottom:12px">
+            Contesta mensajes de WhatsApp automáticamente (preguntas frecuentes, precio/stock de productos, y puede cargar
+            un pedido de cerrajero a domicilio en Direcciones). Usa la API oficial de WhatsApp de Meta + Claude (Anthropic).
+            Necesita que esta PC sea accesible desde internet por un túnel (ej: Cloudflare Tunnel) para que Meta le pueda
+            mandar los mensajes entrantes.
+          </div>
+          <div class="two-col-form">
+            <div class="field"><label>Access Token de WhatsApp (Meta)</label><input id="cfgWaToken" type="password" placeholder="EAAG..."></div>
+            <div class="field"><label>Phone Number ID</label><input id="cfgWaPhoneId" placeholder="Ej: 123456789012345"></div>
+            <div class="field"><label>Verify Token (lo elegís vos)</label><input id="cfgWaVerifyToken" placeholder="Ej: gallopos-verify-2026"></div>
+            <div class="field"><label>Clave de API de Anthropic (Claude)</label><input id="cfgAnthropicKey" type="password" placeholder="sk-ant-..."></div>
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label>Instrucciones para el bot (horarios, formas de pago, tono, etc.)</label>
+            <textarea id="cfgWaInstrucciones" rows="4" placeholder="Ej: Atendemos de lunes a sábados de 8 a 20hs. Aceptamos efectivo, débito y transferencia. Para urgencias fuera de horario, avisar que se puede tardar un poco más."></textarea>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:10px">
+            <input type="checkbox" id="cfgWaActivo"> Bot activo (contesta mensajes automáticamente)
+          </label>
+          <div class="field" style="margin-top:10px">
+            <label>URL del webhook (para pegar en el panel de Meta)</label>
+            <input id="cfgWaWebhookUrl" readonly onclick="this.select()">
+          </div>
+          <div class="toolbar" style="margin-top:12px">
+            <button class="btn primary" onclick="guardarWaConfig()">Guardar</button>
+            <input id="cfgWaProbarTelefono" placeholder="Tu número con característica, ej: 3794123456" style="flex:1;min-width:220px">
+            <button class="btn outline" onclick="probarWaConexion()">Enviar mensaje de prueba</button>
+          </div>
+        </div>
+
         <div class="card">
           <div class="section-title"><h3>Notas del ticket</h3></div>
           <div class="toolbar">
