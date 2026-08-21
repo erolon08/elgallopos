@@ -2339,14 +2339,40 @@ socket.on('sistema:reseteado', () => {
   alert('Se reseteó el sistema desde otra terminal. La página se va a recargar.');
   location.reload();
 });
+// Notificación de escritorio (Windows la muestra por encima de cualquier otro
+// programa, no solo del navegador) para que alguien que está trabajando en
+// otra ventana se entere de un mensaje nuevo sin tener que estar mirando El
+// Gallo POS. Hay que pedir permiso una vez por PC/navegador; si lo niegan o
+// el navegador no lo soporta, se sigue avisando con el alert() de siempre.
+function pedirPermisoNotificaciones() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
 socket.on('mensaje:nuevo', (mensaje) => {
   if (!session || mensaje.para_rol !== session.rol) return;
   const modalAbierto = document.getElementById('mensajesModal').classList.contains('open');
   const viendoEsaConversacion = modalAbierto && mensajesConversacionActual === mensaje.de_rol;
   if (viendoEsaConversacion) {
     abrirConversacion(mensaje.de_rol);
+    return;
+  }
+  actualizarBadgeMensajes();
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const notif = new Notification(`💬 Mensaje de ${mensaje.de_rol}`, {
+      body: mensaje.texto,
+      icon: '/favicon.png',
+      tag: 'gallo-mensaje-' + mensaje.de_rol, // reemplaza la anterior del mismo remitente en vez de amontonar
+      requireInteraction: true, // no se autoborra: queda en pantalla hasta que la vean o la cierren
+    });
+    notif.onclick = () => {
+      window.focus();
+      abrirMensajes().then(() => abrirConversacion(mensaje.de_rol));
+      notif.close();
+    };
   } else {
-    actualizarBadgeMensajes();
     alert(`💬 Nuevo mensaje de ${mensaje.de_rol}: ${mensaje.texto}`);
   }
 });
@@ -2492,6 +2518,7 @@ function aplicarSesion() {
   const inicio = session.rol === 'VENTA' ? 'venta' : session.rol === 'CAJA' ? 'pendientes' : session.rol === 'STOCK' ? 'stock' : 'dashboard';
   showScreen(inicio);
   actualizarBadgeMensajes();
+  pedirPermisoNotificaciones();
 }
 
 function actualizarHintVenta() {
