@@ -4,12 +4,24 @@ const XLSX = require('xlsx');
 const clientesService = require('../services/clientes.service');
 const importacionClientesService = require('../services/importacion-clientes.service');
 const ccService = require('../services/cc.service');
+const arcaPadronService = require('../services/arca-padron.service');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 router.get('/', (req, res) => {
   res.json(clientesService.listar({ q: req.query.q }));
+});
+
+// Consulta el padrón de ARCA para autocompletar razón social/domicilio al
+// cargar un cliente por CUIT. Va antes de "/:id" solo por prolijidad (no
+// colisiona: son rutas de distinta cantidad de segmentos).
+router.get('/consultar-cuit/:cuit', async (req, res) => {
+  try {
+    res.json(await arcaPadronService.consultarCuit(req.params.cuit));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.get('/:id', (req, res) => {

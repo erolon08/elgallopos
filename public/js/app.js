@@ -904,6 +904,39 @@ async function quitarVehiculoUI(vehiculoId) {
   renderVehiculosModal();
 }
 
+// Al completar el CUIT en la ficha de cliente, trae razón social y
+// domicilio desde ARCA para no tener que tipearlos a mano. Solo pisa los
+// campos que estén vacíos (así no borra datos ya cargados si solo se está
+// corrigiendo el CUIT de un cliente existente).
+async function buscarClienteEnArca() {
+  const cuitInput = document.getElementById('cliCuit');
+  const estado = document.getElementById('cliCuitEstadoArca');
+  const cuit = cuitInput.value.replace(/\D/g, '');
+  if (cuit.length !== 11) {
+    estado.textContent = '';
+    return;
+  }
+  estado.textContent = 'Buscando en ARCA...';
+  try {
+    const res = await fetch('/api/clientes/consultar-cuit/' + cuit);
+    const data = await res.json();
+    if (!res.ok) {
+      estado.textContent = '⚠️ ' + data.error;
+      return;
+    }
+    const nombreEl = document.getElementById('cliNombre');
+    const direccionEl = document.getElementById('cliDireccion');
+    const localidadEl = document.getElementById('cliLocalidad');
+    if (data.nombre && !nombreEl.value.trim()) nombreEl.value = data.nombre;
+    if (data.direccion && !direccionEl.value.trim()) direccionEl.value = data.direccion;
+    if (data.localidad && !localidadEl.value.trim()) localidadEl.value = data.localidad;
+    if (data.condicion_iva) document.getElementById('cliCondicionIva').value = data.condicion_iva;
+    estado.textContent = '✅ Datos completados desde ARCA';
+  } catch (err) {
+    estado.textContent = '⚠️ No se pudo conectar con ARCA';
+  }
+}
+
 async function openCliente(id) {
   clienteEditId = id || null;
   document.getElementById('clienteTitulo').textContent = id ? 'Editar cliente' : 'Nuevo cliente';
@@ -915,6 +948,7 @@ async function openCliente(id) {
   document.getElementById('cliCondicionIva').value = c ? c.condicion_iva : 'Consumidor Final';
   document.getElementById('cliDocumento').value = c ? c.documento || '' : '';
   document.getElementById('cliCuit').value = c ? c.cuit || '' : '';
+  document.getElementById('cliCuitEstadoArca').textContent = '';
   document.getElementById('cliTelefono').value = c ? c.telefono || '' : '';
   document.getElementById('cliEmail').value = c ? c.email || '' : '';
   document.getElementById('cliDireccion').value = c ? c.direccion || '' : '';
