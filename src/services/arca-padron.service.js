@@ -2,16 +2,20 @@
 // social/nombre y domicilio fiscal para no tener que tipearlos a mano al
 // cargar un cliente. Usa el mismo certificado que ya está autorizado para
 // facturar (arca-wsaa.service.js), pero además hay que habilitar el
-// servicio "Consulta de Padrón" (alcance 13, ws_sr_padron_a13) para ese
-// certificado desde el Administrador de Relaciones de Clave Fiscal de
-// ARCA — si no está habilitado, ARCA rechaza el pedido con un error que
-// dice justamente eso, así que ese error se deja pasar tal cual llega.
+// servicio "Consulta de constancia de inscripción" para ese certificado
+// desde el Administrador de Relaciones de Clave Fiscal de ARCA — si no
+// está habilitado, ARCA rechaza el pedido con un error que dice justamente
+// eso, así que ese error se deja pasar tal cual llega. El nombre interno
+// del servicio es "ws_sr_constancia_inscripcion" (así lo llama ARCA en el
+// panel de autorizaciones), no "ws_sr_padron_a13" como se lo conocía en
+// AFIP — si algún día vuelve a cambiar de nombre, es este valor el que hay
+// que actualizar.
 const { XMLParser } = require('fast-xml-parser');
 const wsaa = require('./arca-wsaa.service');
 
 const PADRON_URL = 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13';
 const NS = 'http://a13.soap.ws.server.puc.sr/';
-const SERVICIO = 'ws_sr_padron_a13';
+const SERVICIO = 'ws_sr_constancia_inscripcion';
 
 // Si es monotributista, ARCA no manda "impuesto: IVA" (el monotributo lo
 // reemplaza). Id 30 = IVA, id 32 = Exento, en la lista de impuestos del
