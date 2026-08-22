@@ -38,11 +38,14 @@ async function consultarCuit(cuit) {
   const { token, sign } = await wsaa.obtenerTicket(SERVICIO);
   const cuitRepresentada = wsaa.obtenerCuit();
 
-  // ARCA valida el orden de los elementos contra el WSDL (secuencia
-  // estricta): sign va antes que token, al revés de lo que se podría
-  // suponer — confirmado por el propio error de "Unmarshalling" de ARCA
-  // cuando estaba al revés.
-  const soapBody = `<getPersona xmlns="${NS}"><sign>${sign}</sign><token>${token}</token><cuitRepresentada>${cuitRepresentada}</cuitRepresentada><idPersona>${cuitLimpio}</idPersona></getPersona>`;
+  // El error real no era de orden: era de namespace. Este WSDL espera
+  // token/sign/cuitRepresentada/idPersona SIN namespace ("<{}sign>", con
+  // llaves vacías en el error de ARCA = sin namespace), pero al ponerle
+  // xmlns="NS" directo al <getPersona> ese namespace se heredaba también
+  // en los hijos. Por eso ahora <getPersona> lleva el namespace con
+  // prefijo (a13:) en vez de default, así los hijos quedan sin namespace
+  // propio como corresponde.
+  const soapBody = `<a13:getPersona xmlns:a13="${NS}"><token>${token}</token><sign>${sign}</sign><cuitRepresentada>${cuitRepresentada}</cuitRepresentada><idPersona>${cuitLimpio}</idPersona></a13:getPersona>`;
   const { status, body } = await wsaa.llamarSoap(PADRON_URL, soapBody, '');
   if (status !== 200) throw new Error(`ARCA (Padrón) respondió con error HTTP ${status}: ${body.slice(0, 500)}`);
 
