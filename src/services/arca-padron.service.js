@@ -3,24 +3,22 @@
 // cargar un cliente. Usa el mismo certificado que ya está autorizado para
 // facturar (arca-wsaa.service.js), pero además hay que habilitar el
 // servicio para ese certificado desde el Administrador de Relaciones de
-// Clave Fiscal de ARCA (ahí figura como "Consulta de constancia de
-// inscripción" / "ws_sr_constancia_inscripcion") — si no está habilitado,
-// ARCA rechaza el pedido con un error que dice justamente eso.
+// Clave Fiscal de ARCA — ahí figura como "Consulta de constancia de
+// inscripción" / "ws_sr_constancia_inscripcion".
 //
-// OJO: ese nombre de la AUTORIZACIÓN no es el mismo que el nombre del
-// SERVICIO que hay que pedirle a WSAA para conseguir el ticket — WSAA no
-// valida el nombre del servicio contra nada al emitir el ticket (por eso
-// no tiraba error ahí), pero personaServiceA13 sí lo valida al usarlo, y
-// devuelve un error explícito si no coinciden: "Token recibido es para el
-// servicio [ws_sr_constancia_inscripcion], debería ser servicio
-// [ws_sr_padron_a13]". Por eso acá va "ws_sr_padron_a13", aunque en el
-// panel de ARCA la autorización se llame distinto.
+// Este servicio reemplazó al viejo "Padrón Alcance 13" (personaServiceA13):
+// las cuentas nuevas quedan autorizadas para el reemplazo, personaServiceA5,
+// no para el A13 — por eso el primer intento con la URL/namespace de A13
+// devolvía "Computador no autorizado a acceder al servicio" aunque la
+// autorización en ARCA estuviera bien hecha. El nombre del servicio para
+// pedirle el ticket a WSAA sí es "ws_sr_constancia_inscripcion" (coincide
+// con el nombre de la autorización en este caso).
 const { XMLParser } = require('fast-xml-parser');
 const wsaa = require('./arca-wsaa.service');
 
-const PADRON_URL = 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13';
-const NS = 'http://a13.soap.ws.server.puc.sr/';
-const SERVICIO = 'ws_sr_padron_a13';
+const PADRON_URL = 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5';
+const NS = 'http://a5.soap.ws.server.puc.sr/';
+const SERVICIO = 'ws_sr_constancia_inscripcion';
 
 // Si es monotributista, ARCA no manda "impuesto: IVA" (el monotributo lo
 // reemplaza). Id 30 = IVA, id 32 = Exento, en la lista de impuestos del
@@ -43,15 +41,11 @@ async function consultarCuit(cuit) {
   const { token, sign } = await wsaa.obtenerTicket(SERVICIO);
   const cuitRepresentada = wsaa.obtenerCuit();
 
-  // El error real no era de orden: era de namespace. Este WSDL espera
-  // token/sign/cuitRepresentada/idPersona SIN namespace ("<{}sign>", con
-  // llaves vacías en el error de ARCA = sin namespace), pero al ponerle
-  // xmlns="NS" directo al <getPersona> ese namespace se heredaba también
-  // en los hijos. Por eso ahora <getPersona> lleva el namespace con
-  // prefijo (a13:) en vez de default, así los hijos quedan sin namespace
-  // propio como corresponde.
-  const soapBody = `<a13:getPersona xmlns:a13="${NS}"><token>${token}</token><sign>${sign}</sign><cuitRepresentada>${cuitRepresentada}</cuitRepresentada><idPersona>${cuitLimpio}</idPersona></a13:getPersona>`;
-  const { status, body } = await wsaa.llamarSoap(PADRON_URL, soapBody, '');
+  // token/sign/cuitRepresentada/idPersona van SIN namespace propio: por eso
+  // el namespace va con prefijo en <getPersona> en vez de como xmlns por
+  // defecto (que lo heredarían los hijos).
+  const soapBody = `<a5:getPersona xmlns:a5="${NS}"><token>${token}</token><sign>${sign}</sign><cuitRepresentada>${cuitRepresentada}</cuitRepresentada><idPersona>${cuitLimpio}</idPersona></a5:getPersona>`;
+  const { status, body } = await wsaa.llamarSoap(PADRON_URL, soapBody, `"${NS}getPersona"`);
   if (status !== 200) throw new Error(`ARCA (Padrón) respondió con error HTTP ${status}: ${body.slice(0, 500)}`);
 
   const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: true });
