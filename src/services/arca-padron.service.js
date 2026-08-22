@@ -38,7 +38,11 @@ async function consultarCuit(cuit) {
   const { token, sign } = await wsaa.obtenerTicket(SERVICIO);
   const cuitRepresentada = wsaa.obtenerCuit();
 
-  const soapBody = `<getPersona xmlns="${NS}"><token>${token}</token><sign>${sign}</sign><cuitRepresentada>${cuitRepresentada}</cuitRepresentada><idPersona>${cuitLimpio}</idPersona></getPersona>`;
+  // ARCA valida el orden de los elementos contra el WSDL (secuencia
+  // estricta): sign va antes que token, al revés de lo que se podría
+  // suponer — confirmado por el propio error de "Unmarshalling" de ARCA
+  // cuando estaba al revés.
+  const soapBody = `<getPersona xmlns="${NS}"><sign>${sign}</sign><token>${token}</token><cuitRepresentada>${cuitRepresentada}</cuitRepresentada><idPersona>${cuitLimpio}</idPersona></getPersona>`;
   const { status, body } = await wsaa.llamarSoap(PADRON_URL, soapBody, '');
   if (status !== 200) throw new Error(`ARCA (Padrón) respondió con error HTTP ${status}: ${body.slice(0, 500)}`);
 
