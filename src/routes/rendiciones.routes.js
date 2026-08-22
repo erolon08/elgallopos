@@ -75,6 +75,18 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+// Borrado definitivo: a diferencia de "anular" (arriba), funciona sin
+// importar el estado (incluso ya pagada) — pensado para vaciar el
+// historial una vez, no para el flujo normal.
+router.delete('/:id/definitivo', (req, res) => {
+  try {
+    rendicionesService.borrarDefinitivo(Number(req.params.id));
+    res.status(204).end();
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.post('/:id/detalle', (req, res) => {
   try {
     res.status(201).json(rendicionesService.agregarLinea(Number(req.params.id), req.body));

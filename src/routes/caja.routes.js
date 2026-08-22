@@ -84,4 +84,13 @@ router.put('/:id/cierre', (req, res) => {
   }
 });
 
+router.delete('/:id', (req, res) => {
+  try {
+    cajaService.borrarCierre(Number(req.params.id));
+    res.status(204).end();
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -338,6 +338,27 @@ function anular(id) {
   tx();
 }
 
+// A diferencia de anular() (que solo permite deshacer una rendición
+// generada, todavía sin pagar), esto borra CUALQUIER rendición sin
+// importar el estado — pensado para vaciar el historial (ej. arrancar de
+// cero después de pruebas), no para el flujo normal de trabajo. Si estaba
+// pagada, también borra el egreso de caja que había generado (primero la
+// rendición, que es quien tiene la referencia, y recién después el
+// movimiento, para no romper la clave foránea).
+function borrarDefinitivo(id) {
+  const r = db.prepare('SELECT * FROM rendiciones WHERE id = ?').get(id);
+  if (!r) throw new Error('Rendición no encontrada');
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM rendicion_detalle WHERE rendicion_id = ?').run(id);
+    db.prepare('DELETE FROM rendicion_descuentos WHERE rendicion_id = ?').run(id);
+    db.prepare('DELETE FROM rendiciones WHERE id = ?').run(id);
+    if (r.caja_movimiento_id) {
+      db.prepare('DELETE FROM caja_movimientos WHERE id = ?').run(r.caja_movimiento_id);
+    }
+  });
+  tx();
+}
+
 // Resumen de rendiciones YA GENERADAS (no de trabajos pendientes) en un
 // período, agrupado por cerrajero — para el menú Resumen: "cuánto le pagué
 // a cada cerrajero entre estas fechas".
@@ -390,6 +411,7 @@ module.exports = {
   obtener,
   marcarPagada,
   anular,
+  borrarDefinitivo,
   agregarLinea,
   quitarLinea,
   agregarDescuento,

@@ -212,6 +212,27 @@ const editarCierre = db.transaction((id, datos = {}) => {
   return obtener(id);
 });
 
+// Borra un cierre ya hecho y sus movimientos, para vaciar el historial (ej.
+// arrancar de cero después de pruebas). Ventas y rendiciones que quedaron
+// ligadas a este turno se DESVINCULAN en vez de borrarse — el cierre es
+// historial de caja, no el hecho real de la venta/rendición, que sigue
+// existiendo igual.
+function borrarCierre(id) {
+  const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(id);
+  if (!turno) throw new Error('Turno no encontrado');
+  if (turno.estado !== 'cerrado') throw new Error('Solo se puede borrar un cierre ya hecho');
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE ventas SET caja_turno_id = NULL WHERE caja_turno_id = ?').run(id);
+    db.prepare(
+      `UPDATE rendiciones SET caja_movimiento_id = NULL
+       WHERE caja_movimiento_id IN (SELECT id FROM caja_movimientos WHERE caja_turno_id = ?)`
+    ).run(id);
+    db.prepare('DELETE FROM caja_movimientos WHERE caja_turno_id = ?').run(id);
+    db.prepare('DELETE FROM caja_turnos WHERE id = ?').run(id);
+  });
+  tx();
+}
+
 function fondoSugerido() {
   const ultimo = db
     .prepare("SELECT fondo_turno_siguiente FROM caja_turnos WHERE estado = 'cerrado' ORDER BY cerrado_en DESC LIMIT 1")
@@ -231,5 +252,6 @@ module.exports = {
   quitarMovimiento,
   cerrarTurno,
   editarCierre,
+  borrarCierre,
   fondoSugerido,
 };

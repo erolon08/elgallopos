@@ -1718,6 +1718,17 @@ async function confirmarModificarCierre() {
   mostrarTicketCierre(data);
 }
 
+async function borrarCierreCaja(id) {
+  if (!confirm('¿Borrar este cierre de caja para siempre? No se puede deshacer.')) return;
+  const res = await fetch(`/api/caja/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json();
+    alert('Error: ' + data.error);
+    return;
+  }
+  await cargarHistorialCaja();
+}
+
 async function cargarHistorialCaja() {
   const res = await fetch('/api/caja');
   const turnos = await res.json();
@@ -1736,7 +1747,7 @@ async function cargarHistorialCaja() {
           <td>${t.fondo_turno_siguiente != null ? moneyStr(t.fondo_turno_siguiente) : '—'}</td>
           <td>${t.estado === 'abierto' ? '<span class="badge green">Abierto</span>' : '<span class="badge">Cerrado</span>'}</td>
           <td>${t.estado === 'cerrado'
-            ? `<button class="btn light" onclick="imprimirTicketCierre(${t.id})">🖨️</button> <button class="btn light" onclick="abrirModificarCierre(${t.id})">✎</button>`
+            ? `<button class="btn light" onclick="imprimirTicketCierre(${t.id})">🖨️</button> <button class="btn light" onclick="abrirModificarCierre(${t.id})">✎</button> <button class="btn light" onclick="borrarCierreCaja(${t.id})">🗑️</button>`
             : ''}</td>
         </tr>
       `).join('')
@@ -2922,6 +2933,7 @@ function filaRendicion(r) {
     acciones.push(`<button class="btn light" onclick="marcarRendicionPagada(${r.id})">Marcar pagada</button>`);
     acciones.push(`<button class="btn light" onclick="anularRendicion(${r.id})">Anular</button>`);
   }
+  acciones.push(`<button class="btn light" onclick="borrarRendicionDefinitivo(${r.id})">🗑️ Borrar</button>`);
   tr.innerHTML = `
     <td>${r.cerrajero_nombre}</td>
     <td>${r.fecha_desde} a ${r.fecha_hasta}</td>
@@ -3306,6 +3318,17 @@ async function marcarRendicionPagada(id) {
 
 async function anularRendicion(id) {
   const res = await fetch(`/api/rendiciones/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json();
+    alert('Error: ' + data.error);
+    return;
+  }
+  cargarRendiciones();
+}
+
+async function borrarRendicionDefinitivo(id) {
+  if (!confirm('¿Borrar esta rendición para siempre (esté pagada o no)? No se puede deshacer.')) return;
+  const res = await fetch(`/api/rendiciones/${id}/definitivo`, { method: 'DELETE' });
   if (!res.ok) {
     const data = await res.json();
     alert('Error: ' + data.error);
