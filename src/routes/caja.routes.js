@@ -93,4 +93,14 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+router.delete('/:id/movimientos', (req, res) => {
+  try {
+    const turno = cajaService.vaciarMovimientos(Number(req.params.id));
+    emitVentaEvent('caja:actualizada', turno);
+    res.json(turno);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;

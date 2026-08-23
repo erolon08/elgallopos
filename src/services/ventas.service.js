@@ -553,7 +553,13 @@ const anular = db.transaction((id, { motivo, usuario_id, terminal } = {}) => {
 // arrancar de cero después de pruebas), no para el flujo normal de trabajo
 // (para eso está "anular", que preserva todo como registro). Solo se
 // permite sobre ventas ya anuladas: una cobrada/pendiente hay que anularla
-// primero (así se revierte el stock, la caja y la cuenta corriente).
+// primero (así se revierte el stock y la cuenta corriente).
+//
+// A diferencia de "anular" (que deja el movimiento de caja como historial
+// de que esa plata entró/salió de verdad), acá se borran también los
+// movimientos de caja de esta venta — si se está borrando del todo es
+// porque esa plata no cuenta para nada (prueba, error, etc.), así que no
+// tiene que seguir sumando en el resumen de caja.
 //
 // Lo que referencia a esta venta pero no depende de que siga intacta
 // (direcciones, presupuestos, el detalle de una rendición) se desvincula
@@ -570,6 +576,7 @@ const borrarDefinitivo = db.transaction((id) => {
     `UPDATE rendicion_detalle SET venta_item_id = NULL
      WHERE venta_item_id IN (SELECT id FROM venta_items WHERE venta_id = ?)`
   ).run(id);
+  db.prepare("DELETE FROM caja_movimientos WHERE referencia_tipo = 'venta' AND referencia_id = ?").run(id);
   db.prepare('DELETE FROM venta_pagos WHERE venta_id = ?').run(id);
   db.prepare('DELETE FROM mp_pagos WHERE venta_id = ?').run(id);
   db.prepare('DELETE FROM venta_items WHERE venta_id = ?').run(id);

@@ -212,6 +212,16 @@ const editarCierre = db.transaction((id, datos = {}) => {
   return obtener(id);
 });
 
+// Desvincula lo que quedó ligado a los movimientos de un turno (ventas y
+// rendiciones) antes de borrarlos — común a borrarCierre y vaciarMovimientos.
+function desvincularMovimientosDe(turno_id) {
+  db.prepare('UPDATE ventas SET caja_turno_id = NULL WHERE caja_turno_id = ?').run(turno_id);
+  db.prepare(
+    `UPDATE rendiciones SET caja_movimiento_id = NULL
+     WHERE caja_movimiento_id IN (SELECT id FROM caja_movimientos WHERE caja_turno_id = ?)`
+  ).run(turno_id);
+}
+
 // Borra un cierre ya hecho y sus movimientos, para vaciar el historial (ej.
 // arrancar de cero después de pruebas). Ventas y rendiciones que quedaron
 // ligadas a este turno se DESVINCULAN en vez de borrarse — el cierre es
@@ -222,15 +232,28 @@ function borrarCierre(id) {
   if (!turno) throw new Error('Turno no encontrado');
   if (turno.estado !== 'cerrado') throw new Error('Solo se puede borrar un cierre ya hecho');
   const tx = db.transaction(() => {
-    db.prepare('UPDATE ventas SET caja_turno_id = NULL WHERE caja_turno_id = ?').run(id);
-    db.prepare(
-      `UPDATE rendiciones SET caja_movimiento_id = NULL
-       WHERE caja_movimiento_id IN (SELECT id FROM caja_movimientos WHERE caja_turno_id = ?)`
-    ).run(id);
+    desvincularMovimientosDe(id);
     db.prepare('DELETE FROM caja_movimientos WHERE caja_turno_id = ?').run(id);
     db.prepare('DELETE FROM caja_turnos WHERE id = ?').run(id);
   });
   tx();
+}
+
+// Vacía TODOS los movimientos del turno ABIERTO actual (sin importar de
+// dónde vinieron: ventas, cuenta corriente, gastos, rendiciones...), para
+// arrancar de cero sin tener que cerrar/abrir turno. El turno en sí sigue
+// abierto, con el mismo número y fondo inicial — solo pierde su historial
+// de movimientos, quedando el efectivo esperado en el fondo inicial.
+function vaciarMovimientos(id) {
+  const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(id);
+  if (!turno) throw new Error('Turno no encontrado');
+  if (turno.estado !== 'abierto') throw new Error('Solo se puede vaciar el turno que está abierto');
+  const tx = db.transaction(() => {
+    desvincularMovimientosDe(id);
+    db.prepare('DELETE FROM caja_movimientos WHERE caja_turno_id = ?').run(id);
+  });
+  tx();
+  return obtener(id);
 }
 
 function fondoSugerido() {
@@ -253,5 +276,6 @@ module.exports = {
   cerrarTurno,
   editarCierre,
   borrarCierre,
+  vaciarMovimientos,
   fondoSugerido,
 };

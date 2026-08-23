@@ -1463,6 +1463,19 @@ async function abrirTurnoCaja() {
   cargarHistorialCaja();
 }
 
+async function vaciarMovimientosCajaActual() {
+  if (!cajaTurnoActual) return;
+  if (!confirm('¿Vaciar TODOS los movimientos de este turno (ventas, cuenta corriente, gastos, todo)? El turno sigue abierto con el mismo fondo inicial, pero el historial de movimientos se borra para siempre.')) return;
+  const res = await fetch(`/api/caja/${cajaTurnoActual.id}/movimientos`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  cajaTurnoActual = data;
+  renderCaja();
+}
+
 function mostrarFormMovimientoCaja() {
   cajaMovimientoEditandoId = null;
   document.getElementById('cajaMovTipo').value = 'egreso';
