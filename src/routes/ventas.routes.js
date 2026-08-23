@@ -89,6 +89,16 @@ router.post('/:id/anular', (req, res) => {
   }
 });
 
+router.delete('/:id', (req, res) => {
+  try {
+    ventasService.borrarDefinitivo(Number(req.params.id));
+    emitVentaEvent('venta:anulada', { id: Number(req.params.id) });
+    res.status(204).end();
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.post('/:id/enviar-caja', (req, res) => {
   try {
     const venta = ventasService.enviarACaja(Number(req.params.id));

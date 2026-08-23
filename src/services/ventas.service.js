@@ -549,6 +549,33 @@ const anular = db.transaction((id, { motivo, usuario_id, terminal } = {}) => {
   return obtener(id);
 });
 
+// Borra para siempre una venta ya anulada — para vaciar el historial (ej.
+// arrancar de cero después de pruebas), no para el flujo normal de trabajo
+// (para eso está "anular", que preserva todo como registro). Solo se
+// permite sobre ventas ya anuladas: una cobrada/pendiente hay que anularla
+// primero (así se revierte el stock, la caja y la cuenta corriente).
+//
+// Lo que referencia a esta venta pero no depende de que siga intacta
+// (direcciones, presupuestos, el detalle de una rendición) se desvincula
+// en vez de borrarse — esos registros son historia propia, no dejan de
+// existir porque se borre la venta que los originó.
+const borrarDefinitivo = db.transaction((id) => {
+  const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
+  if (!venta) throw new Error('Venta no encontrada');
+  if (venta.estado !== 'anulada') throw new Error('Solo se puede borrar una venta ya anulada');
+
+  db.prepare('UPDATE direcciones SET venta_id = NULL WHERE venta_id = ?').run(id);
+  db.prepare('UPDATE presupuestos SET venta_id = NULL WHERE venta_id = ?').run(id);
+  db.prepare(
+    `UPDATE rendicion_detalle SET venta_item_id = NULL
+     WHERE venta_item_id IN (SELECT id FROM venta_items WHERE venta_id = ?)`
+  ).run(id);
+  db.prepare('DELETE FROM venta_pagos WHERE venta_id = ?').run(id);
+  db.prepare('DELETE FROM mp_pagos WHERE venta_id = ?').run(id);
+  db.prepare('DELETE FROM venta_items WHERE venta_id = ?').run(id);
+  db.prepare('DELETE FROM ventas WHERE id = ?').run(id);
+});
+
 function actualizarCerrajeroLinea(venta_item_id, cerrajero_id) {
   const info = db.prepare('UPDATE venta_items SET cerrajero_id = ? WHERE id = ?').run(cerrajero_id || null, venta_item_id);
   return info.changes > 0;
@@ -563,6 +590,7 @@ module.exports = {
   facturarVentaExistente,
   enviarACaja,
   anular,
+  borrarDefinitivo,
   actualizar,
   actualizarCerrajeroLinea,
   generarNumero,

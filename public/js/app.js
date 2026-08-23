@@ -5510,11 +5510,14 @@ function filaVentaHistorial(v) {
     const saldada = Number(v.cta_cte_saldo_pendiente) <= 0;
     formaPagoCelda = `<span class="status ${saldada ? 's-ok' : 's-bad'}" title="${saldada ? 'Cta. Cte. saldada' : 'Cta. Cte. pendiente de cobro'}">Cta. Cte. ${saldada ? '✓' : `($ ${money.format(v.cta_cte_saldo_pendiente)})`}</span>`;
   }
+  const botonBorrar = v.estado === 'anulada'
+    ? `<button class="btn light" onclick="borrarVentaDefinitivo(${v.id})">🗑️ Borrar</button>`
+    : '';
   tr.innerHTML = `
     <td>${v.numero}</td><td>${hora}</td><td>${v.cliente_nombre || 'Consumidor Final'}</td>
     <td>${v.tipo_comprobante}</td><td>${formaPagoCelda}</td><td>$ ${money.format(v.total)}</td>
     <td><span class="status ${estadoCls}">${v.estado}</span></td>
-    <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button> ${botonFacturar}</td>
+    <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button> ${botonFacturar} ${botonBorrar}</td>
   `;
   return tr;
 }
@@ -5654,6 +5657,16 @@ async function anularVentaUI() {
   }
   alert('Venta anulada. El stock se repuso automáticamente.');
   closeDetalleVenta();
+}
+async function borrarVentaDefinitivo(id) {
+  if (!confirm('¿Borrar esta venta anulada para siempre? No se puede deshacer.')) return;
+  const res = await fetch(`/api/ventas/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json();
+    alert('Error: ' + data.error);
+    return;
+  }
+  cargarVentasHistorial();
 }
 function imprimirVentaDesdeDetalle() {
   if (ventaDetalleActual) mostrarTicket(ventaDetalleActual);
