@@ -5714,6 +5714,7 @@ async function guardarComoPresupuesto() {
 }
 
 async function cargarPresupuestos() {
+  document.getElementById('presupuestoDetalleCard').style.display = 'none';
   const estado = document.getElementById('presupuestosEstado').value;
   const res = await fetch('/api/presupuestos' + (estado ? '?estado=' + encodeURIComponent(estado) : ''));
   const rows = await res.json();
@@ -5727,19 +5728,46 @@ async function cargarPresupuestos() {
 }
 function filaPresupuesto(p) {
   const tr = document.createElement('tr');
+  tr.className = 'row-selectable';
+  tr.dataset.id = p.id;
   const fecha = new Date(p.creado_en).toLocaleDateString('es-AR');
   const estadoCls = p.estado === 'vigente' ? 's-warn' : p.estado === 'convertido' ? 's-ok' : 's-bad';
   const accionesVigente =
     p.estado === 'vigente'
-      ? `<button class="btn green" onclick="convertirPresupuestoEnVenta(${p.id})">Convertir en venta</button>
-         <button class="btn light" onclick="cerrarPresupuestoUI(${p.id})">Cerrar</button>`
+      ? `<button class="btn green" onclick="event.stopPropagation();convertirPresupuestoEnVenta(${p.id})">Convertir en venta</button>
+         <button class="btn light" onclick="event.stopPropagation();cerrarPresupuestoUI(${p.id})">Cerrar</button>`
       : '';
   tr.innerHTML = `
     <td>${p.numero}</td><td>${p.cliente_nombre || 'Consumidor Final'}</td><td>${fecha}</td>
     <td>$ ${money.format(p.total)}</td><td><span class="status ${estadoCls}">${p.estado}</span></td>
-    <td><button class="btn light" onclick="verPresupuesto(${p.id})">Ver</button> ${accionesVigente}</td>
+    <td><button class="btn light" onclick="event.stopPropagation();verPresupuesto(${p.id})">Ver</button> ${accionesVigente}</td>
   `;
+  tr.onclick = () => seleccionarPresupuesto(p.id);
   return tr;
+}
+
+async function seleccionarPresupuesto(id) {
+  document.querySelectorAll('#presupuestosBody tr').forEach((tr) => tr.classList.toggle('selected', Number(tr.dataset.id) === id));
+
+  const p = await (await fetch(`/api/presupuestos/${id}`)).json();
+  document.getElementById('presupuestoDetalleCard').style.display = 'block';
+  document.getElementById('presupuestoDetalleNumero').textContent = p.numero;
+  const fecha = new Date(p.creado_en).toLocaleString('es-AR');
+  document.getElementById('presupuestoDetalleInfo').innerHTML =
+    `Cliente: <b>${p.cliente_nombre || (p.cliente && p.cliente.nombre) || 'Consumidor Final'}</b> · ` +
+    `Fecha: <b>${fecha}</b> · Estado: <b>${p.estado}</b> · Total: <b>$ ${money.format(p.total)}</b>`;
+  const body = document.getElementById('presupuestoDetalleBody');
+  body.innerHTML = p.items.length
+    ? p.items.map((it) => `
+        <tr>
+          <td>${it.producto_codigo || '—'}</td>
+          <td>${it.descripcion}</td>
+          <td>${it.cantidad}</td>
+          <td>$ ${money.format(it.precio_unitario)}</td>
+          <td>$ ${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="5" class="small">Sin productos.</td></tr>';
 }
 async function verPresupuesto(id) {
   const presupuesto = await (await fetch(`/api/presupuestos/${id}`)).json();
