@@ -103,4 +103,14 @@ function cerrar(id) {
   return info.changes > 0;
 }
 
-module.exports = { crear, obtener, listar, cerrar, generarNumero };
+// Borra TODOS los presupuestos (sin importar el estado), para vaciar el
+// historial de una — ej. arrancar de cero después de pruebas. No afecta
+// nada más: ninguna otra tabla depende de que un presupuesto siga
+// existiendo (una venta ya convertida queda intacta, solo se pierde el
+// dato de "vino de este presupuesto").
+const borrarTodos = db.transaction(() => {
+  db.prepare('DELETE FROM presupuesto_items').run();
+  db.prepare('DELETE FROM presupuestos').run();
+});
+
+module.exports = { crear, obtener, listar, cerrar, borrarTodos, generarNumero };

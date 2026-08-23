@@ -21,6 +21,11 @@ router.post('/', (req, res) => {
   }
 });
 
+router.delete('/', (req, res) => {
+  presupuestosService.borrarTodos();
+  res.status(204).end();
+});
+
 router.post('/:id/cerrar', (req, res) => {
   const ok = presupuestosService.cerrar(Number(req.params.id));
   if (!ok) return res.status(400).json({ error: 'El presupuesto no se puede cerrar (ya no está vigente)' });

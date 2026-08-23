@@ -5752,6 +5752,12 @@ async function cerrarPresupuestoUI(id) {
   cargarPresupuestos();
 }
 
+async function borrarTodosLosPresupuestos() {
+  if (!confirm('¿Borrar TODOS los presupuestos (vigentes, convertidos y cerrados) para siempre? No se puede deshacer. Las ventas que ya se hicieron a partir de alguno no se tocan.')) return;
+  await fetch('/api/presupuestos', { method: 'DELETE' });
+  cargarPresupuestos();
+}
+
 let presupuestoOrigenId = null;
 async function convertirPresupuestoEnVenta(id) {
   const presupuesto = await (await fetch(`/api/presupuestos/${id}`)).json();

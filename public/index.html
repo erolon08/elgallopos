@@ -694,12 +694,15 @@
         <div class="card">
           <div class="section-title">
             <h3>Presupuestos</h3>
-            <div class="field" style="max-width:220px">
-              <select id="presupuestosEstado" onchange="cargarPresupuestos()">
-                <option value="vigente">Vigentes</option>
-                <option value="historial">Historial (convertidos / cerrados)</option>
-                <option value="">Todos</option>
-              </select>
+            <div style="display:flex;gap:10px;align-items:center">
+              <div class="field" style="max-width:220px;margin-bottom:0">
+                <select id="presupuestosEstado" onchange="cargarPresupuestos()">
+                  <option value="vigente">Vigentes</option>
+                  <option value="historial">Historial (convertidos / cerrados)</option>
+                  <option value="">Todos</option>
+                </select>
+              </div>
+              <button class="btn light" onclick="borrarTodosLosPresupuestos()">🗑️ Borrar todos los presupuestos</button>
             </div>
           </div>
           <div class="table-wrap">
