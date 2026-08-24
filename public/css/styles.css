@@ -288,7 +288,7 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .ticket-a4 .a4-impreso{text-align:right}
 
 @media print{
-  .sidebar,.topbar,.no-print{display:none!important}
+  .sidebar,.topbar,.no-print,.modal{display:none!important}
   .app{display:block}
   .content{padding:0}
   .screen{display:none!important}
@@ -300,7 +300,7 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
   .ticket hr{border-top:1.5px dashed #000}
   .ticket-total{font-size:20px;border-width:3px;padding:8px 4px}
   .ticket-total-sub{font-size:17px}
-  .ticket-negocio-chico{font-size:12px;line-height:1.6;font-weight:400;color:#000}
+  .ticket-negocio-chico{font-size:13px;line-height:1.6;font-weight:700;color:#000}
   body.modo-impresion-a4 .ticket{display:none!important}
   body.modo-impresion-a4 .ticket-a4{display:block!important;max-width:100%}
 }
