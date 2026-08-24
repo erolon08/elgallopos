@@ -27,6 +27,7 @@ const sistemaRoutes = require('./routes/sistema.routes');
 const direccionesRoutes = require('./routes/direcciones.routes');
 const mensajesRoutes = require('./routes/mensajes.routes');
 const whatsappRoutes = require('./routes/whatsapp.routes');
+const trabajosCodificadosRoutes = require('./routes/trabajos-codificados.routes');
 
 const app = express();
 app.use(express.json());
@@ -62,6 +63,7 @@ app.use('/api/sistema', sistemaRoutes);
 app.use('/api/direcciones', direccionesRoutes);
 app.use('/api/mensajes', mensajesRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/trabajos-codificados', trabajosCodificadosRoutes);
 
 const server = http.createServer(app);
 sockets.init(server);

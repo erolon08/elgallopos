@@ -94,6 +94,39 @@ if (usuariosDef && !usuariosDef.sql.includes('STOCK')) {
   db.pragma('foreign_keys = ON');
 }
 
+// El CHECK de rendicion_detalle.tipo no incluía 'codificado' (trabajos de
+// la lista rápida de trabajos_codificados, que no son ni un "servicio" ni
+// un "duplicado" real) — mismo problema y misma solución que arriba con
+// usuarios.rol: un CHECK no se puede tocar con ALTER TABLE, hay que
+// recrear la tabla.
+const rendicionDetalleDef = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='rendicion_detalle'").get();
+if (rendicionDetalleDef && !rendicionDetalleDef.sql.includes('codificado')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE rendicion_detalle_nuevo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
+      venta_item_id INTEGER REFERENCES venta_items(id),
+      tipo TEXT NOT NULL CHECK (tipo IN ('servicio','duplicado','codificado')),
+      codigo TEXT,
+      descripcion TEXT NOT NULL,
+      venta_numero TEXT,
+      cantidad REAL NOT NULL DEFAULT 1,
+      monto_base REAL NOT NULL,
+      porcentaje REAL NOT NULL,
+      monto_rendido REAL NOT NULL,
+      creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    INSERT INTO rendicion_detalle_nuevo
+      (id, rendicion_id, venta_item_id, tipo, codigo, descripcion, venta_numero, cantidad, monto_base, porcentaje, monto_rendido, creado_en)
+      SELECT id, rendicion_id, venta_item_id, tipo, codigo, descripcion, venta_numero, cantidad, monto_base, porcentaje, monto_rendido, creado_en
+      FROM rendicion_detalle;
+    DROP TABLE rendicion_detalle;
+    ALTER TABLE rendicion_detalle_nuevo RENAME TO rendicion_detalle;
+  `);
+  db.pragma('foreign_keys = ON');
+}
+
 const yaHayUsuarioStock = db.prepare("SELECT 1 FROM usuarios WHERE rol = 'STOCK'").get();
 if (!yaHayUsuarioStock) {
   const bcrypt = require('bcryptjs');

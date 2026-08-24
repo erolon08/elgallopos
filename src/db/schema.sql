@@ -398,7 +398,9 @@ CREATE TABLE IF NOT EXISTS rendiciones (
 );
 CREATE INDEX IF NOT EXISTS idx_rendiciones_cerrajero ON rendiciones(cerrajero_id);
 
--- tipo: 'servicio' (30% de monto_mano_obra) | 'duplicado' (30% de precio_rendicion)
+-- tipo: 'servicio' (30% de monto_mano_obra) | 'duplicado' (30% de precio_rendicion) |
+-- 'codificado' (trabajo de la lista rápida de trabajos_codificados, monto completo
+-- sin aplicar el % de la rendición — no es el área habitual del cerrajero).
 -- venta_item_id: NULL si la línea se agregó a mano (no proviene de una venta cobrada).
 -- codigo/descripcion/venta_numero/cantidad quedan "fotografiados" al generar o agregar
 -- la línea, para que la rendición no dependa de que la venta original siga intacta.
@@ -406,7 +408,7 @@ CREATE TABLE IF NOT EXISTS rendicion_detalle (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
   venta_item_id INTEGER REFERENCES venta_items(id),
-  tipo TEXT NOT NULL CHECK (tipo IN ('servicio','duplicado')),
+  tipo TEXT NOT NULL CHECK (tipo IN ('servicio','duplicado','codificado')),
   codigo TEXT,
   descripcion TEXT NOT NULL,
   venta_numero TEXT,
@@ -416,6 +418,39 @@ CREATE TABLE IF NOT EXISTS rendicion_detalle (
   monto_rendido REAL NOT NULL,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+
+-- Lista corta de trabajos "codificados" (autos) con precio fijo, para
+-- agregar rápido a una rendición sin tipear todo a mano cada vez — el
+-- cerrajero cobra el precio completo de la lista (no el % normal de la
+-- rendición), porque hacer estos trabajos no es su área habitual. Editable
+-- desde la pantalla de Rendición.
+CREATE TABLE IF NOT EXISTS trabajos_codificados (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre TEXT NOT NULL UNIQUE,
+  precio REAL NOT NULL DEFAULT 0,
+  activo INTEGER NOT NULL DEFAULT 1,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+INSERT OR IGNORE INTO trabajos_codificados (nombre, precio) VALUES
+  ('Pilas', 750),
+  ('Portón control', 1670),
+  ('Pulsadores', 1645),
+  ('K común', 2495),
+  ('K Sevillana', 3450),
+  ('K Sevillana especial', 6325),
+  ('Reparación', 0),
+  ('Alojamiento', 6440),
+  ('Copia con transponder', 12305),
+  ('Transponder', 8050),
+  ('KD-Horse', 18800),
+  ('0 llaves especiales', 37145),
+  ('0 llaves', 20872),
+  ('Presencia', 39100),
+  ('Cranteado Yale', 6150),
+  ('Cranteado Mapa', 8165),
+  ('Copia oferta', 8500),
+  ('Reparación mando especial', 10070),
+  ('KD oferta', 13800);
 
 -- tipo: 'aporte' (recurrente, precargado desde cerrajeros.aporte_fijo) |
 -- 'repuesto' | 'otro' | 'adelanto' (eventuales, cargados al generar la rendición)

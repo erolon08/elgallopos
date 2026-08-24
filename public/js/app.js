@@ -2784,7 +2784,7 @@ async function toggleCerrajeroActivo(id, activo) {
 let rendicionPreviewActual = null; // { cerrajero_id, fecha_desde, fecha_hasta, detalle, total_bruto, cerrajero }
 let rendicionDescuentosExtra = [];
 
-const TIPO_MOVIMIENTO_LABEL = { servicio: 'Servicio', duplicado: 'Duplicado' };
+const TIPO_MOVIMIENTO_LABEL = { servicio: 'Servicio', duplicado: 'Duplicado', codificado: 'Codificado' };
 const TIPO_DESCUENTO_LABEL = { aporte: 'Aporte fijo', repuesto: 'Repuesto', otro: 'Otro', adelanto: 'Adelanto' };
 
 async function calcularRendicionPreview() {
@@ -3082,43 +3082,27 @@ function closeRendicionDetalle() {
   rendicionDetalleActualCerrajeroId = null;
 }
 
-// Precios de referencia de trabajos de codificados (autos): el cerrajero
-// suele hacer estos trabajos sueltos, sin pasar por una venta de mostrador.
-// Elegir uno acá solo autocompleta descripción y precio — como cualquier
-// línea manual, quedan editables antes de tocar "Agregar" (los precios de
-// esta lista cambian de tanto en tanto y no siempre coinciden con lo cobrado).
-const CATALOGO_CODIFICADOS = [
-  { descripcion: 'Pilas', precio: 750 },
-  { descripcion: 'Portón control', precio: 1670 },
-  { descripcion: 'Pulsadores', precio: 1645 },
-  { descripcion: 'K común', precio: 2495 },
-  { descripcion: 'K Sevillana', precio: 3450 },
-  { descripcion: 'K Sevillana especial', precio: 6325 },
-  { descripcion: 'Reparación', precio: 0 },
-  { descripcion: 'Alojamiento', precio: 6440 },
-  { descripcion: 'Copia con transponder', precio: 12305 },
-  { descripcion: 'Transponder', precio: 8050 },
-  { descripcion: 'KD-Horse', precio: 18800 },
-  { descripcion: '0 llaves especiales', precio: 37145 },
-  { descripcion: '0 llaves', precio: 20872 },
-  { descripcion: 'Presencia', precio: 39100 },
-  { descripcion: 'Cranteado Yale', precio: 6150 },
-  { descripcion: 'Cranteado Mapa', precio: 8165 },
-  { descripcion: 'Copia oferta', precio: 8500 },
-  { descripcion: 'Reparación mando especial', precio: 10070 },
-  { descripcion: 'KD oferta', precio: 13800 },
-];
+// Lista de trabajos de codificados (autos): el cerrajero suele hacer estos
+// trabajos sueltos, sin pasar por una venta de mostrador, y no es su área
+// habitual — por eso se le rinde el precio completo de la lista (100%), no
+// el % normal de la rendición. La lista vive en la base (trabajos_codificados)
+// y se edita desde acá mismo con "✎ Editar lista".
+let trabajosCodificadosCache = [];
+async function cargarTrabajosCodificadosCache() {
+  trabajosCodificadosCache = await (await fetch('/api/trabajos-codificados?activos=1')).json();
+}
 
-function mostrarFormAgregarLineaRendicion() {
+async function mostrarFormAgregarLineaRendicion() {
+  await cargarTrabajosCodificadosCache();
   const cerrajero = cerrajerosCache.find((c) => c.id === rendicionDetalleActualCerrajeroId);
   const cont = document.getElementById('rendAgregarLineaForm');
   cont.style.display = 'block';
-  const opcionesCodificados = CATALOGO_CODIFICADOS.map(
-    (c, i) => `<option value="${i}">${c.descripcion} — $ ${money.format(c.precio)}</option>`
-  ).join('');
+  const opcionesCodificados = trabajosCodificadosCache
+    .map((t) => `<option value="${t.id}">${t.nombre} — $ ${money.format(t.precio)}</option>`)
+    .join('');
   cont.innerHTML = `
     <div class="field" style="margin-bottom:8px">
-      <label>Codificados (elegí para autocompletar; podés editar precio y cantidad después)</label>
+      <label>Codificados (elegí para autocompletar, se rinde el 100% del precio) <a href="#" onclick="event.preventDefault();abrirTrabajosCodificados()">✎ Editar lista</a></label>
       <select id="rlCodificado" onchange="elegirCodificadoRendicion(this.value)">
         <option value="">— Elegir trabajo de codificados —</option>
         ${opcionesCodificados}
@@ -3126,7 +3110,7 @@ function mostrarFormAgregarLineaRendicion() {
     </div>
     <div class="two-col-form">
       <div class="field"><label>Tipo</label>
-        <select id="rlTipo"><option value="servicio">Servicio</option><option value="duplicado">Duplicado</option></select>
+        <select id="rlTipo"><option value="servicio">Servicio</option><option value="duplicado">Duplicado</option><option value="codificado">Codificado</option></select>
       </div>
       <div class="field"><label>Código (opcional)</label><input id="rlCodigo" placeholder="Ej: 1001"></div>
       <div class="field"><label>Descripción</label><input id="rlDescripcion"></div>
@@ -3141,15 +3125,100 @@ function mostrarFormAgregarLineaRendicion() {
   `;
 }
 
-function elegirCodificadoRendicion(idx) {
-  if (idx === '') return;
-  const item = CATALOGO_CODIFICADOS[Number(idx)];
-  document.getElementById('rlTipo').value = 'duplicado';
-  document.getElementById('rlDescripcion').value = item.descripcion;
+function elegirCodificadoRendicion(id) {
+  if (id === '') return;
+  const item = trabajosCodificadosCache.find((t) => t.id === Number(id));
+  if (!item) return;
+  document.getElementById('rlTipo').value = 'codificado';
+  document.getElementById('rlDescripcion').value = item.nombre;
   document.getElementById('rlPrecioUnitario').value = item.precio;
+  document.getElementById('rlPorcentaje').value = 100;
   const cantidad = document.getElementById('rlCantidad');
   cantidad.focus();
   cantidad.select();
+}
+
+// ============================================================
+// TRABAJOS CODIFICADOS — lista editable de precios fijos (autos)
+// ============================================================
+async function abrirTrabajosCodificados() {
+  await cargarTrabajosCodificadosCache();
+  renderTrabajosCodificados();
+  document.getElementById('trabajosCodificadosForm').style.display = 'none';
+  document.getElementById('trabajosCodificadosModal').classList.add('open');
+}
+
+function closeTrabajosCodificados() {
+  document.getElementById('trabajosCodificadosModal').classList.remove('open');
+  // La lista pudo haber cambiado: refresca el desplegable de "Codificados"
+  // del formulario de agregar línea si está abierto.
+  if (document.getElementById('rendAgregarLineaForm').style.display !== 'none') {
+    mostrarFormAgregarLineaRendicion();
+  }
+}
+
+function renderTrabajosCodificados() {
+  const tbody = document.getElementById('trabajosCodificadosBody');
+  tbody.innerHTML = trabajosCodificadosCache.length
+    ? trabajosCodificadosCache
+        .map(
+          (t) => `
+      <tr>
+        <td>${t.nombre}</td>
+        <td>$ ${money.format(t.precio)}</td>
+        <td>
+          <button class="btn light" onclick='mostrarFormTrabajoCodificado(${JSON.stringify(t)})'>✎</button>
+          <button class="btn light" onclick="eliminarTrabajoCodificado(${t.id})">✕</button>
+        </td>
+      </tr>`
+        )
+        .join('')
+    : '<tr><td colspan="3" class="small">Sin trabajos cargados.</td></tr>';
+}
+
+let trabajoCodificadoEditId = null;
+function mostrarFormTrabajoCodificado(trabajo) {
+  trabajoCodificadoEditId = trabajo ? trabajo.id : null;
+  const cont = document.getElementById('trabajosCodificadosForm');
+  cont.style.display = 'block';
+  cont.innerHTML = `
+    <div class="two-col-form">
+      <div class="field"><label>Nombre</label><input id="tcNombre" value="${trabajo ? trabajo.nombre.replace(/"/g, '&quot;') : ''}"></div>
+      <div class="field"><label>Precio</label><input id="tcPrecio" type="number" step="any" value="${trabajo ? trabajo.precio : 0}"></div>
+    </div>
+    <div class="toolbar" style="margin-top:8px">
+      <button class="btn primary" onclick="guardarTrabajoCodificado()">Guardar</button>
+      <button class="btn outline" onclick="document.getElementById('trabajosCodificadosForm').style.display='none'">Cancelar</button>
+    </div>
+  `;
+  document.getElementById('tcNombre').focus();
+}
+
+async function guardarTrabajoCodificado() {
+  const nombre = document.getElementById('tcNombre').value.trim();
+  const precio = Number(document.getElementById('tcPrecio').value) || 0;
+  if (!nombre) {
+    alert('El nombre es obligatorio.');
+    return;
+  }
+  const url = trabajoCodificadoEditId ? `/api/trabajos-codificados/${trabajoCodificadoEditId}` : '/api/trabajos-codificados';
+  const method = trabajoCodificadoEditId ? 'PUT' : 'POST';
+  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre, precio }) });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  document.getElementById('trabajosCodificadosForm').style.display = 'none';
+  await cargarTrabajosCodificadosCache();
+  renderTrabajosCodificados();
+}
+
+async function eliminarTrabajoCodificado(id) {
+  if (!confirm('¿Borrar este trabajo de la lista?')) return;
+  await fetch(`/api/trabajos-codificados/${id}`, { method: 'DELETE' });
+  await cargarTrabajosCodificadosCache();
+  renderTrabajosCodificados();
 }
 
 async function confirmarAgregarLineaRendicion() {
@@ -3215,19 +3284,26 @@ function construirRendicionA4Html(r) {
 
   const duplicados = r.detalle.filter((d) => d.tipo === 'duplicado');
   const servicios = r.detalle.filter((d) => d.tipo === 'servicio');
+  const codificados = r.detalle.filter((d) => d.tipo === 'codificado');
 
-  const grupos = {};
-  duplicados.forEach((d) => {
-    if (!grupos[d.descripcion]) grupos[d.descripcion] = { descripcion: d.descripcion, cantidad: 0, monto_rendido: 0 };
-    grupos[d.descripcion].cantidad += Number(d.cantidad) || 0;
-    grupos[d.descripcion].monto_rendido += d.monto_rendido;
-  });
-  const filasDuplicados = Object.values(grupos)
-    .map((g) => {
-      const base = g.cantidad ? Math.round(g.monto_rendido / g.cantidad) : g.monto_rendido;
-      return `<tr><td>${g.descripcion}</td><td class="a4-num">${g.cantidad}</td><td class="a4-num">$${money.format(base)}</td><td class="a4-num">$${money.format(g.monto_rendido)}</td></tr>`;
-    })
-    .join('');
+  // Agrupa varias líneas iguales (ej. "K Sevillana" cargado 2 veces) en una
+  // sola fila con la cantidad sumada, tanto para duplicados como codificados.
+  const agrupar = (lineas) => {
+    const grupos = {};
+    lineas.forEach((d) => {
+      if (!grupos[d.descripcion]) grupos[d.descripcion] = { descripcion: d.descripcion, cantidad: 0, monto_rendido: 0 };
+      grupos[d.descripcion].cantidad += Number(d.cantidad) || 0;
+      grupos[d.descripcion].monto_rendido += d.monto_rendido;
+    });
+    return Object.values(grupos)
+      .map((g) => {
+        const base = g.cantidad ? Math.round(g.monto_rendido / g.cantidad) : g.monto_rendido;
+        return `<tr><td>${g.descripcion}</td><td class="a4-num">${g.cantidad}</td><td class="a4-num">$${money.format(base)}</td><td class="a4-num">$${money.format(g.monto_rendido)}</td></tr>`;
+      })
+      .join('');
+  };
+  const filasDuplicados = agrupar(duplicados);
+  const filasCodificados = agrupar(codificados);
 
   const filasServicios = servicios
     .map(
@@ -3268,6 +3344,15 @@ function construirRendicionA4Html(r) {
     <table class="a4-tabla">
       <thead><tr><th>Descripción</th><th>Cant.</th><th>Base</th><th>Total</th></tr></thead>
       <tbody>${filasDuplicados}</tbody>
+    </table>`
+        : ''
+    }
+    ${
+      filasCodificados
+        ? `<h3 style="margin:14px 0 6px;font-size:13px">Codificados</h3>
+    <table class="a4-tabla">
+      <thead><tr><th>Descripción</th><th>Cant.</th><th>Base</th><th>Total</th></tr></thead>
+      <tbody>${filasCodificados}</tbody>
     </table>`
         : ''
     }

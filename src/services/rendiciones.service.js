@@ -223,7 +223,7 @@ function requerirGenerada(rendicion_id) {
 // o que se asignó al cerrajero equivocado). No tiene venta_item_id asociado.
 function agregarLinea(rendicion_id, { tipo, codigo, descripcion, cantidad, precio_unitario, porcentaje }) {
   requerirGenerada(rendicion_id);
-  if (!['servicio', 'duplicado'].includes(tipo)) throw new Error('Tipo de línea inválido');
+  if (!['servicio', 'duplicado', 'codificado'].includes(tipo)) throw new Error('Tipo de línea inválido');
   if (!descripcion || !descripcion.trim()) throw new Error('La descripción es obligatoria');
   const cant = Number(cantidad) || 1;
   const unitario = Number(precio_unitario) || 0;

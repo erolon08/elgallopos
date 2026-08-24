@@ -1246,6 +1246,23 @@
   </div>
 </div>
 
+<div class="modal" id="trabajosCodificadosModal">
+  <div class="modal-box" style="max-width:520px">
+    <div class="section-title"><h3>Trabajos codificados</h3><button class="btn light" onclick="closeTrabajosCodificados()">✕</button></div>
+    <div class="notice">Lista rápida para agregar a una rendición (autos: pilas, control, K Sevillana, etc.). Se rinde el precio completo, no el % normal.</div>
+    <div class="table-wrap" style="margin-top:10px">
+      <table>
+        <thead><tr><th>Nombre</th><th>Precio</th><th></th></tr></thead>
+        <tbody id="trabajosCodificadosBody"></tbody>
+      </table>
+    </div>
+    <div class="toolbar" style="margin-top:10px">
+      <button class="btn light" onclick="mostrarFormTrabajoCodificado(null)">+ Agregar trabajo</button>
+    </div>
+    <div id="trabajosCodificadosForm" style="display:none;margin-top:8px"></div>
+  </div>
+</div>
+
 <div class="modal" id="clienteModal">
   <div class="modal-box" style="max-width:700px">
     <div class="section-title">
