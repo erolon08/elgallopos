@@ -2442,7 +2442,7 @@ let session = null;
 const PANTALLAS_POR_ROL = {
   // Stock queda reservado exclusivamente al puesto STOCK, ni ADMIN lo ve.
   ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'cuentacorriente', 'direcciones', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
-  CAJA: ['venta', 'direcciones', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'caja'],
+  CAJA: ['venta', 'direcciones', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'rendicion', 'caja'],
   VENTA: ['venta', 'direcciones', 'pendientes', 'presupuestos', 'clientes', 'cuentacorriente'],
   STOCK: ['stock', 'productos', 'compras'],
 };
