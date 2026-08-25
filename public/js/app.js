@@ -1698,11 +1698,14 @@ function editarCierreDesdeTicket() {
   abrirModificarCierre(ultimoDocumentoParaTicket.data.id);
 }
 
-// Monto que se mandó a caja fuerte en un cierre ya hecho: no es una columna
-// propia del turno, es la diferencia entre lo contado y lo que se dejó de
-// fondo para el próximo turno (ver aplicarCierre en caja.service.js).
+// Monto que se mandó a caja fuerte en un cierre ya hecho: suma TODOS los
+// movimientos con categoría "caja_fuerte" del turno, no solo el automático
+// que genera el cierre — también puede haber traslados cargados a mano
+// durante el turno (categoría "Caja fuerte" en Movimientos). Mismo cálculo
+// que ya usa el recuadro verde "ENVÍO CAJA FUERTE" del ticket completo A4,
+// en construirCierreA4Html.
 function montoCajaFuerteDe(t) {
-  return Math.max(0, Number(t.efectivo_contado || 0) - Number(t.fondo_turno_siguiente || 0));
+  return t.movimientos.filter((m) => m.categoria === 'caja_fuerte').reduce((a, m) => a + m.monto, 0);
 }
 
 // Ticket aparte, chico y en letra grande, pensado para imprimir en la
