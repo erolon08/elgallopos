@@ -1312,6 +1312,7 @@ function mostrarTicketCtaCte(data) {
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  document.getElementById('btnTicketCajaFuerte').style.display = 'none';
   mostrarTicketComoTermico(construirTicketCtaCteHtml(data));
   showScreen('ticket-screen');
 }
@@ -1683,6 +1684,10 @@ async function mostrarTicketCierre(t) {
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = '';
+  // Solo tiene sentido el ticket para abrochar a la plata si de verdad se
+  // mandó algo a caja fuerte en este cierre (si todo quedó de fondo para el
+  // próximo turno, no hay nada que abrochar).
+  document.getElementById('btnTicketCajaFuerte').style.display = montoCajaFuerteDe(t) > 0 ? '' : 'none';
   mostrarTicketComoA4(construirCierreA4Html(t));
   showScreen('ticket-screen');
 }
@@ -1691,6 +1696,37 @@ function editarCierreDesdeTicket() {
   if (!ultimoDocumentoParaTicket || ultimoDocumentoParaTicket.tipo !== 'cierre') return;
   showScreen('caja');
   abrirModificarCierre(ultimoDocumentoParaTicket.data.id);
+}
+
+// Monto que se mandó a caja fuerte en un cierre ya hecho: no es una columna
+// propia del turno, es la diferencia entre lo contado y lo que se dejó de
+// fondo para el próximo turno (ver aplicarCierre en caja.service.js).
+function montoCajaFuerteDe(t) {
+  return Math.max(0, Number(t.efectivo_contado || 0) - Number(t.fondo_turno_siguiente || 0));
+}
+
+// Ticket aparte, chico y en letra grande, pensado para imprimir en la
+// comandera térmica (80mm) y abrochar directo al fajo de plata que se
+// manda a caja fuerte — no es el resumen completo del cierre (ese es el
+// A4 de construirCierreA4Html), es solo "cuánto y cuándo".
+function construirTicketCajaFuerteHtml(t) {
+  const fecha = new Date(t.cerrado_en || Date.now()).toLocaleString('es-AR');
+  const monto = montoCajaFuerteDe(t);
+  return `
+    <div class="center" style="font-size:22px;font-weight:900">CAJA FUERTE</div>
+    <hr>
+    <div style="font-size:15px">Turno: ${t.numero}</div>
+    <div style="font-size:15px;margin-top:6px">Fecha:</div>
+    <div style="font-size:20px;font-weight:900">${fecha}</div>
+    <hr>
+    <div class="center" style="font-size:15px;margin-top:6px">MONTO</div>
+    <div class="center" style="font-size:34px;font-weight:900;border:2px solid #000;border-radius:6px;padding:10px 4px;margin-top:4px">$${money.format(monto)}</div>
+  `;
+}
+
+function mostrarTicketCajaFuerte() {
+  if (!ultimoDocumentoParaTicket || ultimoDocumentoParaTicket.tipo !== 'cierre') return;
+  mostrarTicketComoTermico(construirTicketCajaFuerteHtml(ultimoDocumentoParaTicket.data));
 }
 
 async function imprimirTicketCierre(turnoId) {
@@ -3396,6 +3432,7 @@ async function mostrarTicketRendicion(id) {
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = r.estado === 'generada' ? '' : 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  document.getElementById('btnTicketCajaFuerte').style.display = 'none';
   mostrarTicketComoA4(construirRendicionA4Html(r));
   showScreen('ticket-screen');
 }
@@ -5020,6 +5057,7 @@ async function mostrarTicket(venta) {
   document.getElementById('btnImprimirA4').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  document.getElementById('btnTicketCajaFuerte').style.display = 'none';
   const esFiscal = esFacturaFiscal('venta', venta);
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
@@ -5073,6 +5111,7 @@ async function mostrarTicketPresupuesto(presupuesto) {
   document.getElementById('btnImprimirA4').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  document.getElementById('btnTicketCajaFuerte').style.display = 'none';
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
   const desglose = calcularDesglosePresupuesto(presupuesto);
   const lineasHtml = desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}<br>`).join('');
@@ -6033,6 +6072,7 @@ async function verResumenVentasA4() {
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  document.getElementById('btnTicketCajaFuerte').style.display = 'none';
   mostrarTicketComoA4(html);
   showScreen('ticket-screen');
 }
@@ -6083,6 +6123,7 @@ async function verResumenRendicionesA4() {
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  document.getElementById('btnTicketCajaFuerte').style.display = 'none';
   mostrarTicketComoA4(html);
   showScreen('ticket-screen');
 }
@@ -6129,6 +6170,7 @@ async function verResumenGastosA4() {
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  document.getElementById('btnTicketCajaFuerte').style.display = 'none';
   mostrarTicketComoA4(html);
   showScreen('ticket-screen');
 }
