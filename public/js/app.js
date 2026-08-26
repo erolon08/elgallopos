@@ -2482,7 +2482,7 @@ const PANTALLAS_POR_ROL = {
   // Stock queda reservado exclusivamente al puesto STOCK, ni ADMIN lo ve.
   ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'cuentacorriente', 'direcciones', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
   CAJA: ['venta', 'direcciones', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'rendicion', 'caja'],
-  VENTA: ['venta', 'direcciones', 'pendientes', 'presupuestos', 'clientes', 'cuentacorriente'],
+  VENTA: ['venta', 'direcciones', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente'],
   STOCK: ['stock', 'productos', 'compras'],
 };
 
@@ -5674,11 +5674,14 @@ async function cargarVentasHistorial() {
   rows.forEach((v) => tbody.appendChild(filaVentaHistorial(v)));
 }
 function filaVentaHistorial(v) {
+  // El puesto VENTA solo puede consultar el historial (buscar un ticket),
+  // no facturar, anular ni borrar ventas — eso queda para CAJA/ADMIN.
+  const esSoloConsulta = session.rol === 'VENTA';
   const tr = document.createElement('tr');
   const hora = new Date(v.creado_en).toLocaleString('es-AR');
   const estadoCls = v.estado === 'cobrada' ? 's-ok' : v.estado === 'anulada' ? 's-bad' : 's-warn';
   const puedeFacturar = v.estado === 'cobrada' && v.tipo_comprobante === 'Eventual';
-  const botonFacturar = puedeFacturar
+  const botonFacturar = puedeFacturar && !esSoloConsulta
     ? `<button class="btn green" onclick='abrirFacturarVenta(${v.id}, ${JSON.stringify(v.cliente_nombre || null)}, ${v.cliente_id || 'null'})'>Facturar</button>`
     : '';
   // Igual que en posBerry: una venta a Cuenta Corriente se marca en rojo
@@ -5688,7 +5691,7 @@ function filaVentaHistorial(v) {
     const saldada = Number(v.cta_cte_saldo_pendiente) <= 0;
     formaPagoCelda = `<span class="status ${saldada ? 's-ok' : 's-bad'}" title="${saldada ? 'Cta. Cte. saldada' : 'Cta. Cte. pendiente de cobro'}">Cta. Cte. ${saldada ? '✓' : `($ ${money.format(v.cta_cte_saldo_pendiente)})`}</span>`;
   }
-  const botonBorrar = v.estado === 'anulada'
+  const botonBorrar = v.estado === 'anulada' && !esSoloConsulta
     ? `<button class="btn light" onclick="borrarVentaDefinitivo(${v.id})">🗑️ Borrar</button>`
     : '';
   tr.innerHTML = `
@@ -5788,16 +5791,20 @@ let ventaDetalleActual = null;
 async function verDetalleVenta(id) {
   const venta = await (await fetch(`/api/ventas/${id}`)).json();
   ventaDetalleActual = venta;
+  const esSoloConsulta = session.rol === 'VENTA';
   document.getElementById('detalleVentaTitulo').textContent = `Venta N° ${venta.numero}`;
   const filasItems = venta.items
-    .map(
-      (it) => `
+    .map((it) => {
+      const cerrajeroCelda = esSoloConsulta
+        ? (cerrajerosCache.find((c) => c.id === it.cerrajero_id) || {}).nombre || 'Sin asignar'
+        : `<select onchange="cambiarCerrajeroItemDetalle(${it.id}, this.value)">${opcionesCerrajero(it.cerrajero_id)}</select>`;
+      return `
     <tr>
       <td>${it.producto_codigo || '—'}</td><td>${it.cantidad}</td><td>${it.descripcion}</td>
-      <td><select onchange="cambiarCerrajeroItemDetalle(${it.id}, this.value)">${opcionesCerrajero(it.cerrajero_id)}</select></td>
+      <td>${cerrajeroCelda}</td>
       <td>$ ${money.format(it.precio_unitario)}</td><td>$ ${money.format(it.precio_unitario * it.cantidad - (it.descuento || 0))}</td>
-    </tr>`
-    )
+    </tr>`;
+    })
     .join('');
   const pagosTxt = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $ ${money.format(p.monto)}`).join(', ') || '—';
   document.getElementById('detalleVentaContenido').innerHTML = `
@@ -5806,7 +5813,7 @@ async function verDetalleVenta(id) {
     <p style="margin-top:10px"><b>Pagos:</b> ${pagosTxt}</p>
     <p><b>Total: $ ${money.format(venta.total)}</b></p>
   `;
-  document.getElementById('btnAnularVenta').style.display = venta.estado === 'anulada' ? 'none' : 'inline-block';
+  document.getElementById('btnAnularVenta').style.display = venta.estado === 'anulada' || esSoloConsulta ? 'none' : 'inline-block';
   document.getElementById('detalleVentaModal').classList.add('open');
 }
 function closeDetalleVenta() {
