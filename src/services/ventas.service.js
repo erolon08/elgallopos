@@ -144,7 +144,7 @@ function obtener(id) {
   return { ...venta, items, pagos, cliente };
 }
 
-function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, estado, numero } = {}) {
+function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, estado, numero, dni } = {}) {
   let sql = `
     SELECT DISTINCT v.*, cl.nombre AS cliente_nombre
     FROM ventas v
@@ -173,6 +173,10 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, e
   if (patente) {
     sql += ' AND veh.patente LIKE @patente';
     params.patente = `%${patente.toUpperCase().replace(/\s+/g, '')}%`;
+  }
+  if (dni) {
+    sql += ' AND cl.documento LIKE @dni';
+    params.dni = `%${dni}%`;
   }
   if (cerrajero_id) {
     sql += ' AND vi.cerrajero_id = @cerrajero_id';

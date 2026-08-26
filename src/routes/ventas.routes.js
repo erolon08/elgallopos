@@ -6,7 +6,7 @@ const { emitVentaEvent } = require('../sockets');
 const router = express.Router();
 
 router.get('/', (req, res) => {
-  const { fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, estado, numero } = req.query;
+  const { fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, estado, numero, dni } = req.query;
   res.json(
     ventasService.listar({
       fecha_desde,
@@ -16,6 +16,7 @@ router.get('/', (req, res) => {
       cerrajero_id: cerrajero_id ? Number(cerrajero_id) : undefined,
       estado,
       numero,
+      dni,
     })
   );
 });
