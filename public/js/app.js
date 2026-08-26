@@ -5142,6 +5142,18 @@ async function mostrarTicket(venta) {
     venta.tipo_comprobante === 'Factura A' && venta.iva_neto != null
       ? `Neto: $${money.format(venta.iva_neto)}<br>IVA 21%: $${money.format(venta.iva_monto)}<br>`
       : '';
+  // Régimen de Transparencia Fiscal al Consumidor (RG 5329): en toda
+  // factura a consumidor final hay que declarar cuánto IVA y otros
+  // impuestos nacionales indirectos están contenidos en el total, aunque
+  // el comprobante no los discrimine línea por línea (como sí lo hace la
+  // Factura A con Neto/IVA arriba). El negocio no cobra otros impuestos
+  // nacionales indirectos aparte del IVA, por eso ese renglón es siempre $0.
+  const transparenciaFiscalHtml =
+    esFiscal && venta.iva_monto != null
+      ? `<div class="center" style="font-size:10px;margin-top:4px">REG. TRANSPARENCIA FISCAL AL CONSUMIDOR</div>
+         IVA CONTENIDO: $${money.format(venta.iva_monto)}<br>
+         OTROS IMP. NAC. INDIRECTOS: $${money.format(0)}<br>`
+      : '';
   // El tipo de comprobante (Factura A/B) se destaca en un recuadro aparte,
   // más grande, para que salte a la vista de una — y los datos fiscales del
   // negocio van en letra chica y separados con líneas, para no alargar el
@@ -5159,6 +5171,7 @@ async function mostrarTicket(venta) {
     ${descuentoGeneralHtml}
     <div class="ticket-total">TOTAL: $${money.format(venta.total)}</div>
     ${pagosHtml}
+    ${transparenciaFiscalHtml}
     ${caeHtml}<hr>
     <div class="center">¡Gracias por su compra!</div>
     ${ticketPieHtml()}
@@ -5279,6 +5292,13 @@ function construirDocumentoA4Html(tipo, doc) {
   const pagosHtml = !esPresupuesto && doc.pagos && doc.pagos.length
     ? `<p><b>Forma de pago:</b> ${doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`).join(' / ')}</p>`
     : '';
+  // Régimen de Transparencia Fiscal al Consumidor (RG 5329), igual que en
+  // el ticket térmico: obligatorio en toda factura a consumidor final,
+  // discrimine o no el IVA línea por línea.
+  const transparenciaFiscalA4Html =
+    !esPresupuesto && esFiscal && doc.iva_monto != null
+      ? `<p class="a4-muted"><b>REG. TRANSPARENCIA FISCAL AL CONSUMIDOR</b><br>IVA CONTENIDO: $${money.format(doc.iva_monto)} · OTROS IMP. NAC. INDIRECTOS: $${money.format(0)}</p>`
+      : '';
   return `
     <div class="a4-top">
       <div class="a4-empresa">
@@ -5320,6 +5340,7 @@ function construirDocumentoA4Html(tipo, doc) {
       <div style="display:flex;flex-direction:column;gap:6px">${totalBloqueHtml}</div>
     </div>
     ${pagosHtml}
+    ${transparenciaFiscalA4Html}
     ${esPresupuesto ? '<p class="a4-muted">Presupuesto sujeto a modificaciones.</p>' : ''}
     ${cfg.ticket_pie ? `<p class="a4-muted">${cfg.ticket_pie.replace(/\n/g, '<br>')}</p>` : ''}
     <p class="a4-muted a4-impreso">Impreso: ${new Date().toLocaleDateString('es-AR')}</p>
