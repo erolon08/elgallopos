@@ -145,8 +145,13 @@ function obtener(id) {
 }
 
 function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, estado, numero, dni } = {}) {
+  // GROUP_CONCAT junta la descripción de todas las líneas de la venta en un
+  // solo texto (para mostrar "qué se vendió" en el listado sin tener que
+  // abrir el detalle) — reemplaza al DISTINCT que hacía falta antes para
+  // no repetir la fila de venta por cada línea/vehículo que matcheaba el
+  // JOIN, ya que ahora GROUP BY v.id cumple ese mismo propósito.
   let sql = `
-    SELECT DISTINCT v.*, cl.nombre AS cliente_nombre
+    SELECT v.*, cl.nombre AS cliente_nombre, GROUP_CONCAT(vi.descripcion, ', ') AS descripcion_items
     FROM ventas v
     LEFT JOIN clientes cl ON cl.id = v.cliente_id
     LEFT JOIN venta_items vi ON vi.venta_id = v.id
@@ -192,7 +197,7 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, e
     sql += ' AND v.estado = @estado';
     params.estado = estado;
   }
-  sql += ' ORDER BY v.id DESC LIMIT 300';
+  sql += ' GROUP BY v.id ORDER BY v.id DESC LIMIT 300';
   return db.prepare(sql).all(params);
 }
 

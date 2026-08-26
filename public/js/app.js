@@ -5713,7 +5713,7 @@ async function cargarVentasHistorial() {
   const tbody = document.getElementById('ventasBody');
   tbody.innerHTML = '';
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="small">Sin resultados.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="small">Sin resultados.</td></tr>';
     return;
   }
   rows.forEach((v) => tbody.appendChild(filaVentaHistorial(v)));
@@ -5739,8 +5739,14 @@ function filaVentaHistorial(v) {
   const botonBorrar = v.estado === 'anulada' && !esSoloConsulta
     ? `<button class="btn light" onclick="borrarVentaDefinitivo(${v.id})">🗑️ Borrar</button>`
     : '';
+  // Abreviada con "..." y puntos suspensivos por CSS (celda angosta), con el
+  // texto completo en el title para verlo pasando el mouse por encima.
+  const descripcionCelda = v.descripcion_items
+    ? `<span class="celda-abreviada" title="${escapeHtml(v.descripcion_items)}">${escapeHtml(v.descripcion_items)}</span>`
+    : '—';
   tr.innerHTML = `
     <td>${v.numero}</td><td>${hora}</td><td>${v.cliente_nombre || 'Consumidor Final'}</td>
+    <td>${descripcionCelda}</td>
     <td>${v.tipo_comprobante}</td><td>${formaPagoCelda}</td><td>$ ${money.format(v.total)}</td>
     <td><span class="status ${estadoCls}">${v.estado}</span></td>
     <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button> ${botonFacturar} ${botonBorrar}</td>

@@ -116,6 +116,9 @@ input,select,textarea{background:var(--card);color:var(--ink)}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
 table{width:100%;border-collapse:collapse;min-width:640px} th,td{padding:10px 11px;border-bottom:1px solid var(--line);text-align:left;font-size:13px} th{background:var(--tint);position:sticky;top:0} tr:last-child td{border-bottom:0}
 tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)} tr.row-selectable.selected{background:var(--tint2)}
+/* Celda abreviada: corta con "..." en vez de desbordar/agrandar la tabla —
+   el texto completo queda disponible pasando el mouse (title del span). */
+.celda-abreviada{display:inline-block;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
 /* Detalle de venta: la Descripción es lo que más importa ver completo, así
    que se le achica la letra a toda la tabla y se le da a esa columna la
    mayor parte del ancho, en vez de repartirlo parejo entre las 6 columnas. */
