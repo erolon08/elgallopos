@@ -5289,9 +5289,6 @@ function construirDocumentoA4Html(tipo, doc) {
   const totalBloqueHtml = esPresupuesto
     ? totalesPresupuestoA4Html(desglose)
     : `${ivaBloqueA4Html}<div class="a4-total">TOTAL<br>$${money.format(doc.total)}</div>`;
-  const pagosHtml = !esPresupuesto && doc.pagos && doc.pagos.length
-    ? `<p><b>Forma de pago:</b> ${doc.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}`).join(' / ')}</p>`
-    : '';
   // Régimen de Transparencia Fiscal al Consumidor (RG 5329), igual que en
   // el ticket térmico: obligatorio en toda factura a consumidor final,
   // discrimine o no el IVA línea por línea.
@@ -5339,7 +5336,6 @@ function construirDocumentoA4Html(tipo, doc) {
       }</div>
       <div style="display:flex;flex-direction:column;gap:6px">${totalBloqueHtml}</div>
     </div>
-    ${pagosHtml}
     ${transparenciaFiscalA4Html}
     ${esPresupuesto ? '<p class="a4-muted">Presupuesto sujeto a modificaciones.</p>' : ''}
     ${cfg.ticket_pie ? `<p class="a4-muted">${cfg.ticket_pie.replace(/\n/g, '<br>')}</p>` : ''}
