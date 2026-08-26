@@ -4870,6 +4870,44 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       atajosVenta[e.key]();
     }
+    return;
+  }
+  // Pantalla del ticket (después de cobrar/generar un presupuesto/rendición/
+  // cierre): un solo atajo por tecla, "cliquea" el botón correspondiente si
+  // está visible en ese momento — así no hace falta duplicar acá qué botón
+  // corresponde a cada tipo de documento, eso ya lo decide mostrarTicket*().
+  if (document.getElementById('ticket-screen').classList.contains('active')) {
+    const botonesTicket = {
+      F10: 'window.print()',
+      F9: 'btnImprimirA4',
+      F8: 'btnEnviarImagenWhatsapp',
+      F7: 'btnEnviarImagenA4Whatsapp',
+      F6: 'copiarImagenTicket()',
+      F5: document.getElementById('btnEditarTicketRendicion').style.display !== 'none' ? 'btnEditarTicketRendicion' : 'btnEditarTicketCierre',
+      F4: 'btnTicketCajaFuerte',
+    };
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      showScreen(ultimaPantallaAntesDelTicket || 'venta');
+      return;
+    }
+    const objetivo = botonesTicket[e.key];
+    if (!objetivo) return;
+    if (objetivo === 'window.print()') {
+      e.preventDefault();
+      window.print();
+      return;
+    }
+    if (objetivo === 'copiarImagenTicket()') {
+      e.preventDefault();
+      copiarImagenTicket();
+      return;
+    }
+    const btn = document.getElementById(objetivo);
+    if (btn && btn.style.display !== 'none') {
+      e.preventDefault();
+      btn.click();
+    }
   }
 });
 

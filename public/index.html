@@ -916,15 +916,15 @@
 
       <section class="screen" id="ticket-screen">
         <div class="no-print toolbar">
-          <button class="btn primary" onclick="window.print()">🖨️ Imprimir</button>
-          <button class="btn outline" id="btnImprimirA4" style="display:none" onclick="imprimirEnA4()">🖨️ Imprimir en A4</button>
-          <button class="btn green" id="btnEnviarImagenWhatsapp" onclick="enviarImagenWhatsapp()">🖼️ Enviar imagen por WhatsApp</button>
-          <button class="btn green" id="btnEnviarImagenA4Whatsapp" style="display:none" onclick="enviarImagenA4Whatsapp()">🖼️ Enviar imagen A4 por WhatsApp</button>
-          <button class="btn light" onclick="copiarImagenTicket()">📋 Copiar imagen</button>
-          <button class="btn light" id="btnEditarTicketRendicion" style="display:none" onclick="editarRendicionDesdeTicket()">✎ Modificar</button>
-          <button class="btn light" id="btnEditarTicketCierre" style="display:none" onclick="editarCierreDesdeTicket()">✎ Modificar cierre</button>
-          <button class="btn light" id="btnTicketCajaFuerte" style="display:none" onclick="mostrarTicketCajaFuerte()">🖨️ Ticket caja fuerte</button>
-          <button class="btn outline" onclick="showScreen(ultimaPantallaAntesDelTicket || 'venta')">Volver</button>
+          <button class="btn primary" onclick="window.print()">🖨️ Imprimir <span class="key">F10</span></button>
+          <button class="btn outline" id="btnImprimirA4" style="display:none" onclick="imprimirEnA4()">🖨️ Imprimir en A4 <span class="key key-dark">F9</span></button>
+          <button class="btn green" id="btnEnviarImagenWhatsapp" onclick="enviarImagenWhatsapp()">🖼️ Enviar imagen por WhatsApp <span class="key">F8</span></button>
+          <button class="btn green" id="btnEnviarImagenA4Whatsapp" style="display:none" onclick="enviarImagenA4Whatsapp()">🖼️ Enviar imagen A4 por WhatsApp <span class="key">F7</span></button>
+          <button class="btn light" onclick="copiarImagenTicket()">📋 Copiar imagen <span class="key key-dark">F6</span></button>
+          <button class="btn light" id="btnEditarTicketRendicion" style="display:none" onclick="editarRendicionDesdeTicket()">✎ Modificar <span class="key key-dark">F5</span></button>
+          <button class="btn light" id="btnEditarTicketCierre" style="display:none" onclick="editarCierreDesdeTicket()">✎ Modificar cierre <span class="key key-dark">F5</span></button>
+          <button class="btn light" id="btnTicketCajaFuerte" style="display:none" onclick="mostrarTicketCajaFuerte()">🖨️ Ticket caja fuerte <span class="key key-dark">F4</span></button>
+          <button class="btn outline" onclick="showScreen(ultimaPantallaAntesDelTicket || 'venta')">Volver <span class="key key-dark">Esc</span></button>
         </div>
         <div class="ticket" id="ticketContenido"></div>
         <div class="ticket-a4" id="ticketA4Contenido"></div>
