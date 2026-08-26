@@ -21,31 +21,9 @@ document.querySelectorAll('.nav button[data-screen]').forEach((b) =>
   b.addEventListener('click', () => showScreen(b.dataset.screen))
 );
 
-// Menú lateral desplegable (como el ☰ CTRL+Q de posBerry): por defecto
-// oculto, ocupando cero espacio, y flota encima del contenido al abrirlo en
-// vez de empujarlo — así el contenido siempre tiene todo el ancho disponible.
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.contains('open') ? closeSidebar() : openSidebar();
-}
-function openSidebar() {
-  document.getElementById('sidebar').classList.add('open');
-  document.getElementById('sidebarBackdrop').classList.add('visible');
-}
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebarBackdrop').classList.remove('visible');
-}
-document.addEventListener('keydown', (e) => {
-  if (e.ctrlKey && e.key.toLowerCase() === 'q') {
-    e.preventDefault();
-    toggleSidebar();
-  }
-});
-
 let ultimaPantallaAntesDelTicket = 'venta';
 
 function showScreen(id) {
-  closeSidebar();
   const actualActiva = document.querySelector('.screen.active');
   if (actualActiva && actualActiva.id !== 'ticket-screen' && id === 'ticket-screen') {
     ultimaPantallaAntesDelTicket = actualActiva.id;

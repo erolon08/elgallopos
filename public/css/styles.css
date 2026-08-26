@@ -62,30 +62,8 @@
 body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink)}
 button,input,select,textarea{font:inherit}
 input,select,textarea{background:var(--card);color:var(--ink)}
-/* El menú lateral es desplegable (como el ☰ CTRL+Q de posBerry), no fijo:
-   por defecto está oculto y el contenido ocupa todo el ancho; al abrirlo
-   aparece flotando ENCIMA del contenido (no lo empuja), con un fondo oscuro
-   atrás para cerrarlo con un click afuera. */
-.app{display:block;min-height:100vh}
-.sidebar{
-  background:var(--black);color:#fff;position:fixed;top:0;left:0;height:100vh;width:255px;
-  overflow:auto;z-index:2000;transform:translateX(-100%);transition:transform .18s ease;
-  box-shadow:2px 0 18px rgba(0,0,0,.4);
-}
-.sidebar.open{transform:translateX(0)}
-.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1999}
-.sidebar-backdrop.visible{display:block}
-.hamburger-btn{background:transparent;border:1px solid var(--line);border-radius:8px;font-size:18px;line-height:1;padding:7px 11px;cursor:pointer;color:var(--ink)}
-.hamburger-btn:hover{background:var(--tint)}
-/* Fijo en la esquina, fuera de la topbar: en la pantalla de Venta la topbar
-   se oculta para aprovechar espacio (.venta-compacta), y si el botón viviera
-   ahí adentro desaparecía con ella — así queda accesible en cualquier pantalla. */
-.hamburger-btn-fijo{position:fixed;top:14px;left:14px;z-index:1500;background:var(--card);box-shadow:0 1px 6px rgba(0,0,0,.25)}
-/* Con el menú abierto, tapa al ☰ (mismo rincón) — esta "✕" propia adentro
-   deja una forma clara de cerrarlo, sin depender de encontrar el botón que
-   quedó tapado o de saber que hay que clickear afuera. */
-.sidebar-close-btn{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.1);border:0;color:#fff;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px}
-.sidebar-close-btn:hover{background:rgba(255,255,255,.2)}
+.app{display:grid;grid-template-columns:255px 1fr;min-height:100vh}
+.sidebar{background:var(--black);color:#fff;position:sticky;top:0;height:100vh;overflow:auto}
 .brand{padding:18px 16px 14px;border-bottom:1px solid #333;text-align:center}
 .brand-logo{width:64px;height:64px;object-fit:contain;display:block;margin:0 auto}
 .brand h1{font-size:18px;margin:8px 0 2px} .brand small{color:#bbb}
@@ -99,7 +77,7 @@ input,select,textarea{background:var(--card);color:var(--ink)}
 .nav button:disabled{color:#666;cursor:default}
 .nav button .tag{float:right;font-size:10px;color:#888}
 .main{min-width:0}
-.topbar{height:66px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 60px;position:sticky;top:0;z-index:10}
+.topbar{height:66px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:10}
 .topbar h2{margin:0;font-size:20px}
 .top-actions{display:flex;gap:8px;align-items:center}
 .badge{padding:6px 10px;border-radius:999px;font-size:12px;background:#eee}
@@ -210,7 +188,7 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 
 /* Venta */
 .main.venta-compacta .topbar{display:none}
-.main.venta-compacta .content{padding:6px 16px 6px 60px}
+.main.venta-compacta .content{padding:6px 16px}
 .sale-shell{display:flex;flex-direction:column;gap:6px;height:calc(100vh - 106px)}
 .sale-layout{display:grid;grid-template-columns:1.5fr .8fr;gap:10px;flex:1;min-height:0}
 .sale-card{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:8px 10px}
