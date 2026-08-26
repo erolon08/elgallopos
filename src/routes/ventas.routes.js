@@ -22,8 +22,8 @@ router.get('/', (req, res) => {
 });
 
 router.get('/exportar', (req, res) => {
-  const { desde, hasta } = req.query;
-  const filas = ventasService.exportarFilas({ desde, hasta });
+  const { desde, hasta, cerrajero_id } = req.query;
+  const filas = ventasService.exportarFilas({ desde, hasta, cerrajero_id: cerrajero_id ? Number(cerrajero_id) : undefined });
   const hoja = XLSX.utils.json_to_sheet(filas);
   const libro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(libro, hoja, 'Ventas');

@@ -199,7 +199,7 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, e
 // Un renglón por línea de venta (no por venta), para exportar a Excel: permite
 // filtrar/pivotear en la planilla por producto, cerrajero, forma de pago, etc.
 // para armar una rendición puntual sin depender de este sistema.
-function exportarFilas({ desde, hasta }) {
+function exportarFilas({ desde, hasta, cerrajero_id }) {
   const params = {};
   let cond = "WHERE v.estado = 'cobrada'";
   if (desde) {
@@ -209,6 +209,10 @@ function exportarFilas({ desde, hasta }) {
   if (hasta) {
     cond += ' AND date(v.cobrado_en) <= date(@hasta)';
     params.hasta = hasta;
+  }
+  if (cerrajero_id) {
+    cond += ' AND vi.cerrajero_id = @cerrajero_id';
+    params.cerrajero_id = cerrajero_id;
   }
 
   const pagosPorVenta = {};

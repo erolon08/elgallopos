@@ -5783,9 +5783,11 @@ document.getElementById('btnBuscarVentas').addEventListener('click', cargarVenta
 function descargarExcelVentas() {
   const desde = document.getElementById('ventasDesde').value;
   const hasta = document.getElementById('ventasHasta').value;
+  const cerrajero_id = document.getElementById('ventasCerrajero').value;
   const params = new URLSearchParams();
   if (desde) params.set('desde', desde);
   if (hasta) params.set('hasta', hasta);
+  if (cerrajero_id) params.set('cerrajero_id', cerrajero_id);
   window.open('/api/ventas/exportar?' + params.toString(), '_blank');
 }
 
@@ -5811,7 +5813,7 @@ async function verDetalleVenta(id) {
   const pagosTxt = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $ ${money.format(p.monto)}`).join(', ') || '—';
   document.getElementById('detalleVentaContenido').innerHTML = `
     <p><b>Cliente:</b> ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'} &nbsp; <b>Estado:</b> ${venta.estado} &nbsp; <b>Comprobante:</b> ${venta.tipo_comprobante}</p>
-    <div class="table-wrap"><table><thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${filasItems}</tbody></table></div>
+    <div class="table-wrap"><table class="tabla-venta-detalle"><thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${filasItems}</tbody></table></div>
     <p style="margin-top:10px"><b>Pagos:</b> ${pagosTxt}</p>
     <p><b>Total: $ ${money.format(venta.total)}</b></p>
   `;
