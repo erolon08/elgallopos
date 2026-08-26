@@ -34,7 +34,8 @@
 </div>
 
 <div class="app">
-  <aside class="sidebar">
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+  <aside class="sidebar" id="sidebar">
     <div class="brand">
       <img src="/img/logo-badge.png" class="brand-logo" alt="El Gallo">
       <h1>EL GALLO POS</h1><small>Cerrajería El Gallo</small>
@@ -81,7 +82,10 @@
   </aside>
   <main class="main">
     <header class="topbar">
-      <h2 id="screenTitle">Dashboard</h2>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="hamburger-btn" id="btnToggleSidebar" onclick="toggleSidebar()" title="Menú (CTRL+Q)">☰</button>
+        <h2 id="screenTitle">Dashboard</h2>
+      </div>
       <div class="top-actions"><span class="badge red">LAN conectada</span></div>
     </header>
     <div class="content">
