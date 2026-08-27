@@ -5687,14 +5687,12 @@ async function cargarVentasHistorial() {
   const cerrajero_id = document.getElementById('ventasCerrajero').value;
   const patente = document.getElementById('ventasPatente').value.trim();
   const dni = document.getElementById('ventasDni').value.trim();
-  const estado = document.getElementById('ventasEstado').value;
   if (desde) params.set('fecha_desde', desde);
   if (hasta) params.set('fecha_hasta', hasta);
   if (numero) params.set('numero', numero);
   if (cerrajero_id) params.set('cerrajero_id', cerrajero_id);
   if (patente) params.set('patente', patente);
   if (dni) params.set('dni', dni);
-  if (estado) params.set('estado', estado);
 
   const res = await fetch('/api/ventas?' + params.toString());
   const rows = await res.json();
