@@ -558,7 +558,7 @@ const anular = db.transaction((id, { motivo, usuario_id, terminal } = {}) => {
     });
   }
 
-  db.prepare("UPDATE ventas SET estado = 'anulada', cta_cte_saldo_pendiente = 0 WHERE id = ?").run(id);
+  db.prepare("UPDATE ventas SET estado = 'anulada', cta_cte_saldo_pendiente = 0, motivo_anulacion = ? WHERE id = ?").run(motivo || null, id);
   return obtener(id);
 });
 

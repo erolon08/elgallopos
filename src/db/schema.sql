@@ -319,6 +319,9 @@ CREATE TABLE IF NOT EXISTS ventas (
   -- vieja a la más nueva). No es lo mismo que clientes.saldo_cta_cte (que es
   -- el total del cliente); esto es para poder pintar cada venta de rojo/verde.
   cta_cte_saldo_pendiente REAL NOT NULL DEFAULT 0,
+  -- Motivo que se cargó al anular esta venta (queda guardado para poder
+  -- verlo después desde "Ver detalle", no solo en el momento de anularla).
+  motivo_anulacion TEXT,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   cobrado_en TEXT
 );

@@ -5846,8 +5846,13 @@ async function verDetalleVenta(id) {
     })
     .join('');
   const pagosTxt = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $ ${money.format(p.monto)}`).join(', ') || '—';
+  const motivoAnulacionHtml =
+    venta.estado === 'anulada'
+      ? `<p class="text-red"><b>Motivo de anulación:</b> ${venta.motivo_anulacion || '(sin motivo cargado)'}</p>`
+      : '';
   document.getElementById('detalleVentaContenido').innerHTML = `
     <p><b>Cliente:</b> ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'} &nbsp; <b>Estado:</b> ${venta.estado} &nbsp; <b>Comprobante:</b> ${venta.tipo_comprobante}</p>
+    ${motivoAnulacionHtml}
     <div class="table-wrap"><table class="tabla-venta-detalle"><thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${filasItems}</tbody></table></div>
     <p style="margin-top:10px"><b>Pagos:</b> ${pagosTxt}</p>
     <p><b>Total: $ ${money.format(venta.total)}</b></p>
