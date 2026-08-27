@@ -184,6 +184,29 @@ function cobrosCuentaCorriente({ anio, mes, desde, hasta, forma_pago }) {
     .get(params).total;
 }
 
+// Cuando se anula una venta que se había COBRADO ANTES del período elegido,
+// la plata vuelve a salir de la caja recién en este período (queda un
+// egreso categoria='venta' con la fecha de la anulación), pero
+// facturacion() ya no ve esa venta en ningún lado (quedó "anulada", no
+// "cobrada", sin importar cuándo pasó cada cosa). Si la venta se cobró Y se
+// anuló dentro del MISMO período no hace falta este descuento (facturacion()
+// ya excluye toda la venta, entrada y salida se cancelan solas); por eso
+// solo cuenta las anulaciones cuya venta original es de otro período.
+function reversasVentaAnuladaDeOtroPeriodo({ anio, mes, desde, hasta }) {
+  const rango = limitesFecha({ anio, mes, desde, hasta });
+  if (!rango.desde) return 0;
+  const { sql, params } = condicionRango('cm.creado_en', { anio, mes, desde, hasta });
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(cm.monto), 0) AS total
+       FROM caja_movimientos cm
+       JOIN ventas v ON v.id = cm.referencia_id
+       WHERE cm.tipo = 'egreso' AND cm.categoria = 'venta' AND cm.referencia_tipo = 'venta' ${sql}
+         AND date(v.cobrado_en) < date(@rangoDesde)`
+    )
+    .get({ ...params, rangoDesde: rango.desde }).total;
+}
+
 // Lo que se guardó en la caja fuerte al cerrar turnos en el período.
 function cajaFuerte({ anio, mes, desde, hasta }) {
   const { sql, params } = condicionRango('creado_en', { anio, mes, desde, hasta });
@@ -308,7 +331,9 @@ function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
   const fPagoElectronico = pagoElectronico({ anio: anioUsado, mes, desde, hasta });
   const fCobrosCuentaCorriente = cobrosCuentaCorriente({ anio: anioUsado, mes, desde, hasta, forma_pago });
   const fCambioFondo = cambioFondo({ anio: anioUsado, mes, desde, hasta });
-  const diferencia = fFacturacion - fCuentaCorriente - fGastos - fCajaFuerte - fPagoElectronico + fCobrosCuentaCorriente - fCambioFondo;
+  const fReversasVentaAnulada = reversasVentaAnuladaDeOtroPeriodo({ anio: anioUsado, mes, desde, hasta });
+  const diferencia =
+    fFacturacion - fCuentaCorriente - fGastos - fCajaFuerte - fPagoElectronico + fCobrosCuentaCorriente - fCambioFondo - fReversasVentaAnulada;
   return {
     anio: anioUsado,
     facturacion: fFacturacion,
@@ -318,6 +343,7 @@ function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
     pagoElectronico: fPagoElectronico,
     cobrosCuentaCorriente: fCobrosCuentaCorriente,
     cambioFondo: fCambioFondo,
+    reversasVentaAnulada: fReversasVentaAnulada,
     diferencia,
     serieMensual: serieMensual({ anio: anioUsado }),
     gastosPorTipo: gastosPorTipo({ anio: anioUsado, mes, desde, hasta, forma_pago }),
