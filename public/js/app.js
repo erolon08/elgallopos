@@ -1864,8 +1864,12 @@ function renderDashboardKpis(r) {
   document.getElementById('dkPagoElectronico').textContent = moneyDash(r.pagoElectronico);
   const dif = document.getElementById('dkDiferencia');
   dif.textContent = moneyDash(r.diferencia);
-  dif.style.color = Math.abs(r.diferencia) < 1 ? 'var(--green)' : 'var(--red)';
-  document.getElementById('dkDiferenciaHint').textContent = Math.abs(r.diferencia) < 1 ? 'Cierre correcto' : 'Revisar diferencia';
+  // Solo es un problema si FALTA plata (diferencia negativa); si sobra
+  // también hay que entender por qué, pero no es lo mismo que un faltante.
+  const faltante = r.diferencia < -1;
+  dif.style.color = faltante ? 'var(--red)' : 'var(--green)';
+  document.getElementById('dkDiferenciaHint').textContent =
+    Math.abs(r.diferencia) < 1 ? 'Cierre correcto' : faltante ? 'Falta plata: revisar' : 'Sobra plata: revisar';
 }
 
 function renderControlCierre(r) {
@@ -1879,7 +1883,7 @@ function renderControlCierre(r) {
   document.getElementById('ccCobrosCtaCte').textContent = moneyDash(r.cobrosCuentaCorriente);
   const ccDif = document.getElementById('ccDiferencia');
   ccDif.textContent = moneyDash(r.diferencia);
-  ccDif.style.color = Math.abs(r.diferencia) < 1 ? 'var(--green)' : 'var(--red)';
+  ccDif.style.color = r.diferencia < -1 ? 'var(--red)' : 'var(--green)';
 }
 
 function renderLecturaRapida(r) {
@@ -1887,9 +1891,12 @@ function renderLecturaRapida(r) {
   if (Math.abs(r.diferencia) < 1) {
     badge.className = 'lectura-badge ok';
     badge.textContent = '✅ Cierre correcto: la diferencia da $0';
-  } else {
+  } else if (r.diferencia < 0) {
     badge.className = 'lectura-badge warn';
-    badge.textContent = `⚠️ Revisar: la diferencia da ${moneyDash(r.diferencia)}`;
+    badge.textContent = `⚠️ Revisar: falta ${moneyDash(-r.diferencia)}`;
+  } else {
+    badge.className = 'lectura-badge ok';
+    badge.textContent = `✅ Sobra ${moneyDash(r.diferencia)} (no es un faltante, pero conviene entender de dónde sale)`;
   }
 }
 
