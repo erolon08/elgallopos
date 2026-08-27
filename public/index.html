@@ -98,6 +98,9 @@
               <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
             </select>
           </div>
+          <div class="field"><label>Desde (opcional)</label><input id="dashDesde" type="date" onchange="cargarDashboard()"></div>
+          <div class="field"><label>Hasta (opcional)</label><input id="dashHasta" type="date" onchange="cargarDashboard()"></div>
+          <div class="field"><label>&nbsp;</label><button class="btn light" onclick="document.getElementById('dashDesde').value='';document.getElementById('dashHasta').value='';cargarDashboard()">Limpiar rango</button></div>
           <div class="field"><label>Tipo de egreso</label><select id="dashTipoEgreso" onchange="cargarDashboard()"><option value="">Todos los egresos</option></select></div>
           <div class="field"><label>Forma de pago</label>
             <select id="dashFormaPago" onchange="cargarDashboard()">
@@ -111,6 +114,7 @@
             </select>
           </div>
         </div>
+        <p class="small" style="margin:-8px 0 14px">Si cargás "Desde" y/o "Hasta", ese rango de días manda por sobre Año y Mes (por ejemplo: 1/8/2026 a 15/8/2026).</p>
 
         <div class="grid dash-kpis" style="margin-bottom:14px">
           <div class="card kpi kpi-green"><div class="label">Facturación</div><div class="value" id="dkFacturacion">—</div><div class="hint">Solo ventas, sin cobranzas</div></div>

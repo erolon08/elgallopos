@@ -245,14 +245,17 @@ function consultaFamilia({ familia_id, anio, mes, desde, hasta }) {
   return { detalle, total };
 }
 
-function dashboard({ anio, mes, tipo_egreso, forma_pago }) {
+// "desde"/"hasta" (rango de días libre) tiene prioridad sobre año/mes, igual
+// que en el resto de las consultas — así se puede pedir, por ejemplo, "del
+// 1 al 15 de agosto" en vez de todo el mes.
+function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
   const anioUsado = anio || String(new Date().getFullYear());
-  const fFacturacion = facturacion({ anio: anioUsado, mes });
-  const fCuentaCorriente = cuentaCorriente({ anio: anioUsado, mes });
-  const fGastos = gastos({ anio: anioUsado, mes, tipo_egreso, forma_pago });
-  const fCajaFuerte = cajaFuerte({ anio: anioUsado, mes });
-  const fPagoElectronico = pagoElectronico({ anio: anioUsado, mes });
-  const fCobrosCuentaCorriente = cobrosCuentaCorriente({ anio: anioUsado, mes, forma_pago });
+  const fFacturacion = facturacion({ anio: anioUsado, mes, desde, hasta });
+  const fCuentaCorriente = cuentaCorriente({ anio: anioUsado, mes, desde, hasta });
+  const fGastos = gastos({ anio: anioUsado, mes, desde, hasta, tipo_egreso, forma_pago });
+  const fCajaFuerte = cajaFuerte({ anio: anioUsado, mes, desde, hasta });
+  const fPagoElectronico = pagoElectronico({ anio: anioUsado, mes, desde, hasta });
+  const fCobrosCuentaCorriente = cobrosCuentaCorriente({ anio: anioUsado, mes, desde, hasta, forma_pago });
   const diferencia = fFacturacion - fCuentaCorriente - fGastos - fCajaFuerte - fPagoElectronico + fCobrosCuentaCorriente;
   return {
     anio: anioUsado,
@@ -264,7 +267,7 @@ function dashboard({ anio, mes, tipo_egreso, forma_pago }) {
     cobrosCuentaCorriente: fCobrosCuentaCorriente,
     diferencia,
     serieMensual: serieMensual({ anio: anioUsado }),
-    gastosPorTipo: gastosPorTipo({ anio: anioUsado, mes, forma_pago }),
+    gastosPorTipo: gastosPorTipo({ anio: anioUsado, mes, desde, hasta, forma_pago }),
     aniosDisponibles: aniosDisponibles(),
     tiposEgresoDisponibles: tiposEgresoDisponibles(),
   };

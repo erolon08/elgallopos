@@ -1826,10 +1826,14 @@ async function cargarDashboard() {
   const params = new URLSearchParams();
   const anio = document.getElementById('dashAnio').value;
   const mes = document.getElementById('dashMes').value;
+  const desde = document.getElementById('dashDesde').value;
+  const hasta = document.getElementById('dashHasta').value;
   const tipoEgreso = document.getElementById('dashTipoEgreso').value;
   const formaPago = document.getElementById('dashFormaPago').value;
   if (anio) params.set('anio', anio);
   if (mes) params.set('mes', mes);
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
   if (tipoEgreso) params.set('tipo_egreso', tipoEgreso);
   if (formaPago) params.set('forma_pago', formaPago);
   const r = await (await fetch('/api/reportes/dashboard?' + params.toString())).json();

@@ -6,8 +6,8 @@ const cajaService = require('../services/caja.service');
 const router = express.Router();
 
 router.get('/dashboard', (req, res) => {
-  const { anio, mes, tipo_egreso, forma_pago } = req.query;
-  res.json(reportesService.dashboard({ anio, mes, tipo_egreso, forma_pago }));
+  const { anio, mes, desde, hasta, tipo_egreso, forma_pago } = req.query;
+  res.json(reportesService.dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }));
 });
 
 router.get('/anios-disponibles', (req, res) => {
