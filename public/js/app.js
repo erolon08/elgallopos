@@ -4082,6 +4082,7 @@ function agregarProductoACarritoInterno(p, tipoElegido, pila) {
       descripcion: p.descripcion,
       cantidad: 1,
       es_servicio: true,
+      codigo: p.codigo,
       recargos_mano_obra: p.recargos_mano_obra || '',
       descuento_debito_servicio: Number(p.descuento_debito) || 0,
       monto_mano_obra: 0,
@@ -4144,10 +4145,14 @@ function calcularPrecioServicio(item) {
   return roundUpTo100((Number(item.monto_mano_obra) || 0) * factor);
 }
 
+// Los servicios (código 1001-1009) solo tienen precio Final y Efectivo —
+// Débito/Transferencia es el mismo precio que Final, salvo el código 1003
+// (codificados), que sí tiene un precio de Débito propio con descuento.
+// Mismo criterio que ya usa esCodigo1003Presupuesto() en Presupuestos.
 function calcularPreciosServicio(item) {
   const final = calcularPrecioServicio(item);
   const debitoPct = Math.min(100, Math.max(0, Number(item.descuento_debito_servicio) || 0));
-  const debito = roundUpTo100(final * (1 - debitoPct / 100));
+  const debito = item.codigo === '1003' ? roundUpTo100(final * (1 - debitoPct / 100)) : final;
   const efectivo = roundUpTo100(Number(item.monto_mano_obra) || 0);
   return { final, debito, efectivo };
 }
@@ -4995,6 +5000,7 @@ function calcularPreciosPresupuestoItem(it) {
   }
 
   const base = calcularPreciosServicio({
+    codigo: it.producto_codigo,
     recargos_mano_obra: it.recargos_mano_obra || '',
     monto_mano_obra: it.monto_mano_obra || 0,
     descuento_debito_servicio: Number(it.familia_descuento_debito) || 0,
