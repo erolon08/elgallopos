@@ -112,6 +112,27 @@ function gastos({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
     .get(params).total;
 }
 
+// Plata que entra a la caja en este período por el cobro de deuda VIEJA de
+// Cuenta Corriente (un cliente saldando una venta de otro momento). La
+// venta que generó esa deuda ya restó su monto de "Facturación" en
+// cuentaCorriente(), pero acá es donde se ve la plata real entrando de
+// vuelta — sin sumarla, la Diferencia queda mal aunque cada turno cierre
+// bien (el cierre de turno sí la incluye en su efectivo esperado).
+function cobrosCuentaCorriente({ anio, mes, desde, hasta, forma_pago }) {
+  const { sql, params } = condicionRango('creado_en', { anio, mes, desde, hasta });
+  let extra = '';
+  if (forma_pago) {
+    extra += ' AND forma_pago = @forma_pago';
+    params.forma_pago = forma_pago;
+  }
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(monto), 0) AS total FROM caja_movimientos
+       WHERE tipo = 'ingreso' AND categoria = 'cuenta_corriente' ${sql} ${extra}`
+    )
+    .get(params).total;
+}
+
 // Lo que se guardó en la caja fuerte al cerrar turnos en el período.
 function cajaFuerte({ anio, mes, desde, hasta }) {
   const { sql, params } = condicionRango('creado_en', { anio, mes, desde, hasta });
@@ -231,7 +252,8 @@ function dashboard({ anio, mes, tipo_egreso, forma_pago }) {
   const fGastos = gastos({ anio: anioUsado, mes, tipo_egreso, forma_pago });
   const fCajaFuerte = cajaFuerte({ anio: anioUsado, mes });
   const fPagoElectronico = pagoElectronico({ anio: anioUsado, mes });
-  const diferencia = fFacturacion - fCuentaCorriente - fGastos - fCajaFuerte - fPagoElectronico;
+  const fCobrosCuentaCorriente = cobrosCuentaCorriente({ anio: anioUsado, mes, forma_pago });
+  const diferencia = fFacturacion - fCuentaCorriente - fGastos - fCajaFuerte - fPagoElectronico + fCobrosCuentaCorriente;
   return {
     anio: anioUsado,
     facturacion: fFacturacion,
@@ -239,6 +261,7 @@ function dashboard({ anio, mes, tipo_egreso, forma_pago }) {
     gastos: fGastos,
     cajaFuerte: fCajaFuerte,
     pagoElectronico: fPagoElectronico,
+    cobrosCuentaCorriente: fCobrosCuentaCorriente,
     diferencia,
     serieMensual: serieMensual({ anio: anioUsado }),
     gastosPorTipo: gastosPorTipo({ anio: anioUsado, mes, forma_pago }),
