@@ -1881,6 +1881,7 @@ function renderControlCierre(r) {
   document.getElementById('ccCajaFuerte').textContent = moneyDash(r.cajaFuerte);
   document.getElementById('ccPagoElectronico').textContent = moneyDash(r.pagoElectronico);
   document.getElementById('ccCobrosCtaCte').textContent = moneyDash(r.cobrosCuentaCorriente);
+  document.getElementById('ccCambioFondo').textContent = moneyDash(r.cambioFondo);
   const ccDif = document.getElementById('ccDiferencia');
   ccDif.textContent = moneyDash(r.diferencia);
   ccDif.style.color = r.diferencia < -1 ? 'var(--red)' : 'var(--green)';

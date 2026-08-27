@@ -34,6 +34,57 @@ function condicionRango(columna, { anio, mes, desde, hasta }) {
   return condicionFecha(columna, { anio, mes });
 }
 
+// Resuelve año/mes/rango a un desde/hasta concreto (día calendario), para
+// poder buscar directamente en caja_turnos (no es una consulta SQL como
+// condicionRango, necesita fechas ya calculadas).
+function limitesFecha({ anio, mes, desde, hasta }) {
+  if (desde || hasta) return { desde: desde || null, hasta: hasta || null };
+  if (!anio) return { desde: null, hasta: null };
+  if (mes) {
+    const ultimoDia = new Date(Number(anio), Number(mes), 0).getDate();
+    const mm = String(mes).padStart(2, '0');
+    return { desde: `${anio}-${mm}-01`, hasta: `${anio}-${mm}-${String(ultimoDia).padStart(2, '0')}` };
+  }
+  return { desde: `${anio}-01-01`, hasta: `${anio}-12-31` };
+}
+
+// Cuánto CRECIÓ (o bajó) el fondo de caja que se lleva de un turno al
+// siguiente durante el período — plata que sigue físicamente en el cajón,
+// sin mandarse a caja fuerte ni gastarse, porque se decidió dejarla como
+// fondo para el turno que sigue. Sin este término la Diferencia del
+// Dashboard muestra ese crecimiento como si fuera un sobrante sin explicar,
+// aunque cada turno haya cerrado perfecto.
+function cambioFondo({ anio, mes, desde, hasta }) {
+  const rango = limitesFecha({ anio, mes, desde, hasta });
+  if (!rango.desde && !rango.hasta) return 0;
+
+  let fondoFinal = 0;
+  if (rango.hasta) {
+    const row = db
+      .prepare("SELECT fondo_inicial FROM caja_turnos WHERE date(abierto_en) <= date(@hasta) ORDER BY abierto_en DESC LIMIT 1")
+      .get({ hasta: rango.hasta });
+    fondoFinal = row ? row.fondo_inicial : 0;
+  } else {
+    const row = db.prepare('SELECT fondo_inicial FROM caja_turnos ORDER BY abierto_en DESC LIMIT 1').get();
+    fondoFinal = row ? row.fondo_inicial : 0;
+  }
+
+  let fondoInicial = 0;
+  if (rango.desde) {
+    const row = db
+      .prepare("SELECT fondo_inicial FROM caja_turnos WHERE date(abierto_en) < date(@desde) ORDER BY abierto_en DESC LIMIT 1")
+      .get({ desde: rango.desde });
+    if (row) {
+      fondoInicial = row.fondo_inicial;
+    } else {
+      const primero = db.prepare('SELECT fondo_inicial FROM caja_turnos ORDER BY abierto_en ASC LIMIT 1').get();
+      fondoInicial = primero ? primero.fondo_inicial : 0;
+    }
+  }
+
+  return fondoFinal - fondoInicial;
+}
+
 // Total facturado (ventas cobradas), sin importar la forma de pago —
 // incluye lo vendido a Cuenta Corriente, que todavía no se cobró.
 function facturacion({ anio, mes, desde, hasta }) {
@@ -256,7 +307,8 @@ function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
   const fCajaFuerte = cajaFuerte({ anio: anioUsado, mes, desde, hasta });
   const fPagoElectronico = pagoElectronico({ anio: anioUsado, mes, desde, hasta });
   const fCobrosCuentaCorriente = cobrosCuentaCorriente({ anio: anioUsado, mes, desde, hasta, forma_pago });
-  const diferencia = fFacturacion - fCuentaCorriente - fGastos - fCajaFuerte - fPagoElectronico + fCobrosCuentaCorriente;
+  const fCambioFondo = cambioFondo({ anio: anioUsado, mes, desde, hasta });
+  const diferencia = fFacturacion - fCuentaCorriente - fGastos - fCajaFuerte - fPagoElectronico + fCobrosCuentaCorriente - fCambioFondo;
   return {
     anio: anioUsado,
     facturacion: fFacturacion,
@@ -265,6 +317,7 @@ function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
     cajaFuerte: fCajaFuerte,
     pagoElectronico: fPagoElectronico,
     cobrosCuentaCorriente: fCobrosCuentaCorriente,
+    cambioFondo: fCambioFondo,
     diferencia,
     serieMensual: serieMensual({ anio: anioUsado }),
     gastosPorTipo: gastosPorTipo({ anio: anioUsado, mes, desde, hasta, forma_pago }),
