@@ -63,6 +63,7 @@ ensureColumn('configuracion', 'whatsapp_activo', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('configuracion', 'whatsapp_instrucciones', 'TEXT');
 ensureColumn('configuracion', 'anthropic_api_key', 'TEXT');
 ensureColumn('ventas', 'motivo_anulacion', 'TEXT');
+ensureColumn('configuracion', 'mostrar_anuladas_ventas', 'INTEGER NOT NULL DEFAULT 0');
 // Va acá (no en schema.sql) porque necesita que la columna de arriba ya
 // exista: en una base migrada, schema.sql corre ANTES que estos
 // ensureColumn, así que un CREATE INDEX sobre esa columna ahí arriba

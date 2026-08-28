@@ -2191,6 +2191,7 @@ async function cargarConfiguracion() {
   document.getElementById('cfgAnthropicKey').value = configCache.anthropic_api_key || '';
   document.getElementById('cfgWaInstrucciones').value = configCache.whatsapp_instrucciones || '';
   document.getElementById('cfgWaActivo').checked = !!configCache.whatsapp_activo;
+  document.getElementById('cfgMostrarAnuladasVentas').checked = !!configCache.mostrar_anuladas_ventas;
   // No se puede armar la URL pública real acá (esta pantalla se ve por la
   // dirección local/Tailscale, no por el túnel de Cloudflare) — se muestra
   // el path fijo como referencia, para pegar después de tu dominio del túnel.
@@ -2243,6 +2244,13 @@ async function guardarArcaConfig() {
   await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   await cargarConfiguracionGlobal();
   alert('Configuración de facturación electrónica guardada.');
+}
+
+async function guardarMostrarAnuladasVentasConfig() {
+  const payload = { mostrar_anuladas_ventas: document.getElementById('cfgMostrarAnuladasVentas').checked };
+  await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  await cargarConfiguracionGlobal();
+  alert(payload.mostrar_anuladas_ventas ? 'Listo: ahora el menú Ventas muestra también las anuladas.' : 'Listo: el menú Ventas vuelve a ocultar las anuladas.');
 }
 
 async function guardarMpConfig() {
@@ -5699,6 +5707,7 @@ async function cargarVentasHistorial() {
   if (cerrajero_id) params.set('cerrajero_id', cerrajero_id);
   if (patente) params.set('patente', patente);
   if (dni) params.set('dni', dni);
+  if (configCache.mostrar_anuladas_ventas) params.set('incluir_anuladas', '1');
 
   const res = await fetch('/api/ventas?' + params.toString());
   const rows = await res.json();

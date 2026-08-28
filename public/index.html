@@ -795,6 +795,17 @@
         </div>
 
         <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Ventas anuladas</h3></div>
+          <div class="toolbar">
+            <label style="display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="cfgMostrarAnuladasVentas"> Mostrar las ventas anuladas en el menú Ventas
+            </label>
+            <button class="btn primary" onclick="guardarMostrarAnuladasVentasConfig()">Ok</button>
+          </div>
+          <div class="notice" style="margin-top:10px">Por defecto el menú Ventas no muestra las anuladas. Activá esto para volver a verlas ahí.</div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
           <div class="section-title"><h3>Facturación electrónica (ARCA)</h3></div>
           <div class="toolbar">
             <div class="field"><label>Punto de Venta</label><input id="cfgArcaPuntoVenta" placeholder="Ej: 7"></div>

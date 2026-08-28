@@ -20,6 +20,7 @@ function actualizar(datos) {
        whatsapp_token = @whatsapp_token, whatsapp_phone_number_id = @whatsapp_phone_number_id,
        whatsapp_verify_token = @whatsapp_verify_token, whatsapp_activo = @whatsapp_activo,
        whatsapp_instrucciones = @whatsapp_instrucciones, anthropic_api_key = @anthropic_api_key,
+       mostrar_anuladas_ventas = @mostrar_anuladas_ventas,
        actualizado_en = datetime('now','localtime')
      WHERE id = 1`
   ).run({
@@ -51,6 +52,8 @@ function actualizar(datos) {
     whatsapp_instrucciones:
       datos.whatsapp_instrucciones !== undefined ? datos.whatsapp_instrucciones : actual.whatsapp_instrucciones,
     anthropic_api_key: datos.anthropic_api_key !== undefined ? datos.anthropic_api_key : actual.anthropic_api_key,
+    mostrar_anuladas_ventas:
+      datos.mostrar_anuladas_ventas !== undefined ? (datos.mostrar_anuladas_ventas ? 1 : 0) : actual.mostrar_anuladas_ventas,
   });
   return obtener();
 }

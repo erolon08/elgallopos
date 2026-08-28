@@ -144,7 +144,7 @@ function obtener(id) {
   return { ...venta, items, pagos, cliente };
 }
 
-function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, estado, numero, dni } = {}) {
+function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, estado, numero, dni, incluir_anuladas } = {}) {
   // GROUP_CONCAT junta la descripción de todas las líneas de la venta en un
   // solo texto (para mostrar "qué se vendió" en el listado sin tener que
   // abrir el detalle) — reemplaza al DISTINCT que hacía falta antes para
@@ -197,6 +197,11 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, e
     // viven en esa otra bandeja, y desde "Ver detalle" acá no hay forma de
     // completarlas.
     sql += " AND v.estado != 'pendiente'";
+    // Las anuladas tampoco se muestran salvo que se pidan a propósito
+    // (Configuración → "Mostrar ventas anuladas" prendido).
+    if (!incluir_anuladas || incluir_anuladas === 'false') {
+      sql += " AND v.estado != 'anulada'";
+    }
   }
   sql += ' GROUP BY v.id ORDER BY v.id DESC LIMIT 300';
   return db.prepare(sql).all(params);

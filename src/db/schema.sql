@@ -575,6 +575,9 @@ CREATE TABLE IF NOT EXISTS configuracion (
   whatsapp_activo INTEGER NOT NULL DEFAULT 0,
   whatsapp_instrucciones TEXT,
   anthropic_api_key TEXT,
+  -- El historial de Ventas no muestra las anuladas por defecto (arranca en
+  -- 0 a propósito); hay que prenderlo a mano desde Configuración para verlas.
+  mostrar_anuladas_ventas INTEGER NOT NULL DEFAULT 0,
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 INSERT OR IGNORE INTO configuracion (id) VALUES (1);
