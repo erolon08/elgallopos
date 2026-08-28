@@ -236,7 +236,7 @@ function exportarFilas({ desde, hasta, cerrajero_id }) {
     .prepare(
       `SELECT v.id AS venta_id, v.numero, v.cobrado_en, v.tipo_comprobante, v.total AS total_venta,
               cl.nombre AS cliente, vi.descripcion, vi.cantidad, vi.precio_unitario, vi.descuento,
-              c.nombre AS cerrajero, f.nombre AS familia
+              c.nombre AS cerrajero, f.nombre AS familia, p.codigo AS producto_codigo
        FROM ventas v
        LEFT JOIN clientes cl ON cl.id = v.cliente_id
        JOIN venta_items vi ON vi.venta_id = v.id
@@ -253,6 +253,7 @@ function exportarFilas({ desde, hasta, cerrajero_id }) {
     'N° Venta': it.numero,
     Cliente: it.cliente || 'Consumidor Final',
     Comprobante: it.tipo_comprobante,
+    'Código': it.producto_codigo || '',
     Producto: it.descripcion,
     Familia: it.familia || '',
     Cantidad: it.cantidad,
