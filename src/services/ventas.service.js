@@ -187,15 +187,16 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, e
     sql += ' AND vi.cerrajero_id = @cerrajero_id';
     params.cerrajero_id = cerrajero_id;
   }
-  if (estado === 'activas') {
-    // Las pendientes son borradores sin cobrar (viven en la bandeja de
-    // Pendientes, donde sí se pueden retomar); acá en el historial de
-    // Ventas no tiene sentido mostrarlas mezcladas con las cobradas, ya
-    // que desde "Ver detalle" no hay forma de completarlas.
-    sql += " AND v.estado NOT IN ('anulada', 'pendiente')";
-  } else if (estado) {
+  if (estado) {
     sql += ' AND v.estado = @estado';
     params.estado = estado;
+  } else {
+    // Sin un estado puntual pedido (ej. desde la bandeja de Pendientes, que
+    // sí filtra por 'pendiente'/'enviada_caja'), el historial de Ventas
+    // muestra todo MENOS las pendientes: son borradores sin cobrar que
+    // viven en esa otra bandeja, y desde "Ver detalle" acá no hay forma de
+    // completarlas.
+    sql += " AND v.estado != 'pendiente'";
   }
   sql += ' GROUP BY v.id ORDER BY v.id DESC LIMIT 300';
   return db.prepare(sql).all(params);
