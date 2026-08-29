@@ -144,7 +144,7 @@ function obtener(id) {
   return { ...venta, items, pagos, cliente };
 }
 
-function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, estado, numero, dni, incluir_anuladas } = {}) {
+function listar({ fecha_desde, fecha_hasta, cliente_id, cliente, patente, cerrajero_id, estado, numero, dni, incluir_anuladas } = {}) {
   // GROUP_CONCAT junta la descripción de todas las líneas de la venta en un
   // solo texto (para mostrar "qué se vendió" en el listado sin tener que
   // abrir el detalle) — reemplaza al DISTINCT que hacía falta antes para
@@ -170,6 +170,10 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, patente, cerrajero_id, e
   if (cliente_id) {
     sql += ' AND v.cliente_id = @cliente_id';
     params.cliente_id = cliente_id;
+  }
+  if (cliente) {
+    sql += ' AND cl.nombre LIKE @cliente';
+    params.cliente = `%${cliente}%`;
   }
   if (numero) {
     sql += ' AND v.numero LIKE @numero';

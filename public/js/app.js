@@ -5818,12 +5818,14 @@ async function cargarVentasHistorial() {
   const desde = document.getElementById('ventasDesde').value;
   const hasta = document.getElementById('ventasHasta').value;
   const numero = document.getElementById('ventasNumero').value.trim();
+  const cliente = document.getElementById('ventasCliente').value.trim();
   const cerrajero_id = document.getElementById('ventasCerrajero').value;
   const patente = document.getElementById('ventasPatente').value.trim();
   const dni = document.getElementById('ventasDni').value.trim();
   if (desde) params.set('fecha_desde', desde);
   if (hasta) params.set('fecha_hasta', hasta);
   if (numero) params.set('numero', numero);
+  if (cliente) params.set('cliente', cliente);
   if (cerrajero_id) params.set('cerrajero_id', cerrajero_id);
   if (patente) params.set('patente', patente);
   if (dni) params.set('dni', dni);
@@ -5946,7 +5948,7 @@ document.getElementById('btnBuscarVentas').addEventListener('click', cargarVenta
 ['ventasDesde', 'ventasHasta', 'ventasCerrajero'].forEach((id) =>
   document.getElementById(id).addEventListener('change', cargarVentasHistorial)
 );
-['ventasNumero', 'ventasPatente'].forEach((id) =>
+['ventasNumero', 'ventasCliente', 'ventasPatente'].forEach((id) =>
   document.getElementById(id).addEventListener('input', cargarVentasHistorial)
 );
 
