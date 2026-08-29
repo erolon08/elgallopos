@@ -9,6 +9,19 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// agenda_trabajos existía como placeholder sin usar desde el arranque del
+// proyecto ("alcance a definir más adelante"), con columnas distintas
+// (fecha_hora, cliente_id, descripcion...) a las que ahora usa la Agenda de
+// trabajo real (fecha, turno...). CREATE TABLE IF NOT EXISTS no toca una
+// tabla que ya existe, así que en una base vieja se quedaría con el
+// esquema placeholder — como esa tabla nunca la usó ninguna pantalla ni
+// servicio (siempre estuvo vacía), es segura de borrar y dejar que el
+// schema la recree con las columnas correctas.
+const columnasAgendaVieja = db.prepare('PRAGMA table_info(agenda_trabajos)').all();
+if (columnasAgendaVieja.length && !columnasAgendaVieja.some((c) => c.name === 'fecha')) {
+  db.exec('DROP TABLE agenda_trabajos');
+}
+
 const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 db.exec(schema);
 
