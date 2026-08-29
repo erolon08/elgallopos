@@ -1595,11 +1595,16 @@ function construirCierreA4Html(t) {
     .map(([fp, monto]) => `<tr><td>${fp}</td><td class="a4-num">$${money.format(monto)}</td></tr>`)
     .join('');
 
-  const gastosMov = t.movimientos.filter((m) => m.categoria !== 'venta' && m.categoria !== 'caja_fuerte' && m.categoria !== 'cuenta_corriente');
-  const totalGastos = gastosMov.reduce((a, m) => a + (m.tipo === 'egreso' ? m.monto : -m.monto), 0);
-  const filasGastos = gastosMov
-    .map((m) => `<tr><td>${m.concepto || m.categoria}</td><td class="a4-num">$${money.format(m.tipo === 'egreso' ? -m.monto : m.monto)}</td></tr>`)
-    .join('');
+  // Egresos e ingresos separados en dos tablas (antes iban mezclados en una
+  // sola, con +/- según el tipo) — así se distingue de un vistazo qué salió
+  // de la caja y qué entró, sin tener que fijarse en el signo de cada fila.
+  const movimientosSueltos = t.movimientos.filter((m) => m.categoria !== 'venta' && m.categoria !== 'caja_fuerte' && m.categoria !== 'cuenta_corriente');
+  const egresosMov = movimientosSueltos.filter((m) => m.tipo === 'egreso');
+  const ingresosMov = movimientosSueltos.filter((m) => m.tipo === 'ingreso');
+  const totalEgresosMov = egresosMov.reduce((a, m) => a + m.monto, 0);
+  const totalIngresosMov = ingresosMov.reduce((a, m) => a + m.monto, 0);
+  const filasEgresosMov = egresosMov.map((m) => `<tr><td>${m.concepto || m.categoria}</td><td class="a4-num">$${money.format(m.monto)}</td></tr>`).join('');
+  const filasIngresosMov = ingresosMov.map((m) => `<tr><td>${m.concepto || m.categoria}</td><td class="a4-num">$${money.format(m.monto)}</td></tr>`).join('');
 
   // Suma todos los envíos a caja fuerte del turno, no solo el automático del
   // cierre: también puede haber traslados cargados a mano durante el turno
@@ -1639,12 +1644,22 @@ function construirCierreA4Html(t) {
     <div class="a4-total a4-total-verde a4-total-inline">TOTAL CTA. CTE. COBRADA&nbsp; $${money.format(totalCtaCteCobrada)}</div>`
         : ''
     }
-    <h3 style="margin:14px 0 6px;font-size:13px">Movimientos de caja</h3>
+    <h3 style="margin:14px 0 6px;font-size:13px">Egresos</h3>
     <table class="a4-tabla">
       <thead><tr><th>Concepto</th><th>Monto</th></tr></thead>
-      <tbody>${filasGastos || '<tr><td colspan="2">Sin movimientos.</td></tr>'}</tbody>
+      <tbody>${filasEgresosMov || '<tr><td colspan="2">Sin egresos.</td></tr>'}</tbody>
     </table>
-    <div class="a4-total a4-total-rojo a4-total-inline">TOTAL MOVIMIENTOS&nbsp; $${money.format(-totalGastos)}</div>
+    <div class="a4-total a4-total-rojo a4-total-inline">TOTAL EGRESOS&nbsp; $${money.format(totalEgresosMov)}</div>
+    ${
+      ingresosMov.length
+        ? `<h3 style="margin:14px 0 6px;font-size:13px">Ingresos</h3>
+    <table class="a4-tabla">
+      <thead><tr><th>Concepto</th><th>Monto</th></tr></thead>
+      <tbody>${filasIngresosMov}</tbody>
+    </table>
+    <div class="a4-total a4-total-verde a4-total-inline">TOTAL INGRESOS&nbsp; $${money.format(totalIngresosMov)}</div>`
+        : ''
+    }
     <div class="a4-abajo">
       <div class="a4-observaciones">Observaciones / Firma</div>
       <div style="display:flex;flex-direction:column;gap:6px">
