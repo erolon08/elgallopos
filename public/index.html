@@ -63,6 +63,7 @@
       <button data-screen="dashboard" class="active">📊 Dashboard</button>
       <button data-screen="venta">🛒 Venta</button>
       <button data-screen="direcciones">📍 Direcciones</button>
+      <button data-screen="agenda">🗓️ Agenda de trabajo</button>
       <button data-screen="pendientes">💾 Pendientes</button>
       <button data-screen="ventas">🧾 Ventas</button>
       <button data-screen="presupuestos">📄 Presupuestos</button>
@@ -652,6 +653,43 @@
         </div>
       </section>
 
+      <section class="screen" id="agenda">
+        <div class="card" style="margin-bottom:14px">
+          <div class="section-title"><h3>Agendar dirección</h3></div>
+          <div class="toolbar">
+            <div class="field" style="flex:2"><label>Dirección</label><input id="agendaInputDireccion" placeholder="Ej: San Martín 1234"></div>
+            <div class="field" style="flex:2"><label>Trabajo a realizar</label><input id="agendaInputTrabajo" placeholder="Ej: Apertura de puerta"></div>
+            <div class="field"><label>Teléfono</label><input id="agendaInputTelefono" placeholder="Ej: 3794 123456"></div>
+            <div class="field"><label>Fecha</label><input id="agendaInputFecha" type="date"></div>
+            <div class="field"><label>Turno</label>
+              <select id="agendaInputTurno">
+                <option value="manana">Mañana (8 a 12:30 hs)</option>
+                <option value="tarde">Tarde (16 a 20:30 hs)</option>
+              </select>
+            </div>
+            <button class="btn primary" onclick="agregarAgendaTrabajo()">+ Agendar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">
+            <h3>Agenda</h3>
+            <div class="field" style="max-width:220px">
+              <select id="agendaEstado" onchange="cargarAgenda()">
+                <option value="pendiente">Pendientes</option>
+                <option value="hecho">Hechas</option>
+                <option value="">Todas</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Turno</th><th>Dirección</th><th>Trabajo</th><th>Teléfono</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="agendaBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="screen" id="pendientes">
         <div class="card">
           <div class="section-title"><h3>Bandeja única de pendientes</h3><button class="btn primary" onclick="cargarPendientes()">Actualizar</button></div>
@@ -942,6 +980,17 @@
 
     </div>
   </main>
+</div>
+
+<div class="modal" id="agendaAvisoModal" style="z-index:5000">
+  <div class="modal-box" style="max-width:480px;text-align:center;border:3px solid var(--red)">
+    <h2 id="agendaAvisoTitulo" style="margin-top:0;color:var(--red)">⏰ Dirección agendada</h2>
+    <p id="agendaAvisoTexto" style="font-size:16px"></p>
+    <div id="agendaAvisoLista" style="text-align:left;margin:14px 0"></div>
+    <div class="toolbar" style="justify-content:center;margin-top:10px">
+      <button class="btn primary" onclick="cerrarAgendaAviso()">Ya lo vi</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal" id="olvideClaveModal">

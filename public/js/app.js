@@ -1,7 +1,7 @@
 const titles = {
   dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', compras: 'Sugerencia de compra', clientes: 'Clientes',
   cuentacorriente: 'Cuenta Corriente',
-  venta: 'Venta', direcciones: 'Direcciones', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
+  venta: 'Venta', direcciones: 'Direcciones', agenda: 'Agenda de trabajo', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
   caja: 'Caja y turnos', ranking: 'Ranking', resumen: 'Resumen', configuracion: 'Configuración',
 };
@@ -42,6 +42,7 @@ function showScreen(id) {
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
   if (id === 'direcciones') cargarDirecciones();
+  if (id === 'agenda') cargarAgenda();
   if (id === 'pendientes') cargarPendientes();
   if (id === 'ventas') cargarVentasHistorial();
   if (id === 'presupuestos') cargarPresupuestos();
@@ -2502,9 +2503,9 @@ socket.on('mensaje:nuevo', (mensaje) => {
 let session = null;
 const PANTALLAS_POR_ROL = {
   // Stock queda reservado exclusivamente al puesto STOCK, ni ADMIN lo ve.
-  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'cuentacorriente', 'direcciones', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
-  CAJA: ['venta', 'direcciones', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'rendicion', 'caja'],
-  VENTA: ['venta', 'direcciones', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente'],
+  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'cuentacorriente', 'direcciones', 'agenda', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
+  CAJA: ['venta', 'direcciones', 'agenda', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'rendicion', 'caja'],
+  VENTA: ['venta', 'direcciones', 'agenda', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente'],
   STOCK: ['stock', 'productos', 'compras'],
 };
 
@@ -2638,6 +2639,7 @@ function aplicarSesion() {
   showScreen(inicio);
   actualizarBadgeMensajes();
   pedirPermisoNotificaciones();
+  chequearAgendaAviso();
 }
 
 function actualizarHintVenta() {
@@ -3629,6 +3631,124 @@ async function eliminarDireccion(id) {
   await fetch(`/api/direcciones/${id}`, { method: 'DELETE' });
   cargarDirecciones();
 }
+
+// ============================================================
+// AGENDA DE TRABAJO — direcciones agendadas para un día y turno puntual
+// (mañana 8 a 12:30hs, tarde 16 a 20:30hs), con cartel emergente cuando
+// llega el día y el turno para no pasarlas por alto.
+// ============================================================
+const TURNO_LABEL_AGENDA = { manana: 'Mañana (8 a 12:30)', tarde: 'Tarde (16 a 20:30)' };
+
+async function cargarAgenda() {
+  const estado = document.getElementById('agendaEstado').value;
+  const url = estado ? `/api/agenda?estado=${estado}` : '/api/agenda';
+  const filas = await (await fetch(url)).json();
+  const tbody = document.getElementById('agendaBody');
+  tbody.innerHTML = '';
+  if (!filas.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="small">No hay direcciones agendadas.</td></tr>';
+    return;
+  }
+  filas.forEach((a) => {
+    const fecha = new Date(a.fecha + 'T00:00:00').toLocaleDateString('es-AR');
+    const accion =
+      a.estado === 'pendiente'
+        ? `<button class="btn primary" onclick="marcarAgendaHecho(${a.id})">✓ Hecho</button> <button class="btn light" onclick="borrarAgendaTrabajo(${a.id})">🗑</button>`
+        : `<span class="status s-ok">Hecho</span> <button class="btn light" onclick="borrarAgendaTrabajo(${a.id})">🗑</button>`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fecha}</td>
+      <td>${TURNO_LABEL_AGENDA[a.turno] || a.turno}</td>
+      <td>${a.direccion}</td>
+      <td>${a.trabajo}</td>
+      <td>${a.telefono || '—'}</td>
+      <td>${a.estado === 'pendiente' ? '<span class="status s-warn">Pendiente</span>' : '<span class="status s-ok">Hecho</span>'}</td>
+      <td>${accion}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function agregarAgendaTrabajo() {
+  const direccion = document.getElementById('agendaInputDireccion').value.trim();
+  const trabajo = document.getElementById('agendaInputTrabajo').value.trim();
+  const telefono = document.getElementById('agendaInputTelefono').value.trim();
+  const fecha = document.getElementById('agendaInputFecha').value;
+  const turno = document.getElementById('agendaInputTurno').value;
+  if (!direccion || !trabajo || !fecha) {
+    alert('Completá dirección, trabajo y fecha.');
+    return;
+  }
+  const res = await fetch('/api/agenda', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ direccion, trabajo, telefono, fecha, turno }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  document.getElementById('agendaInputDireccion').value = '';
+  document.getElementById('agendaInputTrabajo').value = '';
+  document.getElementById('agendaInputTelefono').value = '';
+  document.getElementById('agendaInputFecha').value = '';
+  cargarAgenda();
+}
+
+async function marcarAgendaHecho(id) {
+  await fetch(`/api/agenda/${id}/hecho`, { method: 'POST' });
+  cargarAgenda();
+}
+
+async function borrarAgendaTrabajo(id) {
+  if (!confirm('¿Borrar esta dirección agendada?')) return;
+  await fetch(`/api/agenda/${id}`, { method: 'DELETE' });
+  cargarAgenda();
+}
+
+// Mañana: 8:00 a 12:30. Tarde: 16:00 a 20:30. Fuera de esas franjas no hay
+// aviso (aunque haya algo agendado para más tarde ese mismo día).
+function turnoAgendaActual() {
+  const ahora = new Date();
+  const minutos = ahora.getHours() * 60 + ahora.getMinutes();
+  if (minutos >= 8 * 60 && minutos < 12 * 60 + 30) return 'manana';
+  if (minutos >= 16 * 60 && minutos < 20 * 60 + 30) return 'tarde';
+  return null;
+}
+
+// Un cartel por día+turno alcanza (no hace falta insistir cada minuto); si
+// se recarga la página durante la misma franja horaria, vuelve a avisar —
+// justo el caso de "se me pasó, recién entro al sistema".
+const agendaAvisoYaMostrado = new Set();
+
+async function chequearAgendaAviso() {
+  if (!session) return;
+  const turno = turnoAgendaActual();
+  if (!turno) return;
+  const hoy = fechaLocalHoy();
+  const clave = `${hoy}|${turno}`;
+  if (agendaAvisoYaMostrado.has(clave)) return;
+  const filas = await (await fetch(`/api/agenda?fecha=${hoy}&estado=pendiente`)).json();
+  const delTurno = filas.filter((a) => a.turno === turno);
+  if (!delTurno.length) return;
+  agendaAvisoYaMostrado.add(clave);
+  document.getElementById('agendaAvisoTexto').textContent =
+    `Tiene ${delTurno.length > 1 ? 'direcciones agendadas' : 'una dirección agendada'} para esta ${turno === 'manana' ? 'mañana' : 'tarde'}:`;
+  document.getElementById('agendaAvisoLista').innerHTML = delTurno
+    .map(
+      (a) => `
+      <div style="margin-bottom:8px;padding:8px 10px;background:var(--tint);border-radius:8px">
+        <b>${a.direccion}</b><br>${a.trabajo}${a.telefono ? ' — ' + a.telefono : ''}
+      </div>`
+    )
+    .join('');
+  document.getElementById('agendaAvisoModal').classList.add('open');
+}
+function cerrarAgendaAviso() {
+  document.getElementById('agendaAvisoModal').classList.remove('open');
+}
+setInterval(chequearAgendaAviso, 60000);
 
 // Pasa la dirección a la pantalla de Venta y arranca un carrito nuevo —
 // igual que "Convertir en venta" desde Presupuestos. La dirección recién

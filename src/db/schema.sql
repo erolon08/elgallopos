@@ -233,6 +233,23 @@ CREATE TABLE IF NOT EXISTS direcciones (
 );
 CREATE INDEX IF NOT EXISTS idx_direcciones_estado ON direcciones(estado);
 
+-- Agenda de trabajo: direcciones agendadas para un día y turno puntual
+-- (mañana 8 a 12:30hs, tarde 16 a 20:30hs). Es independiente de
+-- "direcciones" (esa es la cola de trabajos para pasar a venta ahora
+-- mismo); esto es para no olvidarse de un trabajo pactado para más
+-- adelante — dispara el cartel emergente cuando llega el día y el turno.
+CREATE TABLE IF NOT EXISTS agenda_trabajos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  direccion TEXT NOT NULL,
+  trabajo TEXT NOT NULL,
+  telefono TEXT,
+  fecha TEXT NOT NULL,
+  turno TEXT NOT NULL CHECK (turno IN ('manana','tarde')),
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','hecho')),
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_agenda_fecha ON agenda_trabajos(fecha);
+
 -- Chat interno entre puestos (ADMIN/CAJA/VENTA/STOCK): el login es por rol
 -- compartido, no por empleado individual, así que un mensaje va dirigido a
 -- un ROL — lo ve cualquier terminal que esté conectada con ese puesto.
