@@ -5,7 +5,7 @@
 # No hace falta ser administrador: el acceso directo se crea en el
 # Escritorio del usuario actual.
 
-$ip = "100.110.0.108"
+$ip = "100.126.14.64"
 $puerto = "3000"
 $url = "http://${ip}:${puerto}"
 
