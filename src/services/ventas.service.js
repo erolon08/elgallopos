@@ -203,10 +203,11 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, cliente, patente, cerraj
   } else {
     // Sin un estado puntual pedido (ej. desde la bandeja de Pendientes, que
     // sí filtra por 'pendiente'/'enviada_caja'), el historial de Ventas
-    // muestra todo MENOS las pendientes: son borradores sin cobrar que
-    // viven en esa otra bandeja, y desde "Ver detalle" acá no hay forma de
-    // completarlas.
-    sql += " AND v.estado != 'pendiente'";
+    // muestra solo lo que ya es una venta de verdad: una venta pasa a serlo
+    // recién cuando se cobra, no antes. Pendientes y enviadas a caja son
+    // borradores sin cobrar (viven en la bandeja de Pendientes, y desde
+    // "Ver detalle" acá no hay forma de completarlas).
+    sql += " AND v.estado NOT IN ('pendiente', 'enviada_caja')";
     // Las anuladas tampoco se muestran salvo que se pidan a propósito
     // (Configuración → "Mostrar ventas anuladas" prendido).
     if (!incluir_anuladas || incluir_anuladas === 'false') {
