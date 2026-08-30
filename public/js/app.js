@@ -5861,7 +5861,10 @@ function filaVentaHistorial(v) {
   // no facturar, anular ni borrar ventas — eso queda para CAJA/ADMIN.
   const esSoloConsulta = session.rol === 'VENTA';
   const tr = document.createElement('tr');
-  const hora = new Date(v.creado_en).toLocaleString('es-AR');
+  // Muestra la hora en que se COBRÓ, no en que se creó el registro (puede
+  // haber quedado como pendiente/enviada a caja mucho antes) — si todavía
+  // no se cobró (sin cobrado_en), se muestra la de creación como mejor dato.
+  const hora = new Date(v.cobrado_en || v.creado_en).toLocaleString('es-AR');
   const estadoCls = v.estado === 'cobrada' ? 's-ok' : v.estado === 'anulada' ? 's-bad' : 's-warn';
   const puedeFacturar = v.estado === 'cobrada' && v.tipo_comprobante === 'Eventual';
   const botonFacturar = puedeFacturar && !esSoloConsulta

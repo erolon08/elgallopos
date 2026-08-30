@@ -213,7 +213,11 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, cliente, patente, cerraj
       sql += " AND v.estado != 'anulada'";
     }
   }
-  sql += ' GROUP BY v.id ORDER BY v.id DESC LIMIT 300';
+  // Ordena por la misma fecha "efectiva" que se usa para filtrar (cobro, o
+  // creación si todavía no se cobró) — v.id solo no alcanza, porque una
+  // venta creada días atrás y cobrada recién hoy tiene un id viejo pero
+  // tiene que listarse arriba, junto con lo demás de hoy.
+  sql += ' GROUP BY v.id ORDER BY COALESCE(v.cobrado_en, v.creado_en) DESC LIMIT 300';
   return db.prepare(sql).all(params);
 }
 
