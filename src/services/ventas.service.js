@@ -159,12 +159,18 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, cliente, patente, cerraj
     WHERE 1 = 1
   `;
   const params = {};
+  // Filtra por la fecha en que se COBRÓ (no en que se creó el registro): una
+  // venta puede haber quedado como pendiente varios días antes de cobrarse
+  // recién hoy — si el filtro mirara creado_en, "Ventas de hoy" no la
+  // mostraría aunque se haya cobrado hoy mismo. Para una que todavía no se
+  // cobró (enviada_caja, sin cobrado_en) se usa su fecha de creación, para
+  // que igual aparezca si se está mirando el rango en el que se cargó.
   if (fecha_desde) {
-    sql += ' AND date(v.creado_en) >= date(@fecha_desde)';
+    sql += ' AND date(COALESCE(v.cobrado_en, v.creado_en)) >= date(@fecha_desde)';
     params.fecha_desde = fecha_desde;
   }
   if (fecha_hasta) {
-    sql += ' AND date(v.creado_en) <= date(@fecha_hasta)';
+    sql += ' AND date(COALESCE(v.cobrado_en, v.creado_en)) <= date(@fecha_hasta)';
     params.fecha_hasta = fecha_hasta;
   }
   if (cliente_id) {
