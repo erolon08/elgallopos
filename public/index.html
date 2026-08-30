@@ -317,9 +317,11 @@
                 <option value="duplicado">Solo duplicados</option>
               </select>
             </div>
-            <button class="btn primary" onclick="calcularRendicionPreview()">Calcular</button>
+            <button class="btn primary" onclick="calcularRendicionPreview()">+ Sumar al cálculo</button>
+            <button class="btn light" onclick="limpiarRendicionPreview()">Limpiar</button>
           </div>
-          <div class="notice" style="margin-bottom:12px">"Tipo" sirve para rendir por separado, por ejemplo un cerrajero que hace duplicados algunos días sí y otros no: elegí "Solo duplicados" con un rango de varios días para juntar los que se acumularon, sin traer de nuevo servicios que ya se rindieron por su cuenta día a día.</div>
+          <div class="notice" style="margin-bottom:12px">"Tipo" sirve para rendir por separado, por ejemplo un cerrajero que hace duplicados algunos días sí y otros no: elegí "Solo duplicados" con un rango de varios días para juntar los que se acumularon, sin traer de nuevo servicios que ya se rindieron por su cuenta día a día. Cada vez que apretás "+ Sumar al cálculo" se agrega ese rango al total (no lo reemplaza) — así podés combinar, por ejemplo, los servicios de hoy con los duplicados de toda la semana en una sola rendición. "Limpiar" borra todo lo sumado y arranca de cero.</div>
+          <div id="rendFiltrosAcumulados" style="margin-bottom:10px"></div>
           <div id="rendPreviewWrap" style="display:none">
             <div class="table-wrap">
               <table>

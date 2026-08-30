@@ -23,12 +23,15 @@ router.get('/exportar', (req, res) => {
 });
 
 router.get('/preview', (req, res) => {
-  const { cerrajero_id, fecha_desde, fecha_hasta, tipo } = req.query;
-  if (!cerrajero_id || !fecha_desde || !fecha_hasta) {
-    return res.status(400).json({ error: 'Faltan cerrajero_id, fecha_desde o fecha_hasta' });
+  // filtros llega como JSON codificado en la query (GET no admite bien un
+  // array de objetos): [{ fecha_desde, fecha_hasta, tipo }, ...]
+  const { cerrajero_id, filtros } = req.query;
+  if (!cerrajero_id || !filtros) {
+    return res.status(400).json({ error: 'Faltan cerrajero_id o filtros' });
   }
   try {
-    res.json(rendicionesService.previsualizar({ cerrajero_id: Number(cerrajero_id), fecha_desde, fecha_hasta, tipo: tipo || undefined }));
+    const filtrosParsed = JSON.parse(filtros);
+    res.json(rendicionesService.previsualizar({ cerrajero_id: Number(cerrajero_id), filtros: filtrosParsed }));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -46,12 +49,12 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { cerrajero_id, fecha_desde, fecha_hasta, tipo, descuentos_extra } = req.body;
-  if (!cerrajero_id || !fecha_desde || !fecha_hasta) {
-    return res.status(400).json({ error: 'Faltan cerrajero_id, fecha_desde o fecha_hasta' });
+  const { cerrajero_id, filtros, descuentos_extra } = req.body;
+  if (!cerrajero_id || !filtros || !filtros.length) {
+    return res.status(400).json({ error: 'Faltan cerrajero_id o filtros' });
   }
   try {
-    const rendicion = rendicionesService.generar({ cerrajero_id, fecha_desde, fecha_hasta, tipo, descuentos_extra });
+    const rendicion = rendicionesService.generar({ cerrajero_id, filtros, descuentos_extra });
     res.status(201).json(rendicion);
   } catch (err) {
     res.status(400).json({ error: err.message });

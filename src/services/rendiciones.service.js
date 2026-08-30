@@ -51,6 +51,25 @@ function elegibles(cerrajero_id, fecha_desde, fecha_hasta, tipo) {
     .all({ cerrajero_id, fecha_desde, fecha_hasta });
 }
 
+// Une los elegibles de varios rangos/tipos en una sola rendición — permite
+// combinar, por ejemplo, los servicios de hoy (un solo día) con los
+// duplicados acumulados de toda la semana (rango largo, tipo distinto) en
+// un único cálculo, en vez de estar atado a un solo rango+tipo para todo.
+// Si dos filtros se superponen y traen la misma línea, no se duplica.
+function elegiblesMultiple(cerrajero_id, filtros) {
+  const vistos = new Set();
+  const resultado = [];
+  for (const f of filtros) {
+    for (const r of elegibles(cerrajero_id, f.fecha_desde, f.fecha_hasta, f.tipo)) {
+      if (vistos.has(r.venta_item_id)) continue;
+      vistos.add(r.venta_item_id);
+      resultado.push(r);
+    }
+  }
+  resultado.sort((a, b) => (a.cobrado_en < b.cobrado_en ? -1 : a.cobrado_en > b.cobrado_en ? 1 : 0));
+  return resultado;
+}
+
 // Proporción del total cobrado que se pagó con tarjeta de crédito (0 a 1).
 // Una venta puede tener varios venta_pagos (pago combinado); solo la porción
 // paga con "Crédito" activa el descuento de mano de obra del cerrajero.
@@ -103,10 +122,13 @@ function calcularDetalle(rows, cerrajero) {
   });
 }
 
-function previsualizar({ cerrajero_id, fecha_desde, fecha_hasta, tipo }) {
+// filtros: [{ fecha_desde, fecha_hasta, tipo }, ...] — uno o más rangos/tipos
+// combinados en un mismo cálculo (ver elegiblesMultiple).
+function previsualizar({ cerrajero_id, filtros }) {
+  if (!Array.isArray(filtros) || !filtros.length) throw new Error('Faltan los rangos de fecha a calcular');
   const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(cerrajero_id);
   if (!cerrajero) throw new Error('Cerrajero no encontrado');
-  const rows = elegibles(cerrajero_id, fecha_desde, fecha_hasta, tipo);
+  const rows = elegiblesMultiple(cerrajero_id, filtros);
   const detalle = calcularDetalle(rows, cerrajero);
   const total_bruto = detalle.reduce((s, d) => s + d.monto_rendido, 0);
   return { cerrajero, detalle, total_bruto };
@@ -131,14 +153,21 @@ function calcularTotalDescuentos(descuentos, porcentaje_rendicion) {
   );
 }
 
-function generar({ cerrajero_id, fecha_desde, fecha_hasta, tipo, descuentos_extra = [] }) {
+function generar({ cerrajero_id, filtros, descuentos_extra = [] }) {
+  if (!Array.isArray(filtros) || !filtros.length) throw new Error('Faltan los rangos de fecha a rendir');
   const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(cerrajero_id);
   if (!cerrajero) throw new Error('Cerrajero no encontrado');
 
-  const rows = elegibles(cerrajero_id, fecha_desde, fecha_hasta, tipo);
+  const rows = elegiblesMultiple(cerrajero_id, filtros);
   const detalle = calcularDetalle(rows, cerrajero);
   if (!detalle.length) throw new Error('No hay trabajos pendientes de rendir en el período elegido');
   const total_bruto = detalle.reduce((s, d) => s + d.monto_rendido, 0);
+  // El período que queda guardado en la rendición cubre todos los rangos
+  // combinados (del más temprano al más tardío), aunque no todos los días
+  // intermedios hayan aportado líneas — es solo el rótulo del período, el
+  // detalle real de qué se incluyó queda en rendicion_detalle.
+  const fecha_desde = filtros.reduce((min, f) => (f.fecha_desde < min ? f.fecha_desde : min), filtros[0].fecha_desde);
+  const fecha_hasta = filtros.reduce((max, f) => (f.fecha_hasta > max ? f.fecha_hasta : max), filtros[0].fecha_hasta);
 
   const descuentos = [];
   if (cerrajero.aporte_fijo > 0) {

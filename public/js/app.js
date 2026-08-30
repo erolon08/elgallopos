@@ -2859,12 +2859,18 @@ async function toggleCerrajeroActivo(id, activo) {
 // ============================================================
 // RENDICIÓN DE CERRAJEROS
 // ============================================================
-let rendicionPreviewActual = null; // { cerrajero_id, fecha_desde, fecha_hasta, detalle, total_bruto, cerrajero }
+let rendicionPreviewActual = null; // { cerrajero_id, detalle, total_bruto, cerrajero }
 let rendicionDescuentosExtra = [];
+let rendicionFiltrosAcumulados = []; // [{ fecha_desde, fecha_hasta, tipo }, ...] — se van sumando con "+ Sumar al cálculo"
 
 const TIPO_MOVIMIENTO_LABEL = { servicio: 'Servicio', duplicado: 'Duplicado', codificado: 'Codificado' };
 const TIPO_DESCUENTO_LABEL = { aporte: 'Aporte fijo', repuesto: 'Repuesto', otro: 'Otro', adelanto: 'Adelanto' };
 
+// "+ Sumar al cálculo" agrega el rango/tipo actual del formulario a lo que
+// ya se venía calculando (no lo reemplaza) — así se puede combinar, por
+// ejemplo, los servicios de hoy con los duplicados acumulados de toda la
+// semana en una sola rendición. Si se cambia de cerrajero a mitad de
+// camino, se avisa y arranca de cero (no tiene sentido mezclar cerrajeros).
 async function calcularRendicionPreview() {
   const cerrajero_id = document.getElementById('rendCerrajero').value;
   const fecha_desde = document.getElementById('rendDesde').value;
@@ -2874,17 +2880,26 @@ async function calcularRendicionPreview() {
     alert('Elegí cerrajero, fecha desde y fecha hasta.');
     return;
   }
-  const params = new URLSearchParams({ cerrajero_id, fecha_desde, fecha_hasta });
-  if (tipo) params.set('tipo', tipo);
-  const res = await fetch(`/api/rendiciones/preview?${params.toString()}`);
+  if (rendicionFiltrosAcumulados.length && rendicionPreviewActual && rendicionPreviewActual.cerrajero_id !== cerrajero_id) {
+    if (!confirm('Ya tenías un cálculo armado para otro cerrajero. ¿Empezar de nuevo con este?')) return;
+    rendicionFiltrosAcumulados = [];
+  }
+  rendicionFiltrosAcumulados.push({ fecha_desde, fecha_hasta, tipo: tipo || undefined });
+  await recalcularRendicionPreview(cerrajero_id);
+}
+
+async function recalcularRendicionPreview(cerrajero_id) {
+  const res = await fetch(
+    `/api/rendiciones/preview?cerrajero_id=${cerrajero_id}&filtros=${encodeURIComponent(JSON.stringify(rendicionFiltrosAcumulados))}`
+  );
   const data = await res.json();
   if (!res.ok) {
     alert('Error: ' + data.error);
     return;
   }
-  rendicionPreviewActual = { cerrajero_id, fecha_desde, fecha_hasta, tipo, ...data };
-  rendicionDescuentosExtra = [];
+  rendicionPreviewActual = { cerrajero_id, ...data };
 
+  renderRendicionFiltrosAcumulados();
   document.getElementById('rendPreviewVacio').style.display = data.detalle.length ? 'none' : 'block';
   document.getElementById('rendPreviewWrap').style.display = data.detalle.length ? 'block' : 'none';
   if (!data.detalle.length) return;
@@ -2907,6 +2922,40 @@ async function calcularRendicionPreview() {
     tbody.appendChild(tr);
   });
   renderRendicionDescuentos();
+}
+
+const TIPO_FILTRO_RENDICION_LABEL = { servicio: 'Servicios', duplicado: 'Duplicados' };
+function renderRendicionFiltrosAcumulados() {
+  const cont = document.getElementById('rendFiltrosAcumulados');
+  if (!rendicionFiltrosAcumulados.length) {
+    cont.innerHTML = '';
+    return;
+  }
+  cont.innerHTML = rendicionFiltrosAcumulados
+    .map((f, i) => {
+      const rango = f.fecha_desde === f.fecha_hasta ? f.fecha_desde : `${f.fecha_desde} a ${f.fecha_hasta}`;
+      return `<span class="badge" style="margin:0 6px 6px 0;display:inline-flex;align-items:center;gap:6px">${TIPO_FILTRO_RENDICION_LABEL[f.tipo] || 'Todos'}: ${rango} <button class="btn light" style="padding:1px 7px" onclick="quitarRendicionFiltroAcumulado(${i})">✕</button></span>`;
+    })
+    .join('');
+}
+
+async function quitarRendicionFiltroAcumulado(i) {
+  const cerrajero_id = rendicionPreviewActual.cerrajero_id;
+  rendicionFiltrosAcumulados.splice(i, 1);
+  if (!rendicionFiltrosAcumulados.length) {
+    limpiarRendicionPreview();
+    return;
+  }
+  await recalcularRendicionPreview(cerrajero_id);
+}
+
+function limpiarRendicionPreview() {
+  rendicionFiltrosAcumulados = [];
+  rendicionPreviewActual = null;
+  rendicionDescuentosExtra = [];
+  document.getElementById('rendFiltrosAcumulados').innerHTML = '';
+  document.getElementById('rendPreviewVacio').style.display = 'none';
+  document.getElementById('rendPreviewWrap').style.display = 'none';
 }
 
 // Cada gasto se confirma con "Guardar gasto" y pasa a la lista de abajo (ya
@@ -2984,9 +3033,7 @@ async function generarRendicion() {
   if (!rendicionPreviewActual) return;
   const payload = {
     cerrajero_id: rendicionPreviewActual.cerrajero_id,
-    fecha_desde: rendicionPreviewActual.fecha_desde,
-    fecha_hasta: rendicionPreviewActual.fecha_hasta,
-    tipo: rendicionPreviewActual.tipo || undefined,
+    filtros: rendicionFiltrosAcumulados,
     descuentos_extra: rendicionDescuentosExtra.filter((d) => d.monto > 0),
   };
   const res = await fetch('/api/rendiciones', {
@@ -2999,10 +3046,7 @@ async function generarRendicion() {
     alert('Error: ' + data.error);
     return;
   }
-  rendicionPreviewActual = null;
-  rendicionDescuentosExtra = [];
-  document.getElementById('rendPreviewWrap').style.display = 'none';
-  document.getElementById('rendPreviewVacio').style.display = 'none';
+  limpiarRendicionPreview();
   cargarRendiciones();
   mostrarTicketRendicion(data.id);
 }
