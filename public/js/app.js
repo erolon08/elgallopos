@@ -2869,17 +2869,20 @@ async function calcularRendicionPreview() {
   const cerrajero_id = document.getElementById('rendCerrajero').value;
   const fecha_desde = document.getElementById('rendDesde').value;
   const fecha_hasta = document.getElementById('rendHasta').value;
+  const tipo = document.getElementById('rendTipo').value;
   if (!cerrajero_id || !fecha_desde || !fecha_hasta) {
     alert('Elegí cerrajero, fecha desde y fecha hasta.');
     return;
   }
-  const res = await fetch(`/api/rendiciones/preview?cerrajero_id=${cerrajero_id}&fecha_desde=${fecha_desde}&fecha_hasta=${fecha_hasta}`);
+  const params = new URLSearchParams({ cerrajero_id, fecha_desde, fecha_hasta });
+  if (tipo) params.set('tipo', tipo);
+  const res = await fetch(`/api/rendiciones/preview?${params.toString()}`);
   const data = await res.json();
   if (!res.ok) {
     alert('Error: ' + data.error);
     return;
   }
-  rendicionPreviewActual = { cerrajero_id, fecha_desde, fecha_hasta, ...data };
+  rendicionPreviewActual = { cerrajero_id, fecha_desde, fecha_hasta, tipo, ...data };
   rendicionDescuentosExtra = [];
 
   document.getElementById('rendPreviewVacio').style.display = data.detalle.length ? 'none' : 'block';
@@ -2983,6 +2986,7 @@ async function generarRendicion() {
     cerrajero_id: rendicionPreviewActual.cerrajero_id,
     fecha_desde: rendicionPreviewActual.fecha_desde,
     fecha_hasta: rendicionPreviewActual.fecha_hasta,
+    tipo: rendicionPreviewActual.tipo || undefined,
     descuentos_extra: rendicionDescuentosExtra.filter((d) => d.monto > 0),
   };
   const res = await fetch('/api/rendiciones', {

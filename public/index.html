@@ -310,8 +310,16 @@
             <div class="field"><label>Cerrajero</label><select id="rendCerrajero"></select></div>
             <div class="field"><label>Desde</label><input id="rendDesde" type="date"></div>
             <div class="field"><label>Hasta</label><input id="rendHasta" type="date"></div>
+            <div class="field"><label>Tipo</label>
+              <select id="rendTipo">
+                <option value="">Todos</option>
+                <option value="servicio">Solo servicios</option>
+                <option value="duplicado">Solo duplicados</option>
+              </select>
+            </div>
             <button class="btn primary" onclick="calcularRendicionPreview()">Calcular</button>
           </div>
+          <div class="notice" style="margin-bottom:12px">"Tipo" sirve para rendir por separado, por ejemplo un cerrajero que hace duplicados algunos días sí y otros no: elegí "Solo duplicados" con un rango de varios días para juntar los que se acumularon, sin traer de nuevo servicios que ya se rindieron por su cuenta día a día.</div>
           <div id="rendPreviewWrap" style="display:none">
             <div class="table-wrap">
               <table>

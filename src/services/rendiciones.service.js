@@ -23,7 +23,15 @@ function formatPeriodoCorto(desde, hasta) {
 // El filtro "IS NOT NULL" es necesario porque las líneas agregadas a mano no tienen
 // venta_item_id, y un NULL en el subquery de un NOT IN anula la comparación para todas
 // las filas si no se excluye explícitamente.
-function elegibles(cerrajero_id, fecha_desde, fecha_hasta) {
+// tipo: 'servicio' | 'duplicado' | undefined (todos). Sirve para rendir por
+// separado cuando un cerrajero no hace ambas cosas todos los días (ej. hace
+// duplicados solo algunos días y se le acumulan varios antes de rendírselos):
+// así se puede pedir un rango amplio "solo duplicados" sin volver a traer
+// servicios de esos mismos días que ya se rindieron aparte, día a día.
+function elegibles(cerrajero_id, fecha_desde, fecha_hasta, tipo) {
+  let condicionTipo = '(f.usa_mano_obra = 1 OR f.usa_precio_rendicion = 1)';
+  if (tipo === 'servicio') condicionTipo = 'f.usa_mano_obra = 1';
+  else if (tipo === 'duplicado') condicionTipo = 'f.usa_precio_rendicion = 1';
   return db
     .prepare(
       `SELECT vi.id AS venta_item_id, vi.descripcion, vi.cantidad, vi.monto_mano_obra,
@@ -36,7 +44,7 @@ function elegibles(cerrajero_id, fecha_desde, fecha_hasta) {
        WHERE vi.cerrajero_id = @cerrajero_id
          AND v.estado = 'cobrada'
          AND date(v.cobrado_en) BETWEEN date(@fecha_desde) AND date(@fecha_hasta)
-         AND (f.usa_mano_obra = 1 OR f.usa_precio_rendicion = 1)
+         AND ${condicionTipo}
          AND vi.id NOT IN (SELECT venta_item_id FROM rendicion_detalle WHERE venta_item_id IS NOT NULL)
        ORDER BY v.cobrado_en`
     )
@@ -95,10 +103,10 @@ function calcularDetalle(rows, cerrajero) {
   });
 }
 
-function previsualizar({ cerrajero_id, fecha_desde, fecha_hasta }) {
+function previsualizar({ cerrajero_id, fecha_desde, fecha_hasta, tipo }) {
   const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(cerrajero_id);
   if (!cerrajero) throw new Error('Cerrajero no encontrado');
-  const rows = elegibles(cerrajero_id, fecha_desde, fecha_hasta);
+  const rows = elegibles(cerrajero_id, fecha_desde, fecha_hasta, tipo);
   const detalle = calcularDetalle(rows, cerrajero);
   const total_bruto = detalle.reduce((s, d) => s + d.monto_rendido, 0);
   return { cerrajero, detalle, total_bruto };
@@ -123,11 +131,11 @@ function calcularTotalDescuentos(descuentos, porcentaje_rendicion) {
   );
 }
 
-function generar({ cerrajero_id, fecha_desde, fecha_hasta, descuentos_extra = [] }) {
+function generar({ cerrajero_id, fecha_desde, fecha_hasta, tipo, descuentos_extra = [] }) {
   const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(cerrajero_id);
   if (!cerrajero) throw new Error('Cerrajero no encontrado');
 
-  const rows = elegibles(cerrajero_id, fecha_desde, fecha_hasta);
+  const rows = elegibles(cerrajero_id, fecha_desde, fecha_hasta, tipo);
   const detalle = calcularDetalle(rows, cerrajero);
   if (!detalle.length) throw new Error('No hay trabajos pendientes de rendir en el período elegido');
   const total_bruto = detalle.reduce((s, d) => s + d.monto_rendido, 0);

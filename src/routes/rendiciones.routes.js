@@ -23,12 +23,12 @@ router.get('/exportar', (req, res) => {
 });
 
 router.get('/preview', (req, res) => {
-  const { cerrajero_id, fecha_desde, fecha_hasta } = req.query;
+  const { cerrajero_id, fecha_desde, fecha_hasta, tipo } = req.query;
   if (!cerrajero_id || !fecha_desde || !fecha_hasta) {
     return res.status(400).json({ error: 'Faltan cerrajero_id, fecha_desde o fecha_hasta' });
   }
   try {
-    res.json(rendicionesService.previsualizar({ cerrajero_id: Number(cerrajero_id), fecha_desde, fecha_hasta }));
+    res.json(rendicionesService.previsualizar({ cerrajero_id: Number(cerrajero_id), fecha_desde, fecha_hasta, tipo: tipo || undefined }));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -46,12 +46,12 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { cerrajero_id, fecha_desde, fecha_hasta, descuentos_extra } = req.body;
+  const { cerrajero_id, fecha_desde, fecha_hasta, tipo, descuentos_extra } = req.body;
   if (!cerrajero_id || !fecha_desde || !fecha_hasta) {
     return res.status(400).json({ error: 'Faltan cerrajero_id, fecha_desde o fecha_hasta' });
   }
   try {
-    const rendicion = rendicionesService.generar({ cerrajero_id, fecha_desde, fecha_hasta, descuentos_extra });
+    const rendicion = rendicionesService.generar({ cerrajero_id, fecha_desde, fecha_hasta, tipo, descuentos_extra });
     res.status(201).json(rendicion);
   } catch (err) {
     res.status(400).json({ error: err.message });
