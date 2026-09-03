@@ -1351,8 +1351,8 @@
           <option>Exento</option>
         </select>
       </div>
-      <div class="field"><label>DNI</label><input id="cliDocumento"></div>
-      <div class="field"><label>CUIT</label><input id="cliCuit" placeholder="Si es empresa" onblur="buscarClienteEnArca()"> <span class="small" id="cliCuitEstadoArca"></span></div>
+      <div class="field"><label>DNI</label><input id="cliDocumento" onblur="verificarDniDuplicado()"> <span class="small text-red" id="cliDocumentoEstadoDup"></span></div>
+      <div class="field"><label>CUIT</label><input id="cliCuit" placeholder="Si es empresa" onblur="buscarClienteEnArca(); verificarCuitDuplicado()"> <span class="small" id="cliCuitEstadoArca"></span> <span class="small text-red" id="cliCuitEstadoDup"></span></div>
       <div class="field"><label>Teléfono (también WhatsApp)</label><input id="cliTelefono"></div>
       <div class="field"><label>Email</label><input id="cliEmail"></div>
       <div class="field"><label>Dirección</label><input id="cliDireccion"></div>

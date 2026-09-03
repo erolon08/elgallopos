@@ -905,6 +905,34 @@ async function quitarVehiculoUI(vehiculoId) {
   renderVehiculosModal();
 }
 
+// Avisa apenas se completa el DNI/CUIT si ya pertenece a otro cliente
+// activo, para no duplicar la ficha sin darse cuenta — antes de esperar al
+// error recién al apretar Guardar. clienteEditId se manda como excluir_id
+// para no marcarse a sí mismo como "duplicado" al editar un cliente ya
+// cargado.
+async function chequearDuplicadoCliente(tipo) {
+  const documento = tipo === 'documento' ? document.getElementById('cliDocumento').value.trim() : '';
+  const cuit = tipo === 'cuit' ? document.getElementById('cliCuit').value.trim() : '';
+  const span = document.getElementById(tipo === 'documento' ? 'cliDocumentoEstadoDup' : 'cliCuitEstadoDup');
+  if (!documento && !cuit) {
+    span.textContent = '';
+    return;
+  }
+  const params = new URLSearchParams();
+  if (documento) params.set('documento', documento);
+  if (cuit) params.set('cuit', cuit);
+  if (clienteEditId) params.set('excluir_id', clienteEditId);
+  const data = await (await fetch('/api/clientes/verificar-duplicado?' + params.toString())).json();
+  const dup = tipo === 'documento' ? data.documento : data.cuit;
+  span.textContent = dup ? `⚠️ Ya existe: ${dup.nombre} (N° ${dup.codigo})` : '';
+}
+function verificarDniDuplicado() {
+  chequearDuplicadoCliente('documento');
+}
+function verificarCuitDuplicado() {
+  chequearDuplicadoCliente('cuit');
+}
+
 // Al completar el CUIT en la ficha de cliente, trae razón social y
 // domicilio desde ARCA para no tener que tipearlos a mano. Solo pisa los
 // campos que estén vacíos (así no borra datos ya cargados si solo se está
@@ -950,6 +978,8 @@ async function openCliente(id) {
   document.getElementById('cliDocumento').value = c ? c.documento || '' : '';
   document.getElementById('cliCuit').value = c ? c.cuit || '' : '';
   document.getElementById('cliCuitEstadoArca').textContent = '';
+  document.getElementById('cliDocumentoEstadoDup').textContent = '';
+  document.getElementById('cliCuitEstadoDup').textContent = '';
   document.getElementById('cliTelefono').value = c ? c.telefono || '' : '';
   document.getElementById('cliEmail').value = c ? c.email || '' : '';
   document.getElementById('cliDireccion').value = c ? c.direccion || '' : '';

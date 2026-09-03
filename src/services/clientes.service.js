@@ -77,8 +77,40 @@ function obtener(id) {
   return { ...cliente, vehiculos: vehiculosDe(id) };
 }
 
+// Busca si ya hay otro cliente activo con el mismo DNI y/o CUIT (excluyendo
+// al propio cliente cuando se está editando) — para no cargar el mismo
+// cliente dos veces sin darse cuenta. Vacío/null no cuenta como duplicado
+// (muchos clientes no tienen DNI o CUIT cargado).
+function buscarDuplicado({ documento, cuit, excluir_id }) {
+  const resultado = {};
+  const doc = documento != null ? String(documento).trim() : '';
+  if (doc) {
+    let sql = 'SELECT id, codigo, nombre FROM clientes WHERE activo = 1 AND documento = @doc';
+    const params = { doc };
+    if (excluir_id) {
+      sql += ' AND id != @excluir_id';
+      params.excluir_id = excluir_id;
+    }
+    resultado.documento = db.prepare(sql).get(params) || null;
+  }
+  const cuitTrim = cuit != null ? String(cuit).trim() : '';
+  if (cuitTrim) {
+    let sql = 'SELECT id, codigo, nombre FROM clientes WHERE activo = 1 AND cuit = @cuit';
+    const params = { cuit: cuitTrim };
+    if (excluir_id) {
+      sql += ' AND id != @excluir_id';
+      params.excluir_id = excluir_id;
+    }
+    resultado.cuit = db.prepare(sql).get(params) || null;
+  }
+  return resultado;
+}
+
 function crear(datos) {
   if (!datos.nombre || !String(datos.nombre).trim()) throw new Error('El nombre es obligatorio');
+  const dup = buscarDuplicado({ documento: datos.documento, cuit: datos.cuit });
+  if (dup.documento) throw new Error(`Ya existe un cliente con ese DNI: ${dup.documento.nombre} (N° ${dup.documento.codigo})`);
+  if (dup.cuit) throw new Error(`Ya existe un cliente con ese CUIT: ${dup.cuit.nombre} (N° ${dup.cuit.codigo})`);
   const codigo = generarCodigo();
   const info = db
     .prepare(
@@ -106,6 +138,11 @@ function crear(datos) {
 function actualizar(id, datos) {
   const actual = db.prepare('SELECT * FROM clientes WHERE id = ?').get(id);
   if (!actual) return null;
+  const documento = datos.documento !== undefined ? datos.documento || null : actual.documento;
+  const cuit = datos.cuit !== undefined ? datos.cuit || null : actual.cuit;
+  const dup = buscarDuplicado({ documento, cuit, excluir_id: id });
+  if (dup.documento) throw new Error(`Ya existe un cliente con ese DNI: ${dup.documento.nombre} (N° ${dup.documento.codigo})`);
+  if (dup.cuit) throw new Error(`Ya existe un cliente con ese CUIT: ${dup.cuit.nombre} (N° ${dup.cuit.codigo})`);
   db.prepare(
     `UPDATE clientes SET
        nombre = @nombre, telefono = @telefono, documento = @documento, cuit = @cuit, email = @email,
@@ -116,8 +153,8 @@ function actualizar(id, datos) {
     id,
     nombre: datos.nombre != null ? String(datos.nombre).trim() : actual.nombre,
     telefono: datos.telefono !== undefined ? datos.telefono || null : actual.telefono,
-    documento: datos.documento !== undefined ? datos.documento || null : actual.documento,
-    cuit: datos.cuit !== undefined ? datos.cuit || null : actual.cuit,
+    documento,
+    cuit,
     email: datos.email !== undefined ? datos.email || null : actual.email,
     direccion: datos.direccion !== undefined ? datos.direccion || null : actual.direccion,
     localidad: datos.localidad !== undefined ? datos.localidad || null : actual.localidad,
@@ -172,4 +209,5 @@ module.exports = {
   eliminarVehiculo,
   normalizarPatente,
   generarCodigo,
+  buscarDuplicado,
 };

@@ -24,6 +24,20 @@ router.get('/consultar-cuit/:cuit', async (req, res) => {
   }
 });
 
+// Chequeo en vivo (antes de guardar) de si el DNI y/o CUIT tipeados ya
+// pertenecen a otro cliente activo — para avisar apenas se completa el
+// campo, sin esperar al error recién al apretar Guardar.
+router.get('/verificar-duplicado', (req, res) => {
+  const { documento, cuit, excluir_id } = req.query;
+  res.json(
+    clientesService.buscarDuplicado({
+      documento,
+      cuit,
+      excluir_id: excluir_id ? Number(excluir_id) : undefined,
+    })
+  );
+});
+
 router.get('/:id', (req, res) => {
   const cliente = clientesService.obtener(Number(req.params.id));
   if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
