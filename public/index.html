@@ -132,24 +132,23 @@
         <div class="grid g2" style="margin-bottom:14px">
           <div class="card">
             <div class="section-title"><h3>Control de cierre</h3></div>
-            <p class="small" style="margin:-4px 0 8px">Cómo se arma la Facturación (lo cobrado, según cómo se pagó):</p>
-            <div class="cierre-linea"><span>Efectivo</span><b id="ccEfectivoFact">$ 0</b></div>
-            <div class="cierre-linea"><span>(+) Pago Electrónico</span><b id="ccPagoElectronico">$ 0</b></div>
-            <div class="cierre-linea"><span>(+) Cheque</span><b id="ccCheque">$ 0</b></div>
+            <div class="cierre-linea"><span>Efectivo</span><b id="ccEfectivo">$ 0</b></div>
+            <div class="cierre-linea"><span>(+) Pago Electrónico</span><b id="ccPagoElectronicoSuma">$ 0</b></div>
+            <div class="cierre-linea"><span>(+) Cheque</span><b id="ccChequeSuma">$ 0</b></div>
             <div class="cierre-linea cierre-total"><span>= Facturación</span><b id="ccFacturacion">$ 0</b></div>
-            <p class="small" style="margin:14px 0 8px">Control de caja física (solo Efectivo):</p>
-            <div class="cierre-linea"><span>Efectivo cobrado</span><b id="ccEfectivoCierre">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Gastos</span><b id="ccGastos">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Caja Fuerte</span><b id="ccCajaFuerte">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Pago Electrónico</span><b id="ccPagoElectronicoResta">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Cheque</span><b id="ccChequeResta">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Fondo que quedó en el cajón</span><b id="ccCambioFondo">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Ventas anuladas de otro período</span><b id="ccReversasVenta">$ 0</b></div>
             <div class="cierre-linea cierre-total"><span>Diferencia</span><b id="ccDiferencia">$ 0</b></div>
-            <p class="small" style="margin-top:8px">Nota: la Cuenta Corriente pendiente de este período (<b id="ccCuentaCorriente">$ 0</b>) no forma parte de la Facturación — recién entra cuando se cobra, ya repartida arriba según cómo pagó el cliente.</p>
+            <p class="small" style="margin-top:8px">La Cuenta Corriente pendiente de este período (<b id="ccCuentaCorriente">$ 0</b>) no forma parte de la Facturación — recién entra cuando se cobra, ya sumada arriba según cómo pagó el cliente (Efectivo, Pago Electrónico o Cheque).</p>
           </div>
           <div class="card">
             <div class="section-title"><h3>Lectura rápida</h3></div>
             <div class="lectura-badge ok" id="lecturaBadge">✅ Cierre correcto: la diferencia da $0</div>
-            <p class="small" style="margin-top:10px">La Facturación es exactamente Efectivo + Pago Electrónico + Cheque (lo realmente cobrado, incluyendo cuenta corriente vieja ya saldada, repartida según cómo pagó cada cliente). La Cuenta Corriente pendiente de este período no cuenta todavía. La Diferencia es un control aparte, solo del Efectivo físico: de esa plata en mano, ¿se puede explicar dónde quedó? Se gastó (Gastos), se guardó (Caja Fuerte), o sigue en el cajón como fondo para el próximo turno (Fondo que quedó) — restando también las ventas cobradas en otro período y anuladas en este. Pago Electrónico y Cheque no pasan por el cajón físico, así que no entran en esta cuenta.</p>
+            <p class="small" style="margin-top:10px">La diferencia usa esta lógica: Facturación (Efectivo + Pago Electrónico + Cheque, lo realmente cobrado hoy — incluye cuenta corriente vieja ya saldada, sumada según cómo pagó cada cliente; NO incluye cuenta corriente todavía pendiente) − Gastos − Caja Fuerte − Pago Electrónico − Cheque (estos dos se restan de nuevo porque esa plata nunca pasa por el cajón físico, así que no puede explicarse con Gastos/Caja Fuerte) − Fondo que quedó en el cajón (si al cerrar un turno se dejó más plata como fondo para el siguiente en vez de mandarla a caja fuerte, esa plata sigue ahí, no es un faltante) − Ventas anuladas de otro período (se cobraron antes y se anularon en este período, así que la plata recién sale de la caja ahora). Si todo está bien cargado, debería dar $0.</p>
           </div>
         </div>
 

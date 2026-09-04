@@ -1943,13 +1943,14 @@ function renderDashboardKpis(r) {
 }
 
 function renderControlCierre(r) {
-  document.getElementById('ccEfectivoFact').textContent = moneyDash(r.efectivo);
-  document.getElementById('ccPagoElectronico').textContent = moneyDash(r.pagoElectronico);
-  document.getElementById('ccCheque').textContent = moneyDash(r.cheque);
+  document.getElementById('ccEfectivo').textContent = moneyDash(r.efectivo);
+  document.getElementById('ccPagoElectronicoSuma').textContent = moneyDash(r.pagoElectronico);
+  document.getElementById('ccChequeSuma').textContent = moneyDash(r.cheque);
   document.getElementById('ccFacturacion').textContent = moneyDash(r.facturacion);
-  document.getElementById('ccEfectivoCierre').textContent = moneyDash(r.efectivo);
   document.getElementById('ccGastos').textContent = moneyDash(r.gastos);
   document.getElementById('ccCajaFuerte').textContent = moneyDash(r.cajaFuerte);
+  document.getElementById('ccPagoElectronicoResta').textContent = moneyDash(r.pagoElectronico);
+  document.getElementById('ccChequeResta').textContent = moneyDash(r.cheque);
   document.getElementById('ccCambioFondo').textContent = moneyDash(r.cambioFondo);
   document.getElementById('ccReversasVenta').textContent = moneyDash(r.reversasVentaAnulada);
   document.getElementById('ccCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
