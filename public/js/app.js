@@ -1941,10 +1941,9 @@ function renderDashboardKpis(r) {
 }
 
 function renderControlCierre(r) {
-  const saldoCobrado = r.facturacion - r.cuentaCorriente;
+  document.getElementById('ccFacturacionBruta').textContent = moneyDash(r.facturacionBruta);
   document.getElementById('ccFacturacion').textContent = moneyDash(r.facturacion);
   document.getElementById('ccCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
-  document.getElementById('ccSaldoCobrado').textContent = moneyDash(saldoCobrado);
   document.getElementById('ccGastos').textContent = moneyDash(r.gastos);
   document.getElementById('ccCajaFuerte').textContent = moneyDash(r.cajaFuerte);
   document.getElementById('ccPagoElectronico').textContent = moneyDash(r.pagoElectronico);

@@ -118,7 +118,7 @@
         <p class="small" style="margin:-8px 0 14px">Si cargás "Desde" y/o "Hasta", ese rango de días manda por sobre Año y Mes (por ejemplo: 1/8/2026 a 15/8/2026).</p>
 
         <div class="grid dash-kpis" style="margin-bottom:14px">
-          <div class="card kpi kpi-green"><div class="label">Facturación</div><div class="value" id="dkFacturacion">—</div><div class="hint">Solo ventas, sin cobranzas</div></div>
+          <div class="card kpi kpi-green"><div class="label">Facturación</div><div class="value" id="dkFacturacion">—</div><div class="hint">Ventas ya cobradas (neta de cta. cte. y fondo)</div></div>
           <div class="card kpi kpi-amber"><div class="label">Cuenta Corriente</div><div class="value" id="dkCuentaCorriente">—</div><div class="hint">Ventas a cuenta / saldo pendiente</div></div>
           <div class="card kpi kpi-red"><div class="label">Gastos</div><div class="value" id="dkGastos">—</div><div class="hint">Egresos filtrados</div></div>
           <div class="card kpi kpi-blue"><div class="label">Caja Fuerte</div><div class="value" id="dkCajaFuerte">—</div><div class="hint">Lo que queda guardado</div></div>
@@ -129,21 +129,22 @@
         <div class="grid g2" style="margin-bottom:14px">
           <div class="card">
             <div class="section-title"><h3>Control de cierre</h3></div>
-            <div class="cierre-linea"><span>Facturación</span><b id="ccFacturacion">$ 0</b></div>
-            <div class="cierre-linea"><span>(-) Cuenta Corriente</span><b id="ccCuentaCorriente">$ 0</b></div>
-            <div class="cierre-linea cierre-total"><span>Saldo cobrado</span><b id="ccSaldoCobrado">$ 0</b></div>
+            <p class="small" style="margin:-4px 0 8px">Cómo se arma la Facturación (ya cobrada):</p>
+            <div class="cierre-linea"><span>Ventas cobradas (bruto)</span><b id="ccFacturacionBruta">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) A cuenta corriente (pendiente de cobro)</span><b id="ccCuentaCorriente">$ 0</b></div>
+            <div class="cierre-linea"><span>(+) Cobros de cuenta corriente vieja</span><b id="ccCobrosCtaCte">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Fondo que quedó en el cajón</span><b id="ccCambioFondo">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Ventas anuladas de otro período</span><b id="ccReversasVenta">$ 0</b></div>
+            <div class="cierre-linea cierre-total"><span>= Facturación (cobrada)</span><b id="ccFacturacion">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Gastos</span><b id="ccGastos">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Caja Fuerte</span><b id="ccCajaFuerte">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Pago Electrónico</span><b id="ccPagoElectronico">$ 0</b></div>
-            <div class="cierre-linea"><span>(+) Cobros Cuenta Corriente</span><b id="ccCobrosCtaCte">$ 0</b></div>
-            <div class="cierre-linea"><span>(-) Fondo que quedó en el cajón</span><b id="ccCambioFondo">$ 0</b></div>
-            <div class="cierre-linea"><span>(-) Ventas anuladas de otro período</span><b id="ccReversasVenta">$ 0</b></div>
             <div class="cierre-linea cierre-total"><span>Diferencia</span><b id="ccDiferencia">$ 0</b></div>
           </div>
           <div class="card">
             <div class="section-title"><h3>Lectura rápida</h3></div>
             <div class="lectura-badge ok" id="lecturaBadge">✅ Cierre correcto: la diferencia da $0</div>
-            <p class="small" style="margin-top:10px">La diferencia usa esta lógica: Facturación − Cuenta Corriente − Gastos − Caja Fuerte − Pago Electrónico + Cobros de Cuenta Corriente (deuda vieja que un cliente saldó en este período) − Fondo que quedó en el cajón (si al cerrar un turno se dejó más plata como fondo para el siguiente en vez de mandarla a caja fuerte, esa plata sigue ahí, no es un faltante) − Ventas anuladas de otro período (se cobraron antes y se anularon en este período, así que la plata recién sale de la caja ahora).</p>
+            <p class="small" style="margin-top:10px">La Facturación de arriba ya es "cobrada": Ventas cobradas (bruto) − Cuenta Corriente pendiente de este período + Cobros de Cuenta Corriente vieja (deuda que un cliente saldó en este período) − Fondo que quedó en el cajón (si al cerrar un turno se dejó más plata como fondo para el siguiente en vez de mandarla a caja fuerte, esa plata sigue ahí, no es un faltante) − Ventas anuladas de otro período (se cobraron antes y se anularon en este período, así que la plata recién sale de la caja ahora). La Diferencia es esa Facturación ya neta menos Gastos, Caja Fuerte y Pago Electrónico.</p>
           </div>
         </div>
 

@@ -324,7 +324,7 @@ function consultaFamilia({ familia_id, anio, mes, desde, hasta }) {
 // 1 al 15 de agosto" en vez de todo el mes.
 function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
   const anioUsado = anio || String(new Date().getFullYear());
-  const fFacturacion = facturacion({ anio: anioUsado, mes, desde, hasta });
+  const fFacturacionBruta = facturacion({ anio: anioUsado, mes, desde, hasta });
   const fCuentaCorriente = cuentaCorriente({ anio: anioUsado, mes, desde, hasta });
   const fGastos = gastos({ anio: anioUsado, mes, desde, hasta, tipo_egreso, forma_pago });
   const fCajaFuerte = cajaFuerte({ anio: anioUsado, mes, desde, hasta });
@@ -332,11 +332,20 @@ function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
   const fCobrosCuentaCorriente = cobrosCuentaCorriente({ anio: anioUsado, mes, desde, hasta, forma_pago });
   const fCambioFondo = cambioFondo({ anio: anioUsado, mes, desde, hasta });
   const fReversasVentaAnulada = reversasVentaAnuladaDeOtroPeriodo({ anio: anioUsado, mes, desde, hasta });
-  const diferencia =
-    fFacturacion - fCuentaCorriente - fGastos - fCajaFuerte - fPagoElectronico + fCobrosCuentaCorriente - fCambioFondo - fReversasVentaAnulada;
+  // "Facturación" ya no es lo vendido en bruto (eso incluiría ventas dejadas
+  // a cuenta corriente, que todavía no se cobraron) sino lo realmente
+  // cobrado en el período: se resta la parte de las ventas de este período
+  // que quedó a cuenta corriente sin cobrar, se suma lo que entró por
+  // cobrar cuenta corriente vieja, y se descuentan el fondo que quedó en el
+  // cajón (plata que sigue ahí, no es un faltante) y las reversas de ventas
+  // anuladas de otro período. Así el cartel de arriba ya viene "neteado" en
+  // vez de que esos ajustes aparezcan recién más abajo en Control de cierre.
+  const fFacturacion = fFacturacionBruta - fCuentaCorriente + fCobrosCuentaCorriente - fCambioFondo - fReversasVentaAnulada;
+  const diferencia = fFacturacion - fGastos - fCajaFuerte - fPagoElectronico;
   return {
     anio: anioUsado,
     facturacion: fFacturacion,
+    facturacionBruta: fFacturacionBruta,
     cuentaCorriente: fCuentaCorriente,
     gastos: fGastos,
     cajaFuerte: fCajaFuerte,
