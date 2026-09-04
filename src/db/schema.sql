@@ -373,7 +373,7 @@ CREATE INDEX IF NOT EXISTS idx_ventaitems_producto ON venta_items(producto_id);
 CREATE TABLE IF NOT EXISTS venta_pagos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   venta_id INTEGER NOT NULL REFERENCES ventas(id),
-  forma_pago TEXT NOT NULL CHECK (forma_pago IN ('Efectivo','Débito','Crédito','Transferencia','QR','Cuenta Corriente')),
+  forma_pago TEXT NOT NULL CHECK (forma_pago IN ('Efectivo','Débito','Crédito','Transferencia','QR','Cheque','Cuenta Corriente')),
   marca TEXT,
   monto REAL NOT NULL,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))

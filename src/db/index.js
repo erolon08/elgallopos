@@ -142,6 +142,30 @@ if (rendicionDetalleDef && !rendicionDetalleDef.sql.includes('codificado')) {
   db.pragma('foreign_keys = ON');
 }
 
+// El CHECK de venta_pagos.forma_pago no incluía 'Cheque' (algunos clientes
+// pagan así) — mismo problema y misma solución que arriba: un CHECK no se
+// puede tocar con ALTER TABLE, hay que recrear la tabla.
+const ventaPagosDef = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='venta_pagos'").get();
+if (ventaPagosDef && !ventaPagosDef.sql.includes('Cheque')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE venta_pagos_nuevo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venta_id INTEGER NOT NULL REFERENCES ventas(id),
+      forma_pago TEXT NOT NULL CHECK (forma_pago IN ('Efectivo','Débito','Crédito','Transferencia','QR','Cheque','Cuenta Corriente')),
+      marca TEXT,
+      monto REAL NOT NULL,
+      creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    INSERT INTO venta_pagos_nuevo (id, venta_id, forma_pago, marca, monto, creado_en)
+      SELECT id, venta_id, forma_pago, marca, monto, creado_en FROM venta_pagos;
+    DROP TABLE venta_pagos;
+    ALTER TABLE venta_pagos_nuevo RENAME TO venta_pagos;
+    CREATE INDEX IF NOT EXISTS idx_ventapagos_venta ON venta_pagos(venta_id);
+  `);
+  db.pragma('foreign_keys = ON');
+}
+
 const yaHayUsuarioStock = db.prepare("SELECT 1 FROM usuarios WHERE rol = 'STOCK'").get();
 if (!yaHayUsuarioStock) {
   const bcrypt = require('bcryptjs');

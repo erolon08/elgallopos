@@ -128,6 +128,18 @@ function pagoElectronico({ anio, mes, desde, hasta }) {
     .get(params).total;
 }
 
+// Lo cobrado con cheque.
+function cheque({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(vp.monto), 0) AS total
+       FROM venta_pagos vp JOIN ventas v ON v.id = vp.venta_id
+       WHERE v.estado = 'cobrada' AND vp.forma_pago = 'Cheque' ${sql}`
+    )
+    .get(params).total;
+}
+
 // Desglose de lo cobrado por cada forma de pago (para el resumen de ventas).
 function ventasPorFormaPago({ anio, mes, desde, hasta }) {
   const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
@@ -164,22 +176,22 @@ function gastos({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
 }
 
 // Plata que entra a la caja en este período por el cobro de deuda VIEJA de
-// Cuenta Corriente (un cliente saldando una venta de otro momento). La
-// venta que generó esa deuda ya restó su monto de "Facturación" en
-// cuentaCorriente(), pero acá es donde se ve la plata real entrando de
-// vuelta — sin sumarla, la Diferencia queda mal aunque cada turno cierre
-// bien (el cierre de turno sí la incluye en su efectivo esperado).
-function cobrosCuentaCorriente({ anio, mes, desde, hasta, forma_pago }) {
+// Cuenta Corriente (un cliente saldando una venta de otro momento), sumando
+// solo las formas de pago indicadas — para repartir ese cobro dentro del
+// bolsillo que le corresponde (Efectivo, Pago Electrónico o Cheque) en vez
+// de dejarlo como un monto suelto sin clasificar. La venta que generó esa
+// deuda ya restó su monto de "Facturación" en cuentaCorriente(); acá es
+// donde se ve la plata real entrando de vuelta.
+function cobrosCuentaCorrientePorFormas(formas, { anio, mes, desde, hasta }) {
   const { sql, params } = condicionRango('creado_en', { anio, mes, desde, hasta });
-  let extra = '';
-  if (forma_pago) {
-    extra += ' AND forma_pago = @forma_pago';
-    params.forma_pago = forma_pago;
-  }
+  const placeholders = formas.map((_, i) => `@forma${i}`).join(',');
+  formas.forEach((f, i) => {
+    params[`forma${i}`] = f;
+  });
   return db
     .prepare(
       `SELECT COALESCE(SUM(monto), 0) AS total FROM caja_movimientos
-       WHERE tipo = 'ingreso' AND categoria = 'cuenta_corriente' ${sql} ${extra}`
+       WHERE tipo = 'ingreso' AND categoria = 'cuenta_corriente' AND forma_pago IN (${placeholders}) ${sql}`
     )
     .get(params).total;
 }
@@ -324,33 +336,45 @@ function consultaFamilia({ familia_id, anio, mes, desde, hasta }) {
 // 1 al 15 de agosto" en vez de todo el mes.
 function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
   const anioUsado = anio || String(new Date().getFullYear());
-  const fFacturacionBruta = facturacion({ anio: anioUsado, mes, desde, hasta });
   const fCuentaCorriente = cuentaCorriente({ anio: anioUsado, mes, desde, hasta });
   const fGastos = gastos({ anio: anioUsado, mes, desde, hasta, tipo_egreso, forma_pago });
   const fCajaFuerte = cajaFuerte({ anio: anioUsado, mes, desde, hasta });
-  const fPagoElectronico = pagoElectronico({ anio: anioUsado, mes, desde, hasta });
-  const fCobrosCuentaCorriente = cobrosCuentaCorriente({ anio: anioUsado, mes, desde, hasta, forma_pago });
   const fCambioFondo = cambioFondo({ anio: anioUsado, mes, desde, hasta });
   const fReversasVentaAnulada = reversasVentaAnuladaDeOtroPeriodo({ anio: anioUsado, mes, desde, hasta });
-  // "Facturación" ya no es lo vendido en bruto (eso incluiría ventas dejadas
-  // a cuenta corriente, que todavía no se cobraron) sino lo realmente
-  // cobrado en el período: se resta la parte de las ventas de este período
-  // que quedó a cuenta corriente sin cobrar, se suma lo que entró por
-  // cobrar cuenta corriente vieja, y se descuentan el fondo que quedó en el
-  // cajón (plata que sigue ahí, no es un faltante) y las reversas de ventas
-  // anuladas de otro período. Así el cartel de arriba ya viene "neteado" en
-  // vez de que esos ajustes aparezcan recién más abajo en Control de cierre.
-  const fFacturacion = fFacturacionBruta - fCuentaCorriente + fCobrosCuentaCorriente - fCambioFondo - fReversasVentaAnulada;
-  const diferencia = fFacturacion - fGastos - fCajaFuerte - fPagoElectronico;
+
+  // La Cuenta Corriente NO es Facturación hasta que se cobra: mientras la
+  // venta quede a cuenta, esa parte no entra a ninguno de los tres bolsillos
+  // de abajo. Cuando el cliente la salda (cobrosCuentaCorrientePorFormas),
+  // recién ahí entra — y entra al bolsillo que corresponda según cómo pagó
+  // (efectivo, electrónico o cheque), no como un monto aparte sin clasificar.
+  const fEfectivo = efectivo({ anio: anioUsado, mes, desde, hasta }) + cobrosCuentaCorrientePorFormas(['Efectivo'], { anio: anioUsado, mes, desde, hasta });
+  const fPagoElectronico =
+    pagoElectronico({ anio: anioUsado, mes, desde, hasta }) +
+    cobrosCuentaCorrientePorFormas(['Débito', 'Crédito', 'Transferencia', 'QR'], { anio: anioUsado, mes, desde, hasta });
+  const fCheque = cheque({ anio: anioUsado, mes, desde, hasta }) + cobrosCuentaCorrientePorFormas(['Cheque'], { anio: anioUsado, mes, desde, hasta });
+
+  // Facturación = exactamente la suma de los tres bolsillos donde entró la
+  // plata cobrada (Efectivo + Pago Electrónico + Cheque) — ni un peso más
+  // (por eso no lleva la Cuenta Corriente pendiente) ni un peso menos.
+  const fFacturacion = fEfectivo + fPagoElectronico + fCheque;
+
+  // La Diferencia es un control SOLO del efectivo físico: de la plata que
+  // entró en mano, ¿se puede explicar dónde quedó? Se gastó (Gastos), se
+  // guardó (Caja Fuerte), o sigue en el cajón como fondo para el próximo
+  // turno (Fondo que quedó) — más las reversas de ventas cobradas en otro
+  // período y anuladas en este. Pago Electrónico y Cheque no pasan nunca
+  // por el cajón físico, así que no entran en esta cuenta.
+  const diferencia = fEfectivo - fGastos - fCajaFuerte - fCambioFondo - fReversasVentaAnulada;
+
   return {
     anio: anioUsado,
     facturacion: fFacturacion,
-    facturacionBruta: fFacturacionBruta,
+    efectivo: fEfectivo,
     cuentaCorriente: fCuentaCorriente,
     gastos: fGastos,
     cajaFuerte: fCajaFuerte,
     pagoElectronico: fPagoElectronico,
-    cobrosCuentaCorriente: fCobrosCuentaCorriente,
+    cheque: fCheque,
     cambioFondo: fCambioFondo,
     reversasVentaAnulada: fReversasVentaAnulada,
     diferencia,

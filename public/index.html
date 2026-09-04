@@ -111,6 +111,7 @@
               <option value="Crédito">Crédito</option>
               <option value="Transferencia">Transferencia</option>
               <option value="QR">QR</option>
+              <option value="Cheque">Cheque</option>
               <option value="Cuenta Corriente">Cuenta Corriente</option>
             </select>
           </div>
@@ -118,33 +119,37 @@
         <p class="small" style="margin:-8px 0 14px">Si cargás "Desde" y/o "Hasta", ese rango de días manda por sobre Año y Mes (por ejemplo: 1/8/2026 a 15/8/2026).</p>
 
         <div class="grid dash-kpis" style="margin-bottom:14px">
-          <div class="card kpi kpi-green"><div class="label">Facturación</div><div class="value" id="dkFacturacion">—</div><div class="hint">Ventas ya cobradas (neta de cta. cte. y fondo)</div></div>
+          <div class="card kpi kpi-green"><div class="label">Facturación</div><div class="value" id="dkFacturacion">—</div><div class="hint">Efectivo + Pago Electrónico + Cheque, ya cobrados</div></div>
+          <div class="card kpi kpi-teal"><div class="label">Efectivo</div><div class="value" id="dkEfectivo">—</div><div class="hint">Cobrado en mano (ventas + cta. cte.)</div></div>
+          <div class="card kpi kpi-violet"><div class="label">Pago Electrónico</div><div class="value" id="dkPagoElectronico">—</div><div class="hint">Transferencias · tarjetas · QR</div></div>
+          <div class="card kpi kpi-cyan"><div class="label">Cheque</div><div class="value" id="dkCheque">—</div><div class="hint">Cobrado con cheque</div></div>
           <div class="card kpi kpi-amber"><div class="label">Cuenta Corriente</div><div class="value" id="dkCuentaCorriente">—</div><div class="hint">Ventas a cuenta / saldo pendiente</div></div>
           <div class="card kpi kpi-red"><div class="label">Gastos</div><div class="value" id="dkGastos">—</div><div class="hint">Egresos filtrados</div></div>
           <div class="card kpi kpi-blue"><div class="label">Caja Fuerte</div><div class="value" id="dkCajaFuerte">—</div><div class="hint">Lo que queda guardado</div></div>
-          <div class="card kpi kpi-violet"><div class="label">Pago Electrónico</div><div class="value" id="dkPagoElectronico">—</div><div class="hint">Transferencias · tarjetas · QR</div></div>
           <div class="card kpi"><div class="label">Diferencia</div><div class="value" id="dkDiferencia">—</div><div class="hint" id="dkDiferenciaHint">Cierre correcto</div></div>
         </div>
 
         <div class="grid g2" style="margin-bottom:14px">
           <div class="card">
             <div class="section-title"><h3>Control de cierre</h3></div>
-            <p class="small" style="margin:-4px 0 8px">Cómo se arma la Facturación (ya cobrada):</p>
-            <div class="cierre-linea"><span>Ventas cobradas (bruto)</span><b id="ccFacturacionBruta">$ 0</b></div>
-            <div class="cierre-linea"><span>(-) A cuenta corriente (pendiente de cobro)</span><b id="ccCuentaCorriente">$ 0</b></div>
-            <div class="cierre-linea"><span>(+) Cobros de cuenta corriente vieja</span><b id="ccCobrosCtaCte">$ 0</b></div>
-            <div class="cierre-linea"><span>(-) Fondo que quedó en el cajón</span><b id="ccCambioFondo">$ 0</b></div>
-            <div class="cierre-linea"><span>(-) Ventas anuladas de otro período</span><b id="ccReversasVenta">$ 0</b></div>
-            <div class="cierre-linea cierre-total"><span>= Facturación (cobrada)</span><b id="ccFacturacion">$ 0</b></div>
+            <p class="small" style="margin:-4px 0 8px">Cómo se arma la Facturación (lo cobrado, según cómo se pagó):</p>
+            <div class="cierre-linea"><span>Efectivo</span><b id="ccEfectivoFact">$ 0</b></div>
+            <div class="cierre-linea"><span>(+) Pago Electrónico</span><b id="ccPagoElectronico">$ 0</b></div>
+            <div class="cierre-linea"><span>(+) Cheque</span><b id="ccCheque">$ 0</b></div>
+            <div class="cierre-linea cierre-total"><span>= Facturación</span><b id="ccFacturacion">$ 0</b></div>
+            <p class="small" style="margin:14px 0 8px">Control de caja física (solo Efectivo):</p>
+            <div class="cierre-linea"><span>Efectivo cobrado</span><b id="ccEfectivoCierre">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Gastos</span><b id="ccGastos">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Caja Fuerte</span><b id="ccCajaFuerte">$ 0</b></div>
-            <div class="cierre-linea"><span>(-) Pago Electrónico</span><b id="ccPagoElectronico">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Fondo que quedó en el cajón</span><b id="ccCambioFondo">$ 0</b></div>
+            <div class="cierre-linea"><span>(-) Ventas anuladas de otro período</span><b id="ccReversasVenta">$ 0</b></div>
             <div class="cierre-linea cierre-total"><span>Diferencia</span><b id="ccDiferencia">$ 0</b></div>
+            <p class="small" style="margin-top:8px">Nota: la Cuenta Corriente pendiente de este período (<b id="ccCuentaCorriente">$ 0</b>) no forma parte de la Facturación — recién entra cuando se cobra, ya repartida arriba según cómo pagó el cliente.</p>
           </div>
           <div class="card">
             <div class="section-title"><h3>Lectura rápida</h3></div>
             <div class="lectura-badge ok" id="lecturaBadge">✅ Cierre correcto: la diferencia da $0</div>
-            <p class="small" style="margin-top:10px">La Facturación de arriba ya es "cobrada": Ventas cobradas (bruto) − Cuenta Corriente pendiente de este período + Cobros de Cuenta Corriente vieja (deuda que un cliente saldó en este período) − Fondo que quedó en el cajón (si al cerrar un turno se dejó más plata como fondo para el siguiente en vez de mandarla a caja fuerte, esa plata sigue ahí, no es un faltante) − Ventas anuladas de otro período (se cobraron antes y se anularon en este período, así que la plata recién sale de la caja ahora). La Diferencia es esa Facturación ya neta menos Gastos, Caja Fuerte y Pago Electrónico.</p>
+            <p class="small" style="margin-top:10px">La Facturación es exactamente Efectivo + Pago Electrónico + Cheque (lo realmente cobrado, incluyendo cuenta corriente vieja ya saldada, repartida según cómo pagó cada cliente). La Cuenta Corriente pendiente de este período no cuenta todavía. La Diferencia es un control aparte, solo del Efectivo físico: de esa plata en mano, ¿se puede explicar dónde quedó? Se gastó (Gastos), se guardó (Caja Fuerte), o sigue en el cajón como fondo para el próximo turno (Fondo que quedó) — restando también las ventas cobradas en otro período y anuladas en este. Pago Electrónico y Cheque no pasan por el cajón físico, así que no entran en esta cuenta.</p>
           </div>
         </div>
 
@@ -157,7 +162,7 @@
             <div class="field"><label>Monto</label><input id="gmMonto" type="number" step="any" value="0"></div>
             <div class="field"><label>Forma de pago</label>
               <select id="gmFormaPago">
-                <option>Efectivo</option><option>Débito</option><option>Crédito</option><option>Transferencia</option><option>QR</option>
+                <option>Efectivo</option><option>Débito</option><option>Crédito</option><option>Transferencia</option><option>QR</option><option>Cheque</option>
               </select>
             </div>
             <button class="btn primary" onclick="guardarGastoManualDashboard()">Guardar gasto</button>
@@ -424,6 +429,7 @@
                 <option value="Crédito">Crédito</option>
                 <option value="Transferencia">Transferencia</option>
                 <option value="QR">QR</option>
+                <option value="Cheque">Cheque</option>
                 <option value="Cuenta Corriente">Cuenta Corriente</option>
               </select>
             </div>
@@ -1393,6 +1399,7 @@
         <div class="pay" onclick="elegirFormaPago('Crédito')"><span>F4 &nbsp; CRÉDITO</span><span>▸</span></div>
         <div class="pay" onclick="elegirFormaPago('QR')"><span>F5 &nbsp; QR</span><span>▸</span></div>
         <div class="pay" onclick="elegirFormaPago('Cuenta Corriente')"><span>F6 &nbsp; CUENTA CORRIENTE</span><span>▸</span></div>
+        <div class="pay" onclick="elegirFormaPago('Cheque')"><span>F8 &nbsp; CHEQUE</span><span>▸</span></div>
         <div class="pay" onclick="elegirFormaPago('Pago Combinado')"><span>F7 &nbsp; PAGO COMBINADO</span><span>▸</span></div>
       </div>
       <div class="eventual-hint" id="eventualHint">CTRL + F10 &nbsp;·&nbsp; VENTA EVENTUAL — no genera comprobante fiscal, no cambia los datos del cliente.</div>

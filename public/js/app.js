@@ -1926,10 +1926,12 @@ async function cargarDashboard() {
 
 function renderDashboardKpis(r) {
   document.getElementById('dkFacturacion').textContent = moneyDash(r.facturacion);
+  document.getElementById('dkEfectivo').textContent = moneyDash(r.efectivo);
+  document.getElementById('dkPagoElectronico').textContent = moneyDash(r.pagoElectronico);
+  document.getElementById('dkCheque').textContent = moneyDash(r.cheque);
   document.getElementById('dkCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
   document.getElementById('dkGastos').textContent = moneyDash(r.gastos);
   document.getElementById('dkCajaFuerte').textContent = moneyDash(r.cajaFuerte);
-  document.getElementById('dkPagoElectronico').textContent = moneyDash(r.pagoElectronico);
   const dif = document.getElementById('dkDiferencia');
   dif.textContent = moneyDash(r.diferencia);
   // Solo es un problema si FALTA plata (diferencia negativa); si sobra
@@ -1941,15 +1943,16 @@ function renderDashboardKpis(r) {
 }
 
 function renderControlCierre(r) {
-  document.getElementById('ccFacturacionBruta').textContent = moneyDash(r.facturacionBruta);
+  document.getElementById('ccEfectivoFact').textContent = moneyDash(r.efectivo);
+  document.getElementById('ccPagoElectronico').textContent = moneyDash(r.pagoElectronico);
+  document.getElementById('ccCheque').textContent = moneyDash(r.cheque);
   document.getElementById('ccFacturacion').textContent = moneyDash(r.facturacion);
-  document.getElementById('ccCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
+  document.getElementById('ccEfectivoCierre').textContent = moneyDash(r.efectivo);
   document.getElementById('ccGastos').textContent = moneyDash(r.gastos);
   document.getElementById('ccCajaFuerte').textContent = moneyDash(r.cajaFuerte);
-  document.getElementById('ccPagoElectronico').textContent = moneyDash(r.pagoElectronico);
-  document.getElementById('ccCobrosCtaCte').textContent = moneyDash(r.cobrosCuentaCorriente);
   document.getElementById('ccCambioFondo').textContent = moneyDash(r.cambioFondo);
   document.getElementById('ccReversasVenta').textContent = moneyDash(r.reversasVentaAnulada);
+  document.getElementById('ccCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
   const ccDif = document.getElementById('ccDiferencia');
   ccDif.textContent = moneyDash(r.diferencia);
   ccDif.style.color = r.diferencia < -1 ? 'var(--red)' : 'var(--green)';
@@ -4973,7 +4976,7 @@ function elegirFormaPago(forma) {
     ];
     renderCombinado();
   } else {
-    // Transferencia | Cuenta Corriente
+    // Transferencia | Cheque | Cuenta Corriente
     document.getElementById('cobroPasoMetodos').style.display = 'none';
     document.getElementById('cobroPasoSimple').style.display = 'block';
     const btnConfirmar = document.getElementById('btnConfirmarSimple');
@@ -5028,7 +5031,7 @@ function renderCombinado() {
     row.innerHTML = `
       <div class="field"><label>Forma</label>
         <select onchange="filasCombinado[${i}].forma_pago=this.value">
-          ${['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'QR', 'Cuenta Corriente']
+          ${['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'QR', 'Cheque', 'Cuenta Corriente']
             .map((fp) => `<option value="${fp}" ${fp === f.forma_pago ? 'selected' : ''}>${fp}</option>`)
             .join('')}
         </select>
@@ -5096,7 +5099,7 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     if (document.getElementById('cobroPasoMetodos').style.display !== 'none') {
-      const teclas = { F1: 'Efectivo', F2: 'Débito', F3: 'Transferencia', F4: 'Crédito', F5: 'QR', F6: 'Cuenta Corriente', F7: 'Pago Combinado' };
+      const teclas = { F1: 'Efectivo', F2: 'Débito', F3: 'Transferencia', F4: 'Crédito', F5: 'QR', F6: 'Cuenta Corriente', F7: 'Pago Combinado', F8: 'Cheque' };
       if (teclas[e.key]) {
         e.preventDefault();
         elegirFormaPago(teclas[e.key]);
