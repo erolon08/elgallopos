@@ -1929,7 +1929,6 @@ function renderDashboardKpis(r) {
   document.getElementById('dkEfectivo').textContent = moneyDash(r.efectivo);
   document.getElementById('dkPagoElectronico').textContent = moneyDash(r.pagoElectronico);
   document.getElementById('dkCheque').textContent = moneyDash(r.cheque);
-  document.getElementById('dkCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
   document.getElementById('dkGastos').textContent = moneyDash(r.gastos);
   document.getElementById('dkCajaFuerte').textContent = moneyDash(r.cajaFuerte);
   const dif = document.getElementById('dkDiferencia');
