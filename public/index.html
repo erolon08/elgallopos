@@ -1351,8 +1351,12 @@
           <option>Exento</option>
         </select>
       </div>
-      <div class="field"><label>DNI</label><input id="cliDocumento" onblur="verificarDniDuplicado()"> <span class="small text-red" id="cliDocumentoEstadoDup"></span></div>
-      <div class="field"><label>CUIT</label><input id="cliCuit" placeholder="Si es empresa" onblur="buscarClienteEnArca(); verificarCuitDuplicado()"> <span class="small" id="cliCuitEstadoArca"></span> <span class="small text-red" id="cliCuitEstadoDup"></span></div>
+      <div class="field" style="position:relative"><label>DNI</label><input id="cliDocumento" autocomplete="off" oninput="verificarDniDuplicado()"> <span class="small text-red" id="cliDocumentoEstadoDup"></span>
+        <div class="search-results" id="cliDocumentoResultados" style="display:none"></div>
+      </div>
+      <div class="field" style="position:relative"><label>CUIT</label><input id="cliCuit" placeholder="Si es empresa" autocomplete="off" oninput="verificarCuitDuplicado()" onblur="buscarClienteEnArca()"> <span class="small" id="cliCuitEstadoArca"></span> <span class="small text-red" id="cliCuitEstadoDup"></span>
+        <div class="search-results" id="cliCuitResultados" style="display:none"></div>
+      </div>
       <div class="field"><label>Teléfono (también WhatsApp)</label><input id="cliTelefono"></div>
       <div class="field"><label>Email</label><input id="cliEmail"></div>
       <div class="field"><label>Dirección</label><input id="cliDireccion"></div>

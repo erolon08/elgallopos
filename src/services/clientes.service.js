@@ -106,6 +106,25 @@ function buscarDuplicado({ documento, cuit, excluir_id }) {
   return resultado;
 }
 
+// Búsqueda en vivo mientras se tipea el DNI o CUIT en la ficha de cliente:
+// devuelve todos los clientes activos cuyo documento/cuit contiene lo
+// tipeado hasta ahora, para mostrarlos como sugerencias tipo buscador. Si
+// no hay ninguna coincidencia, el llamador lo interpreta como "cliente
+// nuevo".
+function buscarPorDocumentoOCuit({ tipo, valor, excluir_id }) {
+  const campo = tipo === 'cuit' ? 'cuit' : 'documento';
+  const val = valor != null ? String(valor).trim() : '';
+  if (!val) return [];
+  let sql = `SELECT id, codigo, nombre, documento, cuit FROM clientes WHERE activo = 1 AND ${campo} LIKE @val`;
+  const params = { val: `%${val}%`, valPrefix: `${val}%` };
+  if (excluir_id) {
+    sql += ' AND id != @excluir_id';
+    params.excluir_id = excluir_id;
+  }
+  sql += ` ORDER BY (CASE WHEN ${campo} LIKE @valPrefix THEN 0 ELSE 1 END), nombre LIMIT 8`;
+  return db.prepare(sql).all(params);
+}
+
 function crear(datos) {
   if (!datos.nombre || !String(datos.nombre).trim()) throw new Error('El nombre es obligatorio');
   const dup = buscarDuplicado({ documento: datos.documento, cuit: datos.cuit });
@@ -210,4 +229,5 @@ module.exports = {
   normalizarPatente,
   generarCodigo,
   buscarDuplicado,
+  buscarPorDocumentoOCuit,
 };

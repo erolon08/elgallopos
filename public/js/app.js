@@ -905,32 +905,52 @@ async function quitarVehiculoUI(vehiculoId) {
   renderVehiculosModal();
 }
 
-// Avisa apenas se completa el DNI/CUIT si ya pertenece a otro cliente
-// activo, para no duplicar la ficha sin darse cuenta — antes de esperar al
-// error recién al apretar Guardar. clienteEditId se manda como excluir_id
-// para no marcarse a sí mismo como "duplicado" al editar un cliente ya
-// cargado.
-async function chequearDuplicadoCliente(tipo) {
-  const documento = tipo === 'documento' ? document.getElementById('cliDocumento').value.trim() : '';
-  const cuit = tipo === 'cuit' ? document.getElementById('cliCuit').value.trim() : '';
-  const span = document.getElementById(tipo === 'documento' ? 'cliDocumentoEstadoDup' : 'cliCuitEstadoDup');
-  if (!documento && !cuit) {
-    span.textContent = '';
+// Buscador en vivo mientras se tipea el DNI o CUIT: a medida que se
+// agregan dígitos va mostrando como sugerencias los clientes existentes
+// que coinciden hasta ahora (para elegir uno y no duplicarlo), y en cuanto
+// no queda ninguna coincidencia lo marca como cliente nuevo. clienteEditId
+// se manda como excluir_id para no sugerirse a sí mismo al editar una
+// ficha ya cargada.
+async function buscarSugerenciasDocCliente(tipo) {
+  const inputId = tipo === 'documento' ? 'cliDocumento' : 'cliCuit';
+  const valor = document.getElementById(inputId).value.trim();
+  const cont = document.getElementById(tipo === 'documento' ? 'cliDocumentoResultados' : 'cliCuitResultados');
+  const estado = document.getElementById(tipo === 'documento' ? 'cliDocumentoEstadoDup' : 'cliCuitEstadoDup');
+  if (valor.length < 3) {
+    cont.style.display = 'none';
+    estado.textContent = '';
     return;
   }
-  const params = new URLSearchParams();
-  if (documento) params.set('documento', documento);
-  if (cuit) params.set('cuit', cuit);
+  const params = new URLSearchParams({ tipo, valor });
   if (clienteEditId) params.set('excluir_id', clienteEditId);
-  const data = await (await fetch('/api/clientes/verificar-duplicado?' + params.toString())).json();
-  const dup = tipo === 'documento' ? data.documento : data.cuit;
-  span.textContent = dup ? `⚠️ Ya existe: ${dup.nombre} (N° ${dup.codigo})` : '';
+  const rows = await (await fetch('/api/clientes/buscar-documento-cuit?' + params.toString())).json();
+  if (!rows.length) {
+    cont.style.display = 'none';
+    estado.className = 'small text-green';
+    estado.textContent = '✅ Sin coincidencias: es un cliente nuevo';
+    return;
+  }
+  estado.textContent = '';
+  cont.innerHTML = rows
+    .map(
+      (c) =>
+        `<div class="search-result-item" onclick='elegirClienteSugerido(${c.id})'><b>${c.nombre}</b> — N° ${c.codigo}<div class="small">${
+          tipo === 'documento' ? 'DNI ' + (c.documento || '') : 'CUIT ' + (c.cuit || '')
+        }</div></div>`
+    )
+    .join('');
+  cont.style.display = 'block';
 }
 function verificarDniDuplicado() {
-  chequearDuplicadoCliente('documento');
+  buscarSugerenciasDocCliente('documento');
 }
 function verificarCuitDuplicado() {
-  chequearDuplicadoCliente('cuit');
+  buscarSugerenciasDocCliente('cuit');
+}
+async function elegirClienteSugerido(id) {
+  document.getElementById('cliDocumentoResultados').style.display = 'none';
+  document.getElementById('cliCuitResultados').style.display = 'none';
+  await openCliente(id);
 }
 
 // Al completar el CUIT en la ficha de cliente, trae razón social y
@@ -980,6 +1000,8 @@ async function openCliente(id) {
   document.getElementById('cliCuitEstadoArca').textContent = '';
   document.getElementById('cliDocumentoEstadoDup').textContent = '';
   document.getElementById('cliCuitEstadoDup').textContent = '';
+  document.getElementById('cliDocumentoResultados').style.display = 'none';
+  document.getElementById('cliCuitResultados').style.display = 'none';
   document.getElementById('cliTelefono').value = c ? c.telefono || '' : '';
   document.getElementById('cliEmail').value = c ? c.email || '' : '';
   document.getElementById('cliDireccion').value = c ? c.direccion || '' : '';

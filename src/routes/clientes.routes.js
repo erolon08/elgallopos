@@ -38,6 +38,22 @@ router.get('/verificar-duplicado', (req, res) => {
   );
 });
 
+// Buscador en vivo: mientras se tipea el DNI o CUIT en la ficha de cliente,
+// va devolviendo los clientes existentes que coinciden hasta ahora (como un
+// buscador de verdad), para elegir uno y evitar cargarlo de nuevo. Si no
+// hay coincidencias, el frontend lo interpreta como "cliente nuevo". Va
+// antes de "/:id" para no ser tapada por esa ruta.
+router.get('/buscar-documento-cuit', (req, res) => {
+  const { tipo, valor, excluir_id } = req.query;
+  res.json(
+    clientesService.buscarPorDocumentoOCuit({
+      tipo,
+      valor,
+      excluir_id: excluir_id ? Number(excluir_id) : undefined,
+    })
+  );
+});
+
 router.get('/:id', (req, res) => {
   const cliente = clientesService.obtener(Number(req.params.id));
   if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
