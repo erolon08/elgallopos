@@ -175,6 +175,23 @@ function gastos({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
     .get(params).total;
 }
 
+// Ingresos de caja sueltos, que no son ni venta ni cobro de cuenta
+// corriente — por ejemplo, cuando no alcanza la plata para pagar los
+// gastos del día y el dueño mete efectivo de su bolsillo para cubrirlos.
+// No es facturación (no es plata que vino de vender ni de cobrar una
+// deuda), pero sí es plata real que entró a la caja física — sin sumarla
+// acá, esos días la Diferencia muestra como "falta plata" algo que en
+// realidad está perfectamente explicado.
+function ingresosVarios({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('creado_en', { anio, mes, desde, hasta });
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(monto), 0) AS total FROM caja_movimientos
+       WHERE tipo = 'ingreso' AND categoria NOT IN ('venta', 'cuenta_corriente') ${sql}`
+    )
+    .get(params).total;
+}
+
 // Plata que entra a la caja en este período por el cobro de deuda VIEJA de
 // Cuenta Corriente (un cliente saldando una venta de otro momento), sumando
 // solo las formas de pago indicadas — para repartir ese cobro dentro del
@@ -358,13 +375,17 @@ function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
   // (por eso no lleva la Cuenta Corriente pendiente) ni un peso menos.
   const fFacturacion = fEfectivo + fPagoElectronico + fCheque;
 
+  const fIngresosVarios = ingresosVarios({ anio: anioUsado, mes, desde, hasta });
+
   // La Diferencia es un control SOLO del efectivo físico: de la plata que
-  // entró en mano, ¿se puede explicar dónde quedó? Se gastó (Gastos), se
-  // guardó (Caja Fuerte), o sigue en el cajón como fondo para el próximo
-  // turno (Fondo que quedó) — más las reversas de ventas cobradas en otro
-  // período y anuladas en este. Pago Electrónico y Cheque no pasan nunca
-  // por el cajón físico, así que no entran en esta cuenta.
-  const diferencia = fEfectivo - fGastos - fCajaFuerte - fCambioFondo - fReversasVentaAnulada;
+  // entró en mano (ventas + cuenta corriente cobrada + ingresos sueltos
+  // como plata puesta por el dueño para cubrir gastos), ¿se puede explicar
+  // dónde quedó? Se gastó (Gastos), se guardó (Caja Fuerte), o sigue en el
+  // cajón como fondo para el próximo turno (Fondo que quedó) — más las
+  // reversas de ventas cobradas en otro período y anuladas en este. Pago
+  // Electrónico y Cheque no pasan nunca por el cajón físico, así que no
+  // entran en esta cuenta.
+  const diferencia = fEfectivo + fIngresosVarios - fGastos - fCajaFuerte - fCambioFondo - fReversasVentaAnulada;
 
   return {
     anio: anioUsado,
@@ -375,6 +396,7 @@ function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
     cajaFuerte: fCajaFuerte,
     pagoElectronico: fPagoElectronico,
     cheque: fCheque,
+    ingresosVarios: fIngresosVarios,
     cambioFondo: fCambioFondo,
     reversasVentaAnulada: fReversasVentaAnulada,
     diferencia,

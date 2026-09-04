@@ -1946,6 +1946,7 @@ function renderControlCierre(r) {
   document.getElementById('ccPagoElectronicoSuma').textContent = moneyDash(r.pagoElectronico);
   document.getElementById('ccChequeSuma').textContent = moneyDash(r.cheque);
   document.getElementById('ccFacturacion').textContent = moneyDash(r.facturacion);
+  document.getElementById('ccIngresosVarios').textContent = moneyDash(r.ingresosVarios);
   document.getElementById('ccGastos').textContent = moneyDash(r.gastos);
   document.getElementById('ccCajaFuerte').textContent = moneyDash(r.cajaFuerte);
   document.getElementById('ccPagoElectronicoResta').textContent = moneyDash(r.pagoElectronico);

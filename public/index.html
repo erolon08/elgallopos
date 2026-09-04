@@ -135,6 +135,7 @@
             <div class="cierre-linea"><span>(+) Pago Electrónico</span><b id="ccPagoElectronicoSuma">$ 0</b></div>
             <div class="cierre-linea"><span>(+) Cheque</span><b id="ccChequeSuma">$ 0</b></div>
             <div class="cierre-linea cierre-total"><span>= Facturación</span><b id="ccFacturacion">$ 0</b></div>
+            <div class="cierre-linea"><span>(+) Ingresos varios (plata puesta, no venta)</span><b id="ccIngresosVarios">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Gastos</span><b id="ccGastos">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Caja Fuerte</span><b id="ccCajaFuerte">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Pago Electrónico</span><b id="ccPagoElectronicoResta">$ 0</b></div>
@@ -147,7 +148,7 @@
           <div class="card">
             <div class="section-title"><h3>Lectura rápida</h3></div>
             <div class="lectura-badge ok" id="lecturaBadge">✅ Cierre correcto: la diferencia da $0</div>
-            <p class="small" style="margin-top:10px">La diferencia usa esta lógica: Facturación (Efectivo + Pago Electrónico + Cheque, lo realmente cobrado hoy — incluye cuenta corriente vieja ya saldada, sumada según cómo pagó cada cliente; NO incluye cuenta corriente todavía pendiente) − Gastos − Caja Fuerte − Pago Electrónico − Cheque (estos dos se restan de nuevo porque esa plata nunca pasa por el cajón físico, así que no puede explicarse con Gastos/Caja Fuerte) − Fondo que quedó en el cajón (si al cerrar un turno se dejó más plata como fondo para el siguiente en vez de mandarla a caja fuerte, esa plata sigue ahí, no es un faltante) − Ventas anuladas de otro período (se cobraron antes y se anularon en este período, así que la plata recién sale de la caja ahora). Si todo está bien cargado, debería dar $0.</p>
+            <p class="small" style="margin-top:10px">La diferencia usa esta lógica: Facturación (Efectivo + Pago Electrónico + Cheque, lo realmente cobrado hoy — incluye cuenta corriente vieja ya saldada, sumada según cómo pagó cada cliente; NO incluye cuenta corriente todavía pendiente) + Ingresos varios (plata que no es de una venta, por ejemplo cuando no alcanza para pagar los gastos del día y se pone plata para cubrirlos — cargala en Caja y turnos → Movimientos como Ingreso) − Gastos − Caja Fuerte − Pago Electrónico − Cheque (estos dos se restan de nuevo porque esa plata nunca pasa por el cajón físico, así que no puede explicarse con Gastos/Caja Fuerte) − Fondo que quedó en el cajón (si al cerrar un turno se dejó más plata como fondo para el siguiente en vez de mandarla a caja fuerte, esa plata sigue ahí, no es un faltante) − Ventas anuladas de otro período (se cobraron antes y se anularon en este período, así que la plata recién sale de la caja ahora). Si todo está bien cargado, debería dar $0.</p>
           </div>
         </div>
 
