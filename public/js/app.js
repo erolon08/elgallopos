@@ -2836,6 +2836,7 @@ function filaCerrajero(c) {
     <td>${c.porcentaje_rendicion}%</td>
     <td>${c.porcentaje_urgencia > 0 ? c.porcentaje_urgencia + '%' : '—'}</td>
     <td>$ ${money.format(c.aporte_fijo)}</td>
+    <td>$ ${money.format(c.estacionamiento_fijo)}</td>
     <td>${c.descuento_tarjeta_credito}%</td>
     <td>${estado}</td>
     <td>
@@ -2857,6 +2858,7 @@ async function openCerrajero(id) {
     document.getElementById('cerPorcentaje').value = c.porcentaje_rendicion;
     document.getElementById('cerPorcentajeUrgencia').value = c.porcentaje_urgencia;
     document.getElementById('cerAporte').value = c.aporte_fijo;
+    document.getElementById('cerEstacionamiento').value = c.estacionamiento_fijo;
     document.getElementById('cerDescuentoTarjeta').value = c.descuento_tarjeta_credito;
     document.getElementById('cerActivo').checked = !!c.activo;
   } else {
@@ -2864,6 +2866,7 @@ async function openCerrajero(id) {
     document.getElementById('cerPorcentaje').value = 30;
     document.getElementById('cerPorcentajeUrgencia').value = 0;
     document.getElementById('cerAporte').value = 0;
+    document.getElementById('cerEstacionamiento').value = 0;
     document.getElementById('cerDescuentoTarjeta').value = 0;
     document.getElementById('cerActivo').checked = true;
   }
@@ -2881,6 +2884,7 @@ async function guardarCerrajero() {
     porcentaje_rendicion: Number(document.getElementById('cerPorcentaje').value) || 0,
     porcentaje_urgencia: Number(document.getElementById('cerPorcentajeUrgencia').value) || 0,
     aporte_fijo: Number(document.getElementById('cerAporte').value) || 0,
+    estacionamiento_fijo: Number(document.getElementById('cerEstacionamiento').value) || 0,
     descuento_tarjeta_credito: Number(document.getElementById('cerDescuentoTarjeta').value) || 0,
     activo: document.getElementById('cerActivo').checked,
   };
@@ -2919,7 +2923,7 @@ let rendicionDescuentosExtra = [];
 let rendicionFiltrosAcumulados = []; // [{ fecha_desde, fecha_hasta, tipo }, ...] — se van sumando con "+ Sumar al cálculo"
 
 const TIPO_MOVIMIENTO_LABEL = { servicio: 'Servicio', duplicado: 'Duplicado', codificado: 'Codificado' };
-const TIPO_DESCUENTO_LABEL = { aporte: 'Aporte fijo', repuesto: 'Repuesto', otro: 'Otro', adelanto: 'Adelanto' };
+const TIPO_DESCUENTO_LABEL = { aporte: 'Aporte fijo', estacionamiento: 'Estacionamiento fijo', repuesto: 'Repuesto', otro: 'Otro', adelanto: 'Adelanto' };
 
 // "+ Sumar al cálculo" agrega el rango/tipo actual del formulario a lo que
 // ya se venía calculando (no lo reemplaza) — así se puede combinar, por
@@ -3028,6 +3032,14 @@ function renderRendicionDescuentos() {
     div.textContent = `Aporte fijo: $ ${money.format(aporte)}`;
     cont.appendChild(div);
   }
+  const estacionamiento = rendicionPreviewActual.cerrajero.estacionamiento_fijo;
+  if (estacionamiento > 0) {
+    const div = document.createElement('div');
+    div.className = 'small';
+    div.style.marginBottom = '4px';
+    div.textContent = `Estacionamiento fijo: $ ${money.format(estacionamiento)}`;
+    cont.appendChild(div);
+  }
   if (!rendicionDescuentosExtra.length) {
     const div = document.createElement('div');
     div.className = 'small';
@@ -3062,8 +3074,9 @@ function guardarGastoExtraRendicion() {
   renderRendicionDescuentos();
 }
 
-// El aporte y el adelanto se descuentan a valor completo (el adelanto ya es
-// plata entregada en mano al cerrajero, no una fracción). El repuesto/otro
+// El aporte, el estacionamiento y el adelanto se descuentan a valor
+// completo (el adelanto ya es plata entregada en mano al cerrajero, no una
+// fracción). El repuesto/otro
 // en cambio reduce la base ANTES de aplicar el % de rendición del cerrajero,
 // así que se resta del bruto ya escalado a ese mismo % (ver nota en
 // rendiciones.service.js calcularTotalDescuentos, misma cuenta en el server).
@@ -3071,13 +3084,14 @@ function actualizarTotalesRendicionPreview() {
   const total_bruto = rendicionPreviewActual.total_bruto;
   const pct = rendicionPreviewActual.cerrajero.porcentaje_rendicion;
   const aporte = rendicionPreviewActual.cerrajero.aporte_fijo || 0;
+  const estacionamiento = rendicionPreviewActual.cerrajero.estacionamiento_fijo || 0;
   const adelantos = rendicionDescuentosExtra
     .filter((d) => d.tipo === 'adelanto')
     .reduce((s, d) => s + (Number(d.monto) || 0), 0);
   const gastos = rendicionDescuentosExtra
     .filter((d) => d.tipo !== 'adelanto')
     .reduce((s, d) => s + (Number(d.monto) || 0), 0);
-  const total_descuentos = aporte + adelantos + gastos * (pct / 100);
+  const total_descuentos = aporte + estacionamiento + adelantos + gastos * (pct / 100);
   const total_pagar = roundUpTo100(total_bruto - total_descuentos);
   document.getElementById('rendTotalBruto').textContent = '$ ' + money.format(total_bruto);
   document.getElementById('rendTotalDescuentos').textContent = '$ ' + money.format(total_descuentos);

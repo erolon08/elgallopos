@@ -136,16 +136,17 @@ function previsualizar({ cerrajero_id, filtros }) {
 
 const TIPOS_DESCUENTO_EXTRA = ['repuesto', 'otro', 'adelanto'];
 
-// El aporte fijo y el adelanto se descuentan a valor completo: el aporte ya
-// es la parte del cerrajero (se le resta directo) y el adelanto es plata que
-// ya se le entregó en mano, así que hay que restarle eso exacto, no una
-// fracción. El repuesto/otro en cambio reduce la base ANTES de aplicar el %
-// de rendición: como monto_rendido ya viene multiplicado por ese %, restar
+// El aporte fijo, el estacionamiento fijo y el adelanto se descuentan a
+// valor completo: el aporte y el estacionamiento ya son un monto fijo
+// mensual (se le resta directo) y el adelanto es plata que ya se le
+// entregó en mano, así que hay que restarle eso exacto, no una fracción.
+// El repuesto/otro en cambio reduce la base ANTES de aplicar el % de
+// rendición: como monto_rendido ya viene multiplicado por ese %, restar
 // el gasto "escalado" al mismo % (en vez de a valor completo) es
 // matemáticamente lo mismo que restarlo de la base antes de aplicar el %.
 // Ej: base 229.000, gasto 50.000, % 30 -> (229.000-50.000)*0.30 = 53.700,
 // que es lo mismo que 229.000*0.30 - 50.000*0.30.
-const TIPOS_DESCUENTO_VALOR_COMPLETO = ['aporte', 'adelanto'];
+const TIPOS_DESCUENTO_VALOR_COMPLETO = ['aporte', 'estacionamiento', 'adelanto'];
 function calcularTotalDescuentos(descuentos, porcentaje_rendicion) {
   return descuentos.reduce(
     (s, d) => s + (TIPOS_DESCUENTO_VALOR_COMPLETO.includes(d.tipo) ? d.monto : d.monto * (porcentaje_rendicion / 100)),
@@ -172,6 +173,9 @@ function generar({ cerrajero_id, filtros, descuentos_extra = [] }) {
   const descuentos = [];
   if (cerrajero.aporte_fijo > 0) {
     descuentos.push({ tipo: 'aporte', descripcion: 'Aporte fijo', monto: cerrajero.aporte_fijo });
+  }
+  if (cerrajero.estacionamiento_fijo > 0) {
+    descuentos.push({ tipo: 'estacionamiento', descripcion: 'Estacionamiento fijo', monto: cerrajero.estacionamiento_fijo });
   }
   for (const d of descuentos_extra) {
     if (!TIPOS_DESCUENTO_EXTRA.includes(d.tipo)) throw new Error('Tipo de descuento inválido');

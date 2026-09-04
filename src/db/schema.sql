@@ -211,6 +211,7 @@ CREATE TABLE IF NOT EXISTS cerrajeros (
   porcentaje_rendicion REAL NOT NULL DEFAULT 30,
   porcentaje_urgencia REAL NOT NULL DEFAULT 0,
   aporte_fijo REAL NOT NULL DEFAULT 0,
+  estacionamiento_fijo REAL NOT NULL DEFAULT 0,
   descuento_tarjeta_credito REAL NOT NULL DEFAULT 0,
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
@@ -477,7 +478,7 @@ INSERT OR IGNORE INTO trabajos_codificados (nombre, precio) VALUES
 CREATE TABLE IF NOT EXISTS rendicion_descuentos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
-  tipo TEXT NOT NULL CHECK (tipo IN ('aporte','repuesto','otro','adelanto')),
+  tipo TEXT NOT NULL CHECK (tipo IN ('aporte','estacionamiento','repuesto','otro','adelanto')),
   descripcion TEXT,
   monto REAL NOT NULL
 );

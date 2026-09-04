@@ -77,6 +77,7 @@ ensureColumn('configuracion', 'whatsapp_instrucciones', 'TEXT');
 ensureColumn('configuracion', 'anthropic_api_key', 'TEXT');
 ensureColumn('ventas', 'motivo_anulacion', 'TEXT');
 ensureColumn('configuracion', 'mostrar_anuladas_ventas', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('cerrajeros', 'estacionamiento_fijo', 'REAL NOT NULL DEFAULT 0');
 // Va acá (no en schema.sql) porque necesita que la columna de arriba ya
 // exista: en una base migrada, schema.sql corre ANTES que estos
 // ensureColumn, así que un CREATE INDEX sobre esa columna ahí arriba
@@ -162,6 +163,28 @@ if (ventaPagosDef && !ventaPagosDef.sql.includes('Cheque')) {
     DROP TABLE venta_pagos;
     ALTER TABLE venta_pagos_nuevo RENAME TO venta_pagos;
     CREATE INDEX IF NOT EXISTS idx_ventapagos_venta ON venta_pagos(venta_id);
+  `);
+  db.pragma('foreign_keys = ON');
+}
+
+// El CHECK de rendicion_descuentos.tipo no incluía 'estacionamiento' (hay
+// cerrajeros que tienen un estacionamiento fijo por mes, igual que el
+// aporte fijo) — mismo problema y misma solución que arriba.
+const rendicionDescuentosDef = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='rendicion_descuentos'").get();
+if (rendicionDescuentosDef && !rendicionDescuentosDef.sql.includes('estacionamiento')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE rendicion_descuentos_nuevo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
+      tipo TEXT NOT NULL CHECK (tipo IN ('aporte','estacionamiento','repuesto','otro','adelanto')),
+      descripcion TEXT,
+      monto REAL NOT NULL
+    );
+    INSERT INTO rendicion_descuentos_nuevo (id, rendicion_id, tipo, descripcion, monto)
+      SELECT id, rendicion_id, tipo, descripcion, monto FROM rendicion_descuentos;
+    DROP TABLE rendicion_descuentos;
+    ALTER TABLE rendicion_descuentos_nuevo RENAME TO rendicion_descuentos;
   `);
   db.pragma('foreign_keys = ON');
 }
