@@ -5963,8 +5963,13 @@ async function cargarVentasHistorial() {
   if (dni) params.set('dni', dni);
   if (configCache.mostrar_anuladas_ventas) params.set('incluir_anuladas', '1');
 
-  const res = await fetch('/api/ventas?' + params.toString());
-  const rows = await res.json();
+  const [rows, totales] = await Promise.all([
+    fetch('/api/ventas?' + params.toString()).then((r) => r.json()),
+    fetch('/api/ventas/total?' + params.toString()).then((r) => r.json()),
+  ]);
+  document.getElementById('ventasTotalFacturado').textContent =
+    `Total facturado: $ ${money.format(totales.total)} (${totales.cantidad} venta${totales.cantidad === 1 ? '' : 's'})`;
+
   const tbody = document.getElementById('ventasBody');
   tbody.innerHTML = '';
   if (!rows.length) {

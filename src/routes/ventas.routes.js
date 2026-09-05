@@ -23,6 +23,27 @@ router.get('/', (req, res) => {
   );
 });
 
+// Total facturado con los mismos filtros que la búsqueda de arriba, para
+// mostrar el monto total de la selección (no solo de las filas visibles en
+// pantalla). Va antes de "/:id" para no ser tapada por esa ruta.
+router.get('/total', (req, res) => {
+  const { fecha_desde, fecha_hasta, cliente_id, cliente, patente, cerrajero_id, estado, numero, dni, incluir_anuladas } = req.query;
+  res.json(
+    ventasService.totalFacturado({
+      fecha_desde,
+      fecha_hasta,
+      cliente_id: cliente_id ? Number(cliente_id) : undefined,
+      cliente,
+      patente,
+      cerrajero_id: cerrajero_id ? Number(cerrajero_id) : undefined,
+      estado,
+      numero,
+      dni,
+      incluir_anuladas,
+    })
+  );
+});
+
 router.get('/exportar', (req, res) => {
   const { desde, hasta, cerrajero_id } = req.query;
   const filas = ventasService.exportarFilas({ desde, hasta, cerrajero_id: cerrajero_id ? Number(cerrajero_id) : undefined });

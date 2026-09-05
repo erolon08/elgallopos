@@ -144,20 +144,10 @@ function obtener(id) {
   return { ...venta, items, pagos, cliente };
 }
 
-function listar({ fecha_desde, fecha_hasta, cliente_id, cliente, patente, cerrajero_id, estado, numero, dni, incluir_anuladas } = {}) {
-  // GROUP_CONCAT junta la descripción de todas las líneas de la venta en un
-  // solo texto (para mostrar "qué se vendió" en el listado sin tener que
-  // abrir el detalle) — reemplaza al DISTINCT que hacía falta antes para
-  // no repetir la fila de venta por cada línea/vehículo que matcheaba el
-  // JOIN, ya que ahora GROUP BY v.id cumple ese mismo propósito.
-  let sql = `
-    SELECT v.*, cl.nombre AS cliente_nombre, GROUP_CONCAT(vi.descripcion, ', ') AS descripcion_items
-    FROM ventas v
-    LEFT JOIN clientes cl ON cl.id = v.cliente_id
-    LEFT JOIN venta_items vi ON vi.venta_id = v.id
-    LEFT JOIN vehiculos veh ON veh.cliente_id = v.cliente_id
-    WHERE 1 = 1
-  `;
+// Arma el WHERE de la búsqueda de ventas (usado tanto para listar() como
+// para totalFacturado(), así los dos respetan siempre los mismos filtros).
+function condicionesVentas({ fecha_desde, fecha_hasta, cliente_id, cliente, patente, cerrajero_id, estado, numero, dni, incluir_anuladas }) {
+  let sql = 'WHERE 1 = 1';
   const params = {};
   // Filtra por la fecha en que se COBRÓ (no en que se creó el registro): una
   // venta puede haber quedado como pendiente varios días antes de cobrarse
@@ -214,12 +204,50 @@ function listar({ fecha_desde, fecha_hasta, cliente_id, cliente, patente, cerraj
       sql += " AND v.estado != 'anulada'";
     }
   }
+  return { sql, params };
+}
+
+function listar(filtros = {}) {
+  // GROUP_CONCAT junta la descripción de todas las líneas de la venta en un
+  // solo texto (para mostrar "qué se vendió" en el listado sin tener que
+  // abrir el detalle) — reemplaza al DISTINCT que hacía falta antes para
+  // no repetir la fila de venta por cada línea/vehículo que matcheaba el
+  // JOIN, ya que ahora GROUP BY v.id cumple ese mismo propósito.
+  const { sql: condiciones, params } = condicionesVentas(filtros);
   // Ordena por la misma fecha "efectiva" que se usa para filtrar (cobro, o
   // creación si todavía no se cobró) — v.id solo no alcanza, porque una
   // venta creada días atrás y cobrada recién hoy tiene un id viejo pero
   // tiene que listarse arriba, junto con lo demás de hoy.
-  sql += ' GROUP BY v.id ORDER BY COALESCE(v.cobrado_en, v.creado_en) DESC LIMIT 300';
+  const sql = `
+    SELECT v.*, cl.nombre AS cliente_nombre, GROUP_CONCAT(vi.descripcion, ', ') AS descripcion_items
+    FROM ventas v
+    LEFT JOIN clientes cl ON cl.id = v.cliente_id
+    LEFT JOIN venta_items vi ON vi.venta_id = v.id
+    LEFT JOIN vehiculos veh ON veh.cliente_id = v.cliente_id
+    ${condiciones}
+    GROUP BY v.id ORDER BY COALESCE(v.cobrado_en, v.creado_en) DESC LIMIT 300
+  `;
   return db.prepare(sql).all(params);
+}
+
+// Total facturado y cantidad de ventas para los mismos filtros que listar(),
+// pero sin el LIMIT 300 del listado — así el total que se muestra en
+// pantalla es el de TODA la selección, no solo el de las filas visibles.
+function totalFacturado(filtros = {}) {
+  const { sql: condiciones, params } = condicionesVentas(filtros);
+  const sql = `
+    SELECT COALESCE(SUM(t.total), 0) AS total, COUNT(*) AS cantidad
+    FROM (
+      SELECT v.id, v.total
+      FROM ventas v
+      LEFT JOIN clientes cl ON cl.id = v.cliente_id
+      LEFT JOIN venta_items vi ON vi.venta_id = v.id
+      LEFT JOIN vehiculos veh ON veh.cliente_id = v.cliente_id
+      ${condiciones}
+      GROUP BY v.id
+    ) t
+  `;
+  return db.prepare(sql).get(params);
 }
 
 // Un renglón por línea de venta (no por venta), para exportar a Excel: permite
@@ -627,6 +655,7 @@ module.exports = {
   crear,
   obtener,
   listar,
+  totalFacturado,
   exportarFilas,
   cobrar,
   facturarVentaExistente,
