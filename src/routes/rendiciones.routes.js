@@ -61,6 +61,21 @@ router.post('/', (req, res) => {
   }
 });
 
+// Para cerrajeros con pago_manual: carga directo el monto a pagar, sin
+// calcular nada por ventas.
+router.post('/manual', (req, res) => {
+  const { cerrajero_id, monto, descripcion } = req.body;
+  if (!cerrajero_id || !monto) {
+    return res.status(400).json({ error: 'Faltan cerrajero_id o monto' });
+  }
+  try {
+    const rendicion = rendicionesService.generarManual({ cerrajero_id, monto, descripcion });
+    res.status(201).json(rendicion);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.put('/:id/pagar', (req, res) => {
   try {
     res.json(rendicionesService.marcarPagada(Number(req.params.id), req.body));

@@ -1427,7 +1427,7 @@ function renderCaja() {
         <tr>
           <td>${new Date(m.creado_en).toLocaleString('es-AR')}</td>
           <td>${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
-          <td>${m.categoria}</td>
+          <td>${m.categoria}${m.tipo_egreso ? ' — ' + escapeHtml(m.tipo_egreso) : ''}</td>
           <td>${m.concepto || ''}</td>
           <td>${m.forma_pago || ''}</td>
           <td>${moneyStr(m.monto)}</td>
@@ -1530,15 +1530,22 @@ async function vaciarMovimientosCajaActual() {
   renderCaja();
 }
 
+async function cargarSubcategoriasCaja() {
+  const opciones = await (await fetch('/api/caja/subcategorias')).json();
+  document.getElementById('cajaMovTipoEgresoOpciones').innerHTML = opciones.map((o) => `<option value="${escapeHtml(o)}">`).join('');
+}
+
 function mostrarFormMovimientoCaja() {
   cajaMovimientoEditandoId = null;
   document.getElementById('cajaMovTipo').value = 'egreso';
   document.getElementById('cajaMovCategoria').value = 'retiro';
+  document.getElementById('cajaMovTipoEgreso').value = '';
   document.getElementById('cajaMovConcepto').value = '';
   document.getElementById('cajaMovFormaPago').value = 'Efectivo';
   document.getElementById('cajaMovMonto').value = '';
   document.getElementById('btnGuardarMovimientoCaja').textContent = 'Guardar';
   document.getElementById('cajaFormMovimiento').style.display = 'flex';
+  cargarSubcategoriasCaja();
 }
 
 function editarMovimientoCaja(movId) {
@@ -1547,11 +1554,13 @@ function editarMovimientoCaja(movId) {
   cajaMovimientoEditandoId = movId;
   document.getElementById('cajaMovTipo').value = m.tipo;
   document.getElementById('cajaMovCategoria').value = m.categoria;
+  document.getElementById('cajaMovTipoEgreso').value = m.tipo_egreso || '';
   document.getElementById('cajaMovConcepto').value = m.concepto || '';
   document.getElementById('cajaMovFormaPago').value = m.forma_pago || 'Efectivo';
   document.getElementById('cajaMovMonto').value = m.monto;
   document.getElementById('btnGuardarMovimientoCaja').textContent = 'Guardar cambios';
   document.getElementById('cajaFormMovimiento').style.display = 'flex';
+  cargarSubcategoriasCaja();
 }
 
 async function quitarMovimientoCaja(movId) {
@@ -1568,6 +1577,7 @@ async function quitarMovimientoCaja(movId) {
 async function confirmarMovimientoCaja() {
   const tipo = document.getElementById('cajaMovTipo').value;
   const categoria = document.getElementById('cajaMovCategoria').value;
+  const tipo_egreso = document.getElementById('cajaMovTipoEgreso').value.trim();
   const concepto = document.getElementById('cajaMovConcepto').value;
   const forma_pago = document.getElementById('cajaMovFormaPago').value;
   const monto = document.getElementById('cajaMovMonto').value;
@@ -1576,7 +1586,7 @@ async function confirmarMovimientoCaja() {
   const res = await fetch(url, {
     method: editando ? 'PUT' : 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tipo, categoria, concepto, forma_pago, monto, usuario_id: session.id }),
+    body: JSON.stringify({ tipo, categoria, tipo_egreso, concepto, forma_pago, monto, usuario_id: session.id }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -1585,6 +1595,7 @@ async function confirmarMovimientoCaja() {
   }
   cajaTurnoActual = data;
   cajaMovimientoEditandoId = null;
+  document.getElementById('cajaMovTipoEgreso').value = '';
   document.getElementById('cajaMovConcepto').value = '';
   document.getElementById('cajaMovMonto').value = '';
   document.getElementById('cajaFormMovimiento').style.display = 'none';
@@ -2809,6 +2820,7 @@ let cerrajeroEditId = null;
 async function cargarCerrajerosAdmin() {
   const res = await fetch('/api/cerrajeros?todos=1');
   const cerrajeros = await res.json();
+  cerrajerosCache = cerrajeros;
   const tbody = document.getElementById('cerrajerosBody');
   tbody.innerHTML = '';
   cerrajeros.forEach((c) => tbody.appendChild(filaCerrajero(c)));
@@ -2826,13 +2838,14 @@ async function cargarCerrajerosAdmin() {
   };
   opts(document.getElementById('rendCerrajero'), false);
   opts(document.getElementById('rendHistCerrajero'), true);
+  cambiarModoRendicion();
 }
 
 function filaCerrajero(c) {
   const tr = document.createElement('tr');
   const estado = c.activo ? '<span class="status s-ok">Activo</span>' : '<span class="status s-bad">Inactivo</span>';
   tr.innerHTML = `
-    <td>${c.nombre}</td>
+    <td>${c.nombre}${c.pago_manual ? ' <span class="status s-warn">Pago manual</span>' : ''}</td>
     <td>${c.porcentaje_rendicion}%</td>
     <td>${c.porcentaje_urgencia > 0 ? c.porcentaje_urgencia + '%' : '—'}</td>
     <td>$ ${money.format(c.aporte_fijo)}</td>
@@ -2860,6 +2873,7 @@ async function openCerrajero(id) {
     document.getElementById('cerAporte').value = c.aporte_fijo;
     document.getElementById('cerEstacionamiento').value = c.estacionamiento_fijo;
     document.getElementById('cerDescuentoTarjeta').value = c.descuento_tarjeta_credito;
+    document.getElementById('cerPagoManual').checked = !!c.pago_manual;
     document.getElementById('cerActivo').checked = !!c.activo;
   } else {
     document.getElementById('cerNombre').value = '';
@@ -2868,6 +2882,7 @@ async function openCerrajero(id) {
     document.getElementById('cerAporte').value = 0;
     document.getElementById('cerEstacionamiento').value = 0;
     document.getElementById('cerDescuentoTarjeta').value = 0;
+    document.getElementById('cerPagoManual').checked = false;
     document.getElementById('cerActivo').checked = true;
   }
   document.getElementById('cerrajeroModal').classList.add('open');
@@ -2886,6 +2901,7 @@ async function guardarCerrajero() {
     aporte_fijo: Number(document.getElementById('cerAporte').value) || 0,
     estacionamiento_fijo: Number(document.getElementById('cerEstacionamiento').value) || 0,
     descuento_tarjeta_credito: Number(document.getElementById('cerDescuentoTarjeta').value) || 0,
+    pago_manual: document.getElementById('cerPagoManual').checked,
     activo: document.getElementById('cerActivo').checked,
   };
   if (!payload.nombre) {
@@ -2924,6 +2940,45 @@ let rendicionFiltrosAcumulados = []; // [{ fecha_desde, fecha_hasta, tipo }, ...
 
 const TIPO_MOVIMIENTO_LABEL = { servicio: 'Servicio', duplicado: 'Duplicado', codificado: 'Codificado' };
 const TIPO_DESCUENTO_LABEL = { aporte: 'Aporte fijo', estacionamiento: 'Estacionamiento fijo', repuesto: 'Repuesto', otro: 'Otro', adelanto: 'Adelanto' };
+
+// Para cerrajeros con pago_manual (ej. uno que cobra un fijo por mes, no un
+// % de lo que vende): en vez del cálculo automático por ventas, muestra un
+// simple campo de monto para cargar directo cuánto se le paga.
+function cambiarModoRendicion() {
+  const cerrajero_id = Number(document.getElementById('rendCerrajero').value);
+  const c = cerrajerosCache.find((x) => x.id === cerrajero_id);
+  const manual = !!(c && c.pago_manual);
+  document.getElementById('rendAutoWrap').style.display = manual ? 'none' : '';
+  document.getElementById('rendManualWrap').style.display = manual ? 'block' : 'none';
+  if (manual) limpiarRendicionPreview();
+}
+
+async function generarRendicionManual() {
+  const cerrajero_id = document.getElementById('rendCerrajero').value;
+  if (!cerrajero_id) {
+    alert('Elegí un cerrajero.');
+    return;
+  }
+  const monto = Number(document.getElementById('rendManualMonto').value) || 0;
+  if (monto <= 0) {
+    alert('El monto tiene que ser mayor a 0.');
+    return;
+  }
+  const descripcion = document.getElementById('rendManualDescripcion').value.trim();
+  const res = await fetch('/api/rendiciones/manual', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cerrajero_id, monto, descripcion }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  document.getElementById('rendManualMonto').value = '';
+  document.getElementById('rendManualDescripcion').value = '';
+  cargarRendiciones();
+}
 
 // "+ Sumar al cálculo" agrega el rango/tipo actual del formulario a lo que
 // ya se venía calculando (no lo reemplaza) — así se puede combinar, por

@@ -212,6 +212,39 @@ function generar({ cerrajero_id, filtros, descuentos_extra = [] }) {
   return obtener(tx());
 }
 
+// Para cerrajeros con pago_manual: no se calcula nada por ventas, se carga
+// directo el monto que se le paga (ej. Jorge, que cobra un fijo por mes en
+// vez de un % de lo que vende). Queda como una rendición más, con una sola
+// línea de detalle a modo de registro — desde ahí se puede marcar como
+// pagada o editar igual que cualquier otra.
+function generarManual({ cerrajero_id, monto, descripcion }) {
+  const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(cerrajero_id);
+  if (!cerrajero) throw new Error('Cerrajero no encontrado');
+  const montoNum = Number(monto);
+  if (!montoNum || montoNum <= 0) throw new Error('El monto a pagar tiene que ser mayor a 0');
+  const hoy = db.prepare("SELECT date('now','localtime') AS hoy").get().hoy;
+  const desc = descripcion && descripcion.trim() ? descripcion.trim() : 'Pago manual';
+
+  const tx = db.transaction(() => {
+    const info = db
+      .prepare(
+        `INSERT INTO rendiciones (cerrajero_id, fecha_desde, fecha_hasta, total_bruto, total_descuentos, total_pagar)
+         VALUES (@cerrajero_id, @hoy, @hoy, @monto, 0, @monto)`
+      )
+      .run({ cerrajero_id, hoy, monto: montoNum });
+    const rendicion_id = info.lastInsertRowid;
+
+    db.prepare(
+      `INSERT INTO rendicion_detalle (rendicion_id, venta_item_id, tipo, codigo, descripcion, venta_numero, cantidad, monto_base, porcentaje, monto_rendido)
+       VALUES (@rendicion_id, NULL, 'codificado', NULL, @descripcion, NULL, 1, @monto, 100, @monto)`
+    ).run({ rendicion_id, descripcion: desc, monto: montoNum });
+
+    return rendicion_id;
+  });
+
+  return obtener(tx());
+}
+
 function listar({ cerrajero_id, estado } = {}) {
   let sql = `SELECT r.*, c.nombre AS cerrajero_nombre FROM rendiciones r JOIN cerrajeros c ON c.id = r.cerrajero_id WHERE 1=1`;
   const params = {};
@@ -448,6 +481,7 @@ function exportarFilas({ desde, hasta }) {
 module.exports = {
   previsualizar,
   generar,
+  generarManual,
   listar,
   obtener,
   marcarPagada,

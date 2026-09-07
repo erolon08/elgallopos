@@ -13,6 +13,10 @@ router.get('/fondo-sugerido', (req, res) => {
   res.json({ fondo_sugerido: cajaService.fondoSugerido() });
 });
 
+router.get('/subcategorias', (req, res) => {
+  res.json(cajaService.subcategoriasDisponibles());
+});
+
 router.get('/', (req, res) => {
   const { terminal, estado } = req.query;
   res.json(cajaService.listar({ terminal, estado }));

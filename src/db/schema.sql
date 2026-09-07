@@ -213,6 +213,10 @@ CREATE TABLE IF NOT EXISTS cerrajeros (
   aporte_fijo REAL NOT NULL DEFAULT 0,
   estacionamiento_fijo REAL NOT NULL DEFAULT 0,
   descuento_tarjeta_credito REAL NOT NULL DEFAULT 0,
+  -- Cerrajeros con este flag no se rinden por % de venta: "Generar
+  -- rendición" les muestra un simple campo de monto para cargar
+  -- directamente cuánto se les paga, sin calcular nada.
+  pago_manual INTEGER NOT NULL DEFAULT 0,
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

@@ -256,6 +256,21 @@ function vaciarMovimientos(id) {
   return obtener(id);
 }
 
+// Subcategorías (tipo_egreso) ya usadas alguna vez, de cualquier tipo
+// (ingreso o egreso) y cualquier categoría — para sugerirlas como opciones
+// ya cargadas al anotar un movimiento nuevo, en vez de que todo lo que no
+// entra en las 5 categorías fijas quede sin discriminar en "Otro".
+function subcategoriasDisponibles() {
+  return db
+    .prepare(
+      `SELECT DISTINCT tipo_egreso FROM caja_movimientos
+       WHERE tipo_egreso IS NOT NULL AND tipo_egreso != ''
+       ORDER BY tipo_egreso`
+    )
+    .all()
+    .map((r) => r.tipo_egreso);
+}
+
 function fondoSugerido() {
   const ultimo = db
     .prepare("SELECT fondo_turno_siguiente FROM caja_turnos WHERE estado = 'cerrado' ORDER BY cerrado_en DESC LIMIT 1")
@@ -278,4 +293,5 @@ module.exports = {
   borrarCierre,
   vaciarMovimientos,
   fondoSugerido,
+  subcategoriasDisponibles,
 };

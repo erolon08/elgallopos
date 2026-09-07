@@ -10,14 +10,14 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, descuento_tarjeta_credito } = req.body;
+  const { nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, descuento_tarjeta_credito, pago_manual } = req.body;
   if (!nombre || !nombre.trim()) {
     return res.status(400).json({ error: 'El nombre es obligatorio' });
   }
   const info = db
     .prepare(
-      `INSERT INTO cerrajeros (nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, descuento_tarjeta_credito)
-       VALUES (@nombre, @porcentaje_rendicion, @porcentaje_urgencia, @aporte_fijo, @estacionamiento_fijo, @descuento_tarjeta_credito)`
+      `INSERT INTO cerrajeros (nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, descuento_tarjeta_credito, pago_manual)
+       VALUES (@nombre, @porcentaje_rendicion, @porcentaje_urgencia, @aporte_fijo, @estacionamiento_fijo, @descuento_tarjeta_credito, @pago_manual)`
     )
     .run({
       nombre: nombre.trim(),
@@ -26,6 +26,7 @@ router.post('/', (req, res) => {
       aporte_fijo: Number(aporte_fijo) || 0,
       estacionamiento_fijo: Number(estacionamiento_fijo) || 0,
       descuento_tarjeta_credito: Number(descuento_tarjeta_credito) || 0,
+      pago_manual: pago_manual ? 1 : 0,
     });
   res.status(201).json(db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(info.lastInsertRowid));
 });
@@ -35,12 +36,12 @@ router.put('/:id', (req, res) => {
   const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(id);
   if (!cerrajero) return res.status(404).json({ error: 'Cerrajero no encontrado' });
 
-  const { nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, descuento_tarjeta_credito, activo } = req.body;
+  const { nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, descuento_tarjeta_credito, pago_manual, activo } = req.body;
   db.prepare(
     `UPDATE cerrajeros SET
        nombre = @nombre, porcentaje_rendicion = @porcentaje_rendicion, porcentaje_urgencia = @porcentaje_urgencia,
        aporte_fijo = @aporte_fijo, estacionamiento_fijo = @estacionamiento_fijo,
-       descuento_tarjeta_credito = @descuento_tarjeta_credito, activo = @activo
+       descuento_tarjeta_credito = @descuento_tarjeta_credito, pago_manual = @pago_manual, activo = @activo
      WHERE id = @id`
   ).run({
     id,
@@ -51,6 +52,7 @@ router.put('/:id', (req, res) => {
     estacionamiento_fijo: estacionamiento_fijo != null ? Number(estacionamiento_fijo) : cerrajero.estacionamiento_fijo,
     descuento_tarjeta_credito:
       descuento_tarjeta_credito != null ? Number(descuento_tarjeta_credito) : cerrajero.descuento_tarjeta_credito,
+    pago_manual: pago_manual != null ? (pago_manual ? 1 : 0) : cerrajero.pago_manual,
     activo: activo != null ? (activo ? 1 : 0) : cerrajero.activo,
   });
   res.json(db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(id));
