@@ -1497,9 +1497,13 @@
       <div style="width:130px;flex:none;display:flex;flex-direction:column;gap:6px" id="mensajesRolesLista"></div>
       <div style="flex:1;min-width:0;display:flex;flex-direction:column">
         <div id="mensajesHilo" class="mensajes-hilo"></div>
-        <div class="toolbar" style="margin-top:10px">
-          <input id="mensajeTextoInput" placeholder="Escribí un mensaje..." style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();enviarMensajeInterno();}">
-          <button class="btn primary" onclick="enviarMensajeInterno()">Enviar</button>
+        <div style="position:relative">
+          <div id="emojiPicker" class="emoji-picker" style="display:none"></div>
+          <div class="toolbar" style="margin-top:10px">
+            <button type="button" class="btn light" onclick="toggleEmojiPicker()" title="Emojis">😀</button>
+            <input id="mensajeTextoInput" placeholder="Escribí un mensaje..." style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();enviarMensajeInterno();}">
+            <button class="btn primary" onclick="enviarMensajeInterno()">Enviar</button>
+          </div>
         </div>
       </div>
     </div>

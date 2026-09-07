@@ -123,7 +123,12 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .mensaje-burbuja{max-width:80%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.35;word-wrap:break-word}
 .mensaje-burbuja.propio{align-self:flex-end;background:var(--red);color:#fff;border-bottom-right-radius:3px}
 .mensaje-burbuja.ajeno{align-self:flex-start;background:var(--card);color:var(--ink);border:1px solid var(--line);border-bottom-left-radius:3px}
-.mensaje-burbuja .hora{font-size:10px;opacity:.7;margin-top:3px}
+.mensaje-burbuja .hora{font-size:10px;opacity:.7;margin-top:3px;display:flex;gap:6px;align-items:center}
+.mensaje-burbuja .borrar-mensaje{cursor:pointer;opacity:.85}
+.mensaje-burbuja .borrar-mensaje:hover{opacity:1}
+.emoji-picker{position:absolute;bottom:100%;left:0;margin-bottom:6px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.18);padding:8px;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-height:180px;overflow-y:auto;z-index:30}
+.emoji-picker button{font-size:19px;line-height:1;padding:5px;border:0;background:none;cursor:pointer;border-radius:6px}
+.emoji-picker button:hover{background:var(--tint2)}
 .small{font-size:12px;color:var(--muted)}
 .text-red{color:var(--red);font-weight:600} .text-green{color:#1f9d55;font-weight:600}
 .grid{display:grid;gap:14px} .g2{grid-template-columns:repeat(2,minmax(0,1fr))} .g3{grid-template-columns:repeat(3,minmax(0,1fr))}

@@ -37,4 +37,8 @@ function emitMensajeNuevo(mensaje) {
   if (io) io.emit('mensaje:nuevo', mensaje);
 }
 
-module.exports = { init, attach, emitStockUpdated, emitVentaEvent, emitSistemaReseteado, emitMensajeNuevo };
+function emitMensajeBorrado(mensaje) {
+  if (io) io.emit('mensaje:borrado', mensaje);
+}
+
+module.exports = { init, attach, emitStockUpdated, emitVentaEvent, emitSistemaReseteado, emitMensajeNuevo, emitMensajeBorrado };

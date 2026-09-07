@@ -24,6 +24,16 @@ function enviar({ de_rol, para_rol, texto }) {
   return db.prepare('SELECT * FROM mensajes_internos WHERE id = ?').get(info.lastInsertRowid);
 }
 
+// Solo se puede borrar un mensaje propio (que uno mismo mandó) — no el del
+// otro puesto, igual que en cualquier chat.
+function borrar(id, miRol) {
+  const mensaje = db.prepare('SELECT * FROM mensajes_internos WHERE id = ?').get(id);
+  if (!mensaje) throw new Error('Mensaje no encontrado');
+  if (mensaje.de_rol !== miRol) throw new Error('Solo podés borrar tus propios mensajes');
+  db.prepare('DELETE FROM mensajes_internos WHERE id = ?').run(id);
+  return mensaje;
+}
+
 function marcarLeidos(miRol, deRol) {
   db.prepare("UPDATE mensajes_internos SET leido = 1 WHERE para_rol = ? AND de_rol = ? AND leido = 0").run(miRol, deRol);
 }
@@ -41,4 +51,4 @@ function noLeidosPorRemitente(miRol) {
   return resultado;
 }
 
-module.exports = { conversacion, enviar, marcarLeidos, noLeidosPorRemitente, ROLES };
+module.exports = { conversacion, enviar, borrar, marcarLeidos, noLeidosPorRemitente, ROLES };

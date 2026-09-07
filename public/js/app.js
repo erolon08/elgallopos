@@ -4058,6 +4058,7 @@ async function abrirMensajes() {
 
 function cerrarMensajes() {
   document.getElementById('mensajesModal').classList.remove('open');
+  document.getElementById('emojiPicker').style.display = 'none';
 }
 
 async function abrirConversacion(rol) {
@@ -4086,7 +4087,7 @@ function renderHiloMensajes(mensajes) {
     const hora = new Date(m.creado_en).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     const div = document.createElement('div');
     div.className = 'mensaje-burbuja ' + (propio ? 'propio' : 'ajeno');
-    div.innerHTML = `${escapeHtml(m.texto)}<div class="hora">${hora}</div>`;
+    div.innerHTML = `${escapeHtml(m.texto)}<div class="hora">${hora}${propio ? ` <span class="borrar-mensaje" title="Borrar" onclick="borrarMensajeInterno(${m.id})">🗑</span>` : ''}</div>`;
     cont.appendChild(div);
   });
   cont.scrollTop = cont.scrollHeight;
@@ -4107,8 +4108,62 @@ async function enviarMensajeInterno() {
     return;
   }
   input.value = '';
+  document.getElementById('emojiPicker').style.display = 'none';
   await abrirConversacion(mensajesConversacionActual);
 }
+
+async function borrarMensajeInterno(id) {
+  if (!confirm('¿Borrar este mensaje?')) return;
+  const res = await fetch(`/api/mensajes/${id}?rol=${session.rol}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = await res.json();
+    alert('Error: ' + data.error);
+    return;
+  }
+  await abrirConversacion(mensajesConversacionActual);
+}
+
+// Emojis a mano (sin depender de ninguna librería externa): alcanza con
+// unicode normal, cualquier sistema operativo moderno ya los sabe dibujar.
+const EMOJIS_MENSAJES = [
+  '😀', '😂', '😊', '😉', '😍', '🥳', '😎', '🤔',
+  '😅', '😢', '😡', '😱', '🙏', '👍', '👎', '👏',
+  '🙌', '💪', '🤝', '✌️', '🔥', '⭐', '✅', '❌',
+  '⚠️', '❗', '❓', '💬', '📌', '📦', '💰', '💵',
+  '🔧', '🔑', '🚗', '🕒', '📅', '📞', '❤️', '🎉',
+];
+function toggleEmojiPicker() {
+  const picker = document.getElementById('emojiPicker');
+  if (picker.style.display === 'none') {
+    picker.innerHTML = EMOJIS_MENSAJES.map((e) => `<button type="button" onclick="insertarEmoji('${e}')">${e}</button>`).join('');
+    picker.style.display = 'grid';
+  } else {
+    picker.style.display = 'none';
+  }
+}
+function insertarEmoji(emoji) {
+  const input = document.getElementById('mensajeTextoInput');
+  const inicio = input.selectionStart || input.value.length;
+  const fin = input.selectionEnd || input.value.length;
+  input.value = input.value.slice(0, inicio) + emoji + input.value.slice(fin);
+  input.focus();
+  input.selectionStart = input.selectionEnd = inicio + emoji.length;
+}
+document.addEventListener('click', (e) => {
+  const picker = document.getElementById('emojiPicker');
+  if (!picker || picker.style.display === 'none') return;
+  if (e.target.closest('#emojiPicker') || e.target.closest('[onclick="toggleEmojiPicker()"]')) return;
+  picker.style.display = 'none';
+});
+
+socket.on('mensaje:borrado', (mensaje) => {
+  if (!session) return;
+  const modalAbierto = document.getElementById('mensajesModal').classList.contains('open');
+  const otroRol = mensaje.de_rol === session.rol ? mensaje.para_rol : mensaje.de_rol;
+  if (modalAbierto && mensajesConversacionActual === otroRol) {
+    abrirConversacion(mensajesConversacionActual);
+  }
+});
 
 // ============================================================
 // VENTA — carrito
