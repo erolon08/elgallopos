@@ -190,6 +190,12 @@ if (rendicionDescuentosDef && !rendicionDescuentosDef.sql.includes('estacionamie
   db.pragma('foreign_keys = ON');
 }
 
+const yaHayCategoriasMovimiento = db.prepare('SELECT 1 FROM categorias_movimiento').get();
+if (!yaHayCategoriasMovimiento) {
+  const insCat = db.prepare('INSERT INTO categorias_movimiento (nombre, fija) VALUES (?, 1)');
+  ['retiro', 'caja_fuerte', 'gasto', 'empleados', 'otro'].forEach((nombre) => insCat.run(nombre));
+}
+
 const yaHayUsuarioStock = db.prepare("SELECT 1 FROM usuarios WHERE rol = 'STOCK'").get();
 if (!yaHayUsuarioStock) {
   const bcrypt = require('bcryptjs');

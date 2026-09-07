@@ -433,8 +433,12 @@
           </div>
           <div class="toolbar" id="cajaFormMovimiento" style="display:none">
             <div class="field"><label>Tipo</label><select id="cajaMovTipo"><option value="egreso">Egreso</option><option value="ingreso">Ingreso</option></select></div>
-            <div class="field"><label>Categoría</label><select id="cajaMovCategoria"><option value="retiro">Retiro</option><option value="caja_fuerte">Caja fuerte</option><option value="gasto">Gasto</option><option value="empleados">Empleados</option><option value="otro">Otro</option></select></div>
-            <div class="field"><label>Subcategoría (opcional)</label><input id="cajaMovTipoEgreso" list="cajaMovTipoEgresoOpciones" placeholder="Ej: Combustible, Aguinaldo..."><datalist id="cajaMovTipoEgresoOpciones"></datalist></div>
+            <div class="field"><label>Categoría</label>
+              <div style="display:flex;gap:6px">
+                <select id="cajaMovCategoria" style="flex:1"></select>
+                <button type="button" class="btn light" onclick="agregarCategoriaMovimiento()" title="Agregar categoría nueva">+</button>
+              </div>
+            </div>
             <div class="field"><label>Concepto</label><input id="cajaMovConcepto" placeholder="Detalle..."></div>
             <div class="field"><label>Forma de pago</label>
               <select id="cajaMovFormaPago">

@@ -291,6 +291,21 @@ CREATE TABLE IF NOT EXISTS caja_turnos (
   estado TEXT NOT NULL DEFAULT 'abierto' CHECK (estado IN ('abierto','cerrado'))
 );
 
+-- Lista de categorías elegibles en "Categoría" al cargar un movimiento de
+-- caja (ingreso o egreso) — arranca con las de siempre (retiro, caja
+-- fuerte, gasto, empleados, otro) pero el usuario puede agregar las que
+-- necesite (ej. "Combustible", "Aguinaldo") para no tener que meter todo
+-- lo que no es un gasto fijo en "Otro". "fija" marca las que ya usa el
+-- sistema (no se pueden borrar); el nombre queda tal cual se guarda en
+-- caja_movimientos.categoria.
+CREATE TABLE IF NOT EXISTS categorias_movimiento (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre TEXT NOT NULL UNIQUE,
+  fija INTEGER NOT NULL DEFAULT 0,
+  activo INTEGER NOT NULL DEFAULT 1,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS caja_movimientos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   caja_turno_id INTEGER NOT NULL REFERENCES caja_turnos(id),

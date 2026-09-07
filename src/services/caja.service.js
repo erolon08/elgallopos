@@ -256,19 +256,26 @@ function vaciarMovimientos(id) {
   return obtener(id);
 }
 
-// Subcategorías (tipo_egreso) ya usadas alguna vez, de cualquier tipo
-// (ingreso o egreso) y cualquier categoría — para sugerirlas como opciones
-// ya cargadas al anotar un movimiento nuevo, en vez de que todo lo que no
-// entra en las 5 categorías fijas quede sin discriminar en "Otro".
-function subcategoriasDisponibles() {
-  return db
-    .prepare(
-      `SELECT DISTINCT tipo_egreso FROM caja_movimientos
-       WHERE tipo_egreso IS NOT NULL AND tipo_egreso != ''
-       ORDER BY tipo_egreso`
-    )
-    .all()
-    .map((r) => r.tipo_egreso);
+// Categorías elegibles para "Categoría" al cargar un movimiento de caja —
+// las fijas (retiro, caja fuerte, gasto, empleados, otro) más las que el
+// usuario haya ido agregando, para poder discriminar gastos/ingresos
+// puntuales (ej. "Combustible") en vez de que todo caiga en "Otro".
+function categoriasListar() {
+  return db.prepare('SELECT * FROM categorias_movimiento WHERE activo = 1 ORDER BY fija DESC, nombre').all();
+}
+
+function categoriaCrear(nombre) {
+  const limpio = String(nombre || '').trim();
+  if (!limpio) throw new Error('El nombre de la categoría no puede estar vacío');
+  const existente = db.prepare('SELECT * FROM categorias_movimiento WHERE nombre = ?').get(limpio);
+  if (existente) {
+    if (!existente.activo) {
+      db.prepare('UPDATE categorias_movimiento SET activo = 1 WHERE id = ?').run(existente.id);
+    }
+    return categoriasListar();
+  }
+  db.prepare('INSERT INTO categorias_movimiento (nombre) VALUES (?)').run(limpio);
+  return categoriasListar();
 }
 
 function fondoSugerido() {
@@ -293,5 +300,6 @@ module.exports = {
   borrarCierre,
   vaciarMovimientos,
   fondoSugerido,
-  subcategoriasDisponibles,
+  categoriasListar,
+  categoriaCrear,
 };

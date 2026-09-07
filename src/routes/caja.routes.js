@@ -13,8 +13,16 @@ router.get('/fondo-sugerido', (req, res) => {
   res.json({ fondo_sugerido: cajaService.fondoSugerido() });
 });
 
-router.get('/subcategorias', (req, res) => {
-  res.json(cajaService.subcategoriasDisponibles());
+router.get('/categorias', (req, res) => {
+  res.json(cajaService.categoriasListar());
+});
+
+router.post('/categorias', (req, res) => {
+  try {
+    res.status(201).json(cajaService.categoriaCrear(req.body.nombre));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.get('/', (req, res) => {

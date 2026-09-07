@@ -1427,7 +1427,7 @@ function renderCaja() {
         <tr>
           <td>${new Date(m.creado_en).toLocaleString('es-AR')}</td>
           <td>${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
-          <td>${m.categoria}${m.tipo_egreso ? ' — ' + escapeHtml(m.tipo_egreso) : ''}</td>
+          <td>${escapeHtml(labelCategoriaMovimiento(m.categoria))}${m.tipo_egreso ? ' — ' + escapeHtml(m.tipo_egreso) : ''}</td>
           <td>${m.concepto || ''}</td>
           <td>${m.forma_pago || ''}</td>
           <td>${moneyStr(m.monto)}</td>
@@ -1530,22 +1530,48 @@ async function vaciarMovimientosCajaActual() {
   renderCaja();
 }
 
-async function cargarSubcategoriasCaja() {
-  const opciones = await (await fetch('/api/caja/subcategorias')).json();
-  document.getElementById('cajaMovTipoEgresoOpciones').innerHTML = opciones.map((o) => `<option value="${escapeHtml(o)}">`).join('');
+// Categoría de los movimientos de caja: lista extensible (el usuario puede
+// agregar las que le hagan falta con el botón "+"), no un select fijo — así
+// se puede discriminar después en vez de que todo lo que no entra en
+// Retiro/Caja fuerte/Gasto/Empleados quede mezclado en "Otro".
+const CATEGORIA_MOVIMIENTO_LABEL_FIJA = { retiro: 'Retiro', caja_fuerte: 'Caja fuerte', gasto: 'Gasto', empleados: 'Empleados', otro: 'Otro' };
+function labelCategoriaMovimiento(nombre) {
+  return CATEGORIA_MOVIMIENTO_LABEL_FIJA[nombre] || nombre;
+}
+async function cargarCategoriasMovimientoCaja(seleccionar) {
+  const categorias = await (await fetch('/api/caja/categorias')).json();
+  const sel = document.getElementById('cajaMovCategoria');
+  const previo = seleccionar || sel.value || 'retiro';
+  sel.innerHTML = categorias
+    .map((c) => `<option value="${escapeHtml(c.nombre)}">${escapeHtml(labelCategoriaMovimiento(c.nombre))}</option>`)
+    .join('');
+  if ([...sel.options].some((o) => o.value === previo)) sel.value = previo;
+}
+async function agregarCategoriaMovimiento() {
+  const nombre = prompt('Nombre de la categoría nueva (ej: Combustible):');
+  if (!nombre || !nombre.trim()) return;
+  const res = await fetch('/api/caja/categorias', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre: nombre.trim() }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  await cargarCategoriasMovimientoCaja(nombre.trim());
 }
 
 function mostrarFormMovimientoCaja() {
   cajaMovimientoEditandoId = null;
   document.getElementById('cajaMovTipo').value = 'egreso';
-  document.getElementById('cajaMovCategoria').value = 'retiro';
-  document.getElementById('cajaMovTipoEgreso').value = '';
   document.getElementById('cajaMovConcepto').value = '';
   document.getElementById('cajaMovFormaPago').value = 'Efectivo';
   document.getElementById('cajaMovMonto').value = '';
   document.getElementById('btnGuardarMovimientoCaja').textContent = 'Guardar';
   document.getElementById('cajaFormMovimiento').style.display = 'flex';
-  cargarSubcategoriasCaja();
+  cargarCategoriasMovimientoCaja('retiro');
 }
 
 function editarMovimientoCaja(movId) {
@@ -1553,14 +1579,12 @@ function editarMovimientoCaja(movId) {
   if (!m) return;
   cajaMovimientoEditandoId = movId;
   document.getElementById('cajaMovTipo').value = m.tipo;
-  document.getElementById('cajaMovCategoria').value = m.categoria;
-  document.getElementById('cajaMovTipoEgreso').value = m.tipo_egreso || '';
   document.getElementById('cajaMovConcepto').value = m.concepto || '';
   document.getElementById('cajaMovFormaPago').value = m.forma_pago || 'Efectivo';
   document.getElementById('cajaMovMonto').value = m.monto;
   document.getElementById('btnGuardarMovimientoCaja').textContent = 'Guardar cambios';
   document.getElementById('cajaFormMovimiento').style.display = 'flex';
-  cargarSubcategoriasCaja();
+  cargarCategoriasMovimientoCaja(m.categoria);
 }
 
 async function quitarMovimientoCaja(movId) {
@@ -1577,7 +1601,6 @@ async function quitarMovimientoCaja(movId) {
 async function confirmarMovimientoCaja() {
   const tipo = document.getElementById('cajaMovTipo').value;
   const categoria = document.getElementById('cajaMovCategoria').value;
-  const tipo_egreso = document.getElementById('cajaMovTipoEgreso').value.trim();
   const concepto = document.getElementById('cajaMovConcepto').value;
   const forma_pago = document.getElementById('cajaMovFormaPago').value;
   const monto = document.getElementById('cajaMovMonto').value;
@@ -1586,7 +1609,7 @@ async function confirmarMovimientoCaja() {
   const res = await fetch(url, {
     method: editando ? 'PUT' : 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tipo, categoria, tipo_egreso, concepto, forma_pago, monto, usuario_id: session.id }),
+    body: JSON.stringify({ tipo, categoria, concepto, forma_pago, monto, usuario_id: session.id }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -1595,7 +1618,6 @@ async function confirmarMovimientoCaja() {
   }
   cajaTurnoActual = data;
   cajaMovimientoEditandoId = null;
-  document.getElementById('cajaMovTipoEgreso').value = '';
   document.getElementById('cajaMovConcepto').value = '';
   document.getElementById('cajaMovMonto').value = '';
   document.getElementById('cajaFormMovimiento').style.display = 'none';
