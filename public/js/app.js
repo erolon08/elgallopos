@@ -3844,9 +3844,21 @@ async function eliminarDireccion(id) {
 // ============================================================
 // AGENDA DE TRABAJO — direcciones agendadas para un día y turno puntual
 // (mañana 8 a 12:30hs, tarde 16 a 20:30hs), con cartel emergente cuando
-// llega el día y el turno para no pasarlas por alto.
+// llega el día y el turno para no pasarlas por alto. La hora puntual
+// (opcional) hace que el aviso salga 30 minutos antes de esa hora en vez
+// de recién al entrar toda la franja del turno.
 // ============================================================
 const TURNO_LABEL_AGENDA = { manana: 'Mañana (8 a 12:30)', tarde: 'Tarde (16 a 20:30)' };
+const HORAS_POR_TURNO_AGENDA = { manana: [8, 9, 10, 11, 12], tarde: [16, 17, 18, 19, 20] };
+
+function actualizarHorasAgenda() {
+  const turno = document.getElementById('agendaInputTurno').value;
+  const sel = document.getElementById('agendaInputHora');
+  sel.innerHTML =
+    '<option value="">Sin hora puntual</option>' +
+    HORAS_POR_TURNO_AGENDA[turno].map((h) => `<option value="${h}">${String(h).padStart(2, '0')}:00 hs</option>`).join('');
+}
+actualizarHorasAgenda();
 
 async function cargarAgenda() {
   const estado = document.getElementById('agendaEstado').value;
@@ -3855,7 +3867,7 @@ async function cargarAgenda() {
   const tbody = document.getElementById('agendaBody');
   tbody.innerHTML = '';
   if (!filas.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="small">No hay direcciones agendadas.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="small">No hay direcciones agendadas.</td></tr>';
     return;
   }
   filas.forEach((a) => {
@@ -3868,6 +3880,7 @@ async function cargarAgenda() {
     tr.innerHTML = `
       <td>${fecha}</td>
       <td>${TURNO_LABEL_AGENDA[a.turno] || a.turno}</td>
+      <td>${a.hora != null ? String(a.hora).padStart(2, '0') + ':00' : '—'}</td>
       <td>${a.direccion}</td>
       <td>${a.trabajo}</td>
       <td>${a.telefono || '—'}</td>
@@ -3884,6 +3897,7 @@ async function agregarAgendaTrabajo() {
   const telefono = document.getElementById('agendaInputTelefono').value.trim();
   const fecha = document.getElementById('agendaInputFecha').value;
   const turno = document.getElementById('agendaInputTurno').value;
+  const hora = document.getElementById('agendaInputHora').value;
   if (!direccion || !trabajo || !fecha) {
     alert('Completá dirección, trabajo y fecha.');
     return;
@@ -3891,7 +3905,7 @@ async function agregarAgendaTrabajo() {
   const res = await fetch('/api/agenda', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ direccion, trabajo, telefono, fecha, turno }),
+    body: JSON.stringify({ direccion, trabajo, telefono, fecha, turno, hora: hora || null }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -3902,6 +3916,7 @@ async function agregarAgendaTrabajo() {
   document.getElementById('agendaInputTrabajo').value = '';
   document.getElementById('agendaInputTelefono').value = '';
   document.getElementById('agendaInputFecha').value = '';
+  document.getElementById('agendaInputHora').value = '';
   cargarAgenda();
 }
 
@@ -3917,7 +3932,7 @@ async function borrarAgendaTrabajo(id) {
 }
 
 // Mañana: 8:00 a 12:30. Tarde: 16:00 a 20:30. Fuera de esas franjas no hay
-// aviso (aunque haya algo agendado para más tarde ese mismo día).
+// aviso por turno (aunque haya algo agendado para más tarde ese mismo día).
 function turnoAgendaActual() {
   const ahora = new Date();
   const minutos = ahora.getHours() * 60 + ahora.getMinutes();
@@ -3926,33 +3941,59 @@ function turnoAgendaActual() {
   return null;
 }
 
-// Un cartel por día+turno alcanza (no hace falta insistir cada minuto); si
-// se recarga la página durante la misma franja horaria, vuelve a avisar —
-// justo el caso de "se me pasó, recién entro al sistema".
+// Un cartel por trabajo (si tiene hora puesta) o por día+turno (si no la
+// tiene) alcanza — no hace falta insistir cada minuto; si se recarga la
+// página estando todavía dentro de esa ventana, vuelve a avisar, justo el
+// caso de "se me pasó, recién entro al sistema".
 const agendaAvisoYaMostrado = new Set();
 
-async function chequearAgendaAviso() {
-  if (!session) return;
-  const turno = turnoAgendaActual();
-  if (!turno) return;
-  const hoy = fechaLocalHoy();
-  const clave = `${hoy}|${turno}`;
-  if (agendaAvisoYaMostrado.has(clave)) return;
-  const filas = await (await fetch(`/api/agenda?fecha=${hoy}&estado=pendiente`)).json();
-  const delTurno = filas.filter((a) => a.turno === turno);
-  if (!delTurno.length) return;
-  agendaAvisoYaMostrado.add(clave);
-  document.getElementById('agendaAvisoTexto').textContent =
-    `Tiene ${delTurno.length > 1 ? 'direcciones agendadas' : 'una dirección agendada'} para esta ${turno === 'manana' ? 'mañana' : 'tarde'}:`;
-  document.getElementById('agendaAvisoLista').innerHTML = delTurno
+function mostrarAvisoAgenda(texto, filas) {
+  document.getElementById('agendaAvisoTexto').textContent = texto;
+  document.getElementById('agendaAvisoLista').innerHTML = filas
     .map(
       (a) => `
       <div style="margin-bottom:8px;padding:8px 10px;background:var(--tint);border-radius:8px">
-        <b>${a.direccion}</b><br>${a.trabajo}${a.telefono ? ' — ' + a.telefono : ''}
+        <b>${a.direccion}</b>${a.hora != null ? ` — ${String(a.hora).padStart(2, '0')}:00 hs` : ''}<br>${a.trabajo}${a.telefono ? ' — ' + a.telefono : ''}
       </div>`
     )
     .join('');
   document.getElementById('agendaAvisoModal').classList.add('open');
+}
+
+async function chequearAgendaAviso() {
+  if (!session) return;
+  const hoy = fechaLocalHoy();
+  const ahora = new Date();
+  const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
+  const filas = await (await fetch(`/api/agenda?fecha=${hoy}&estado=pendiente`)).json();
+
+  // Con hora puntual: aviso individual 30 minutos antes de esa hora.
+  const paraAvisarPorHora = filas.filter((a) => {
+    if (a.hora == null || agendaAvisoYaMostrado.has('h' + a.id)) return false;
+    const minutosTrabajo = a.hora * 60;
+    return minutosAhora >= minutosTrabajo - 30 && minutosAhora < minutosTrabajo;
+  });
+  if (paraAvisarPorHora.length) {
+    paraAvisarPorHora.forEach((a) => agendaAvisoYaMostrado.add('h' + a.id));
+    mostrarAvisoAgenda(
+      `Tiene ${paraAvisarPorHora.length > 1 ? 'trabajos agendados' : 'un trabajo agendado'} en media hora:`,
+      paraAvisarPorHora
+    );
+    return;
+  }
+
+  // Sin hora puntual: como antes, un aviso por día+turno al entrar la franja.
+  const turno = turnoAgendaActual();
+  if (!turno) return;
+  const clave = `${hoy}|${turno}`;
+  if (agendaAvisoYaMostrado.has(clave)) return;
+  const sinHoraDelTurno = filas.filter((a) => a.hora == null && a.turno === turno);
+  if (!sinHoraDelTurno.length) return;
+  agendaAvisoYaMostrado.add(clave);
+  mostrarAvisoAgenda(
+    `Tiene ${sinHoraDelTurno.length > 1 ? 'direcciones agendadas' : 'una dirección agendada'} para esta ${turno === 'manana' ? 'mañana' : 'tarde'}:`,
+    sinHoraDelTurno
+  );
 }
 function cerrarAgendaAviso() {
   document.getElementById('agendaAvisoModal').classList.remove('open');

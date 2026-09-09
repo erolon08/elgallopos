@@ -243,6 +243,9 @@ CREATE INDEX IF NOT EXISTS idx_direcciones_estado ON direcciones(estado);
 -- "direcciones" (esa es la cola de trabajos para pasar a venta ahora
 -- mismo); esto es para no olvidarse de un trabajo pactado para más
 -- adelante — dispara el cartel emergente cuando llega el día y el turno.
+-- "hora" (8 a 12 en mañana, 16 a 20 en tarde) es opcional: si se carga,
+-- el aviso sale 30 minutos antes de esa hora puntual en vez de recién al
+-- entrar la franja completa del turno.
 CREATE TABLE IF NOT EXISTS agenda_trabajos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   direccion TEXT NOT NULL,
@@ -250,6 +253,7 @@ CREATE TABLE IF NOT EXISTS agenda_trabajos (
   telefono TEXT,
   fecha TEXT NOT NULL,
   turno TEXT NOT NULL CHECK (turno IN ('manana','tarde')),
+  hora INTEGER,
   estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','hecho')),
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
@@ -540,19 +544,8 @@ CREATE TABLE IF NOT EXISTS presupuesto_items (
 );
 
 -- ============================================================
--- AGENDA Y NOTIFICACIONES (placeholder — alcance a definir más adelante)
+-- NOTIFICACIONES (placeholder — alcance a definir más adelante)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS agenda_trabajos (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  cliente_id INTEGER REFERENCES clientes(id),
-  cerrajero_id INTEGER REFERENCES cerrajeros(id),
-  descripcion TEXT NOT NULL,
-  direccion TEXT,
-  fecha_hora TEXT NOT NULL,
-  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','asignado','realizado','cancelado')),
-  creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-
 CREATE TABLE IF NOT EXISTS notificaciones (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tipo TEXT NOT NULL,
