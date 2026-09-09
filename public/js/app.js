@@ -5164,7 +5164,7 @@ function elegirFormaPago(forma) {
     ];
     renderCombinado();
   } else {
-    // Transferencia | Cheque | Cuenta Corriente
+    // Transferencia | Cheque | Canje | Cuenta Corriente
     document.getElementById('cobroPasoMetodos').style.display = 'none';
     document.getElementById('cobroPasoSimple').style.display = 'block';
     const btnConfirmar = document.getElementById('btnConfirmarSimple');
@@ -5172,6 +5172,9 @@ function elegirFormaPago(forma) {
     btnConfirmar.style.display = '';
     btnIrAClientes.style.display = 'none';
     let texto = `Confirmar ${forma} por $ ${money.format(ventaEnCobroTotal)}.`;
+    if (forma === 'Canje') {
+      texto = `Confirmar Canje por $ ${money.format(ventaEnCobroTotal)} — no entra dinero real (se paga con mercadería/trabajo), pero el stock se descuenta y el cerrajero cobra su parte igual que una venta normal.`;
+    }
     if (forma === 'Cuenta Corriente') {
       if (!clienteVentaActual || !clienteVentaActual.venta_a_credito) {
         // Sin el cliente habilitado no se puede facturar a Cuenta Corriente
@@ -5219,7 +5222,7 @@ function renderCombinado() {
     row.innerHTML = `
       <div class="field"><label>Forma</label>
         <select onchange="filasCombinado[${i}].forma_pago=this.value">
-          ${['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'QR', 'Cheque', 'Cuenta Corriente']
+          ${['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'QR', 'Cheque', 'Canje', 'Cuenta Corriente']
             .map((fp) => `<option value="${fp}" ${fp === f.forma_pago ? 'selected' : ''}>${fp}</option>`)
             .join('')}
         </select>
@@ -5287,7 +5290,7 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     if (document.getElementById('cobroPasoMetodos').style.display !== 'none') {
-      const teclas = { F1: 'Efectivo', F2: 'Débito', F3: 'Transferencia', F4: 'Crédito', F5: 'QR', F6: 'Cuenta Corriente', F7: 'Pago Combinado', F8: 'Cheque' };
+      const teclas = { F1: 'Efectivo', F2: 'Débito', F3: 'Transferencia', F4: 'Crédito', F5: 'QR', F6: 'Cuenta Corriente', F7: 'Pago Combinado', F8: 'Cheque', F9: 'Canje' };
       if (teclas[e.key]) {
         e.preventDefault();
         elegirFormaPago(teclas[e.key]);

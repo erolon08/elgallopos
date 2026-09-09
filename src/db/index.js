@@ -169,6 +169,31 @@ if (ventaPagosDef && !ventaPagosDef.sql.includes('Cheque')) {
   db.pragma('foreign_keys = ON');
 }
 
+// El CHECK de venta_pagos.forma_pago tampoco incluía 'Canje' (trabajos que
+// se pagan con mercadería/otro trabajo en vez de plata, pero igual hay que
+// registrar la venta para que se dé de baja el stock y el cerrajero cobre
+// su parte) — misma solución que arriba.
+const ventaPagosDef2 = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='venta_pagos'").get();
+if (ventaPagosDef2 && !ventaPagosDef2.sql.includes('Canje')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE venta_pagos_nuevo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venta_id INTEGER NOT NULL REFERENCES ventas(id),
+      forma_pago TEXT NOT NULL CHECK (forma_pago IN ('Efectivo','Débito','Crédito','Transferencia','QR','Cheque','Canje','Cuenta Corriente')),
+      marca TEXT,
+      monto REAL NOT NULL,
+      creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    INSERT INTO venta_pagos_nuevo (id, venta_id, forma_pago, marca, monto, creado_en)
+      SELECT id, venta_id, forma_pago, marca, monto, creado_en FROM venta_pagos;
+    DROP TABLE venta_pagos;
+    ALTER TABLE venta_pagos_nuevo RENAME TO venta_pagos;
+    CREATE INDEX IF NOT EXISTS idx_ventapagos_venta ON venta_pagos(venta_id);
+  `);
+  db.pragma('foreign_keys = ON');
+}
+
 // El CHECK de rendicion_descuentos.tipo no incluía 'estacionamiento' (hay
 // cerrajeros que tienen un estacionamiento fijo por mes, igual que el
 // aporte fijo) — mismo problema y misma solución que arriba.
