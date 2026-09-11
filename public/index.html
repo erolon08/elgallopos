@@ -1130,13 +1130,18 @@
 </div>
 
 <div class="modal" id="editarCierreModal">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:520px">
     <div class="section-title"><h3>Modificar cierre de turno</h3><button class="btn light" onclick="closeEditarCierre()">✕</button></div>
     <input type="hidden" id="cierreModalTurnoId">
     <div class="two-col-form">
       <div class="field"><label>Efectivo contado</label><input id="cierreModalContado" type="number" step="any"></div>
-      <div class="field"><label>Fondo para el próximo turno</label><input id="cierreModalFondoSiguiente" type="number" step="any" readonly onclick="abrirArqueoBilletes('cierreModalFondoSiguiente')"></div>
       <div class="field"><label>Observación</label><input id="cierreModalObservacion" placeholder="Opcional"></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Fondo para el próximo turno</label>
+      <div style="display:flex;gap:6px">
+        <input id="cierreModalFondoSiguiente" type="number" step="any" style="flex:1">
+        <button type="button" class="btn light" onclick="abrirArqueoBilletes('cierreModalFondoSiguiente')" title="Contar billete por billete">🧮 Contar billetes</button>
+      </div>
     </div>
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="confirmarModificarCierre()">Guardar</button>
