@@ -1872,7 +1872,12 @@ async function confirmarModificarCierre() {
 }
 
 async function borrarCierreCaja(id) {
-  if (!confirm('¿Borrar este cierre de caja para siempre? No se puede deshacer.')) return;
+  if (
+    !confirm(
+      '¿Borrar este cierre de caja para siempre? No se puede deshacer y se pierden todos sus movimientos.\n\n¿Te equivocaste al cerrar (efectivo contado, fondo siguiente)? Cancelá y usá el botón ✎ "Modificar cierre" en vez de borrar — corrige el cierre sin perder nada.'
+    )
+  )
+    return;
   const res = await fetch(`/api/caja/${id}`, { method: 'DELETE' });
   if (!res.ok) {
     const data = await res.json();
