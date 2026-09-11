@@ -96,6 +96,16 @@ router.put('/:id/cierre', (req, res) => {
   }
 });
 
+router.put('/:id/reabrir', (req, res) => {
+  try {
+    const turno = cajaService.reabrirTurno(Number(req.params.id));
+    emitVentaEvent('caja:actualizada', turno);
+    res.json(turno);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.delete('/:id', (req, res) => {
   try {
     cajaService.borrarCierre(Number(req.params.id));

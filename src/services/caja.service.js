@@ -86,10 +86,30 @@ function listar({ terminal, estado } = {}) {
   return db.prepare(sql).all(params);
 }
 
+// Si el turno ya está cerrado, un movimiento cargado/editado/borrado
+// después (desde "Modificar cierre") tiene que reflejarse en el efectivo
+// esperado y la diferencia de ESE cierre — si no, quedarían desactualizados
+// hasta que alguien vuelva a tocar el formulario de cierre. El efectivo
+// contado y el fondo siguiente NO se tocan acá (son datos que puso la
+// persona a mano), solo se recalcula lo que depende de los movimientos.
+function recalcularSiCerrado(turno_id) {
+  const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(turno_id);
+  if (!turno || turno.estado !== 'cerrado') return;
+  const movimientos = db.prepare('SELECT * FROM caja_movimientos WHERE caja_turno_id = ?').all(turno_id);
+  const { efectivoEsperado } = resumenDe(turno, movimientos);
+  db.prepare('UPDATE caja_turnos SET efectivo_esperado = ?, diferencia = ? WHERE id = ?').run(
+    efectivoEsperado,
+    (turno.efectivo_contado || 0) - efectivoEsperado,
+    turno_id
+  );
+}
+
+// Un turno cerrado también admite cargar movimientos (ej. un gasto que se
+// olvidaron de anotar ese día) desde "Modificar cierre" — no hace falta
+// que esté abierto.
 function agregarMovimiento(turno_id, { tipo, categoria, concepto, monto, forma_pago, usuario_id, tipo_egreso, fecha }) {
   const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(turno_id);
   if (!turno) throw new Error('Turno no encontrado');
-  if (turno.estado !== 'abierto') throw new Error('El turno ya está cerrado');
   if (!['ingreso', 'egreso'].includes(tipo)) throw new Error('Tipo de movimiento inválido');
   if (!(Number(monto) > 0)) throw new Error('El monto debe ser mayor a 0');
   if (fecha) {
@@ -103,6 +123,7 @@ function agregarMovimiento(turno_id, { tipo, categoria, concepto, monto, forma_p
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(turno_id, tipo, categoria || 'otro', tipo_egreso || null, concepto || null, Number(monto), forma_pago || 'Efectivo', usuario_id || null);
   }
+  recalcularSiCerrado(turno_id);
   return obtener(turno_id);
 }
 
@@ -126,11 +147,12 @@ function agregarGastoRapido({ terminal, usuario_id, fecha, tipo_egreso, detalle,
 // Solo se pueden editar/quitar movimientos cargados a mano (retiro, gasto,
 // empleados, otro): los que vienen de una venta, una rendición o el envío a
 // caja fuerte del cierre (referencia_tipo NOT NULL) reflejan un hecho real
-// y no se tocan desde acá.
+// y no se tocan desde acá — sin importar si el turno está abierto o
+// cerrado (un turno cerrado también se puede corregir desde "Modificar
+// cierre").
 function requerirMovimientoEditable(turno_id, movimiento_id) {
   const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(turno_id);
   if (!turno) throw new Error('Turno no encontrado');
-  if (turno.estado !== 'abierto') throw new Error('El turno ya está cerrado');
   const mov = db.prepare('SELECT * FROM caja_movimientos WHERE id = ? AND caja_turno_id = ?').get(movimiento_id, turno_id);
   if (!mov) throw new Error('Movimiento no encontrado');
   if (mov.referencia_tipo) throw new Error('Este movimiento no se puede editar');
@@ -144,12 +166,14 @@ function editarMovimiento(turno_id, movimiento_id, { tipo, categoria, concepto, 
   db.prepare(
     `UPDATE caja_movimientos SET tipo = ?, categoria = ?, tipo_egreso = ?, concepto = ?, monto = ?, forma_pago = ? WHERE id = ?`
   ).run(tipo, categoria || 'otro', tipo_egreso || null, concepto || null, Number(monto), forma_pago || 'Efectivo', movimiento_id);
+  recalcularSiCerrado(turno_id);
   return obtener(turno_id);
 }
 
 function quitarMovimiento(turno_id, movimiento_id) {
   requerirMovimientoEditable(turno_id, movimiento_id);
   db.prepare('DELETE FROM caja_movimientos WHERE id = ?').run(movimiento_id);
+  recalcularSiCerrado(turno_id);
   return obtener(turno_id);
 }
 
@@ -209,6 +233,37 @@ const editarCierre = db.transaction((id, datos = {}) => {
   if (!turno) throw new Error('Turno no encontrado');
   if (turno.estado !== 'cerrado') throw new Error('Solo se puede modificar el cierre de un turno ya cerrado');
   aplicarCierre(turno, datos);
+  return obtener(id);
+});
+
+// Deshace un cierre recién hecho: vuelve el turno a "abierto" tal como
+// estaba antes de cerrarlo. Solo se permite si el turno SIGUIENTE (el que
+// se abrió solo al cerrar este) todavía no tiene ningún movimiento — si ya
+// pasó algo ahí (una venta, un gasto), reabrir mezclaría dos períodos
+// distintos sin forma clara de separarlos después, así que a partir de ese
+// momento la única manera de corregir es con "Modificar cierre".
+const reabrirTurno = db.transaction((id) => {
+  const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(id);
+  if (!turno) throw new Error('Turno no encontrado');
+  if (turno.estado !== 'cerrado') throw new Error('Solo se puede reabrir un turno ya cerrado');
+  const siguiente = db.prepare('SELECT * FROM caja_turnos WHERE id > ? ORDER BY id ASC LIMIT 1').get(id);
+  if (!siguiente || siguiente.estado !== 'abierto') {
+    throw new Error('Ya se cerró un turno después de este — no se puede reabrir, corregilo con "Modificar cierre"');
+  }
+  const movsSiguiente = db.prepare('SELECT COUNT(*) AS n FROM caja_movimientos WHERE caja_turno_id = ?').get(siguiente.id).n;
+  if (movsSiguiente > 0) {
+    throw new Error('Ya hay movimientos cargados en el turno siguiente — no se puede reabrir, corregilo con "Modificar cierre"');
+  }
+  db.prepare('DELETE FROM caja_turnos WHERE id = ?').run(siguiente.id);
+  // El envío a caja fuerte que generó este cierre se deshace junto con todo lo demás.
+  db.prepare(
+    "DELETE FROM caja_movimientos WHERE caja_turno_id = ? AND categoria = 'caja_fuerte' AND referencia_tipo = 'caja_turno' AND referencia_id = ?"
+  ).run(id, id);
+  db.prepare(
+    `UPDATE caja_turnos SET estado = 'abierto', cerrado_en = NULL, efectivo_esperado = NULL,
+       efectivo_contado = NULL, diferencia = NULL, fondo_turno_siguiente = NULL, observacion = NULL
+     WHERE id = ?`
+  ).run(id);
   return obtener(id);
 });
 
@@ -297,6 +352,7 @@ module.exports = {
   quitarMovimiento,
   cerrarTurno,
   editarCierre,
+  reabrirTurno,
   borrarCierre,
   vaciarMovimientos,
   fondoSugerido,

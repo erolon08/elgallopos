@@ -1838,17 +1838,145 @@ async function imprimirTicketCierre(turnoId) {
   mostrarTicketCierre(t);
 }
 
+let cierreModalTurno = null;
+let cierreMovEditandoId = null;
+
 async function abrirModificarCierre(turnoId) {
   const t = await (await fetch(`/api/caja/${turnoId}`)).json();
+  cierreModalTurno = t;
+  cierreMovEditandoId = null;
   document.getElementById('cierreModalTurnoId').value = t.id;
   document.getElementById('cierreModalContado').value = t.efectivo_contado;
   document.getElementById('cierreModalFondoSiguiente').value = t.fondo_turno_siguiente;
   document.getElementById('cierreModalObservacion').value = t.observacion || '';
+  document.getElementById('cierreFormMovimiento').style.display = 'none';
+  renderCierreModalMovimientos();
   document.getElementById('editarCierreModal').classList.add('open');
 }
 
 function closeEditarCierre() {
   document.getElementById('editarCierreModal').classList.remove('open');
+  cierreModalTurno = null;
+  cierreMovEditandoId = null;
+}
+
+// Los movimientos de un cierre ya hecho se editan acá mismo (no solo el
+// resumen final): al agregar/editar/borrar uno, el backend recalcula el
+// efectivo esperado y la diferencia del turno, pero deja el efectivo
+// contado / fondo siguiente / observación tal como estaban hasta que se
+// guarden a mano con "Guardar".
+function renderCierreModalMovimientos() {
+  if (!cierreModalTurno) return;
+  const body = document.getElementById('cierreModalMovimientosBody');
+  const movimientosManuales = cierreModalTurno.movimientos.filter((m) => m.categoria !== 'venta');
+  body.innerHTML = movimientosManuales.length
+    ? [...movimientosManuales].reverse().map((m) => `
+        <tr>
+          <td>${new Date(m.creado_en).toLocaleString('es-AR')}</td>
+          <td>${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
+          <td>${escapeHtml(labelCategoriaMovimiento(m.categoria))}${m.tipo_egreso ? ' — ' + escapeHtml(m.tipo_egreso) : ''}</td>
+          <td>${m.concepto || ''}</td>
+          <td>${m.forma_pago || ''}</td>
+          <td>${moneyStr(m.monto)}</td>
+          <td>${!m.referencia_tipo
+            ? `<button class="btn light" type="button" onclick="editarMovimientoCierre(${m.id})">✎</button> <button class="btn light" type="button" onclick="quitarMovimientoCierre(${m.id})">✕</button>`
+            : ''}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="7" class="small">Sin movimientos manuales todavía.</td></tr>';
+  const esperado = cierreModalTurno.resumen.efectivoEsperado;
+  const contado = Number(cierreModalTurno.efectivo_contado) || 0;
+  document.getElementById('cierreModalEsperadoPreview').textContent =
+    `Efectivo esperado (recalculado con estos movimientos): ${moneyStr(esperado)} — Diferencia con lo contado (${moneyStr(contado)}): ${moneyStr(contado - esperado)}`;
+}
+
+async function cargarCategoriasMovimientoCierre(seleccionar) {
+  const categorias = await (await fetch('/api/caja/categorias')).json();
+  const sel = document.getElementById('cierreMovCategoria');
+  const previo = seleccionar || sel.value || 'retiro';
+  sel.innerHTML = categorias
+    .map((c) => `<option value="${escapeHtml(c.nombre)}">${escapeHtml(labelCategoriaMovimiento(c.nombre))}</option>`)
+    .join('');
+  if ([...sel.options].some((o) => o.value === previo)) sel.value = previo;
+}
+
+async function agregarCategoriaMovimientoCierre() {
+  const nombre = prompt('Nombre de la categoría nueva (ej: Combustible):');
+  if (!nombre || !nombre.trim()) return;
+  const res = await fetch('/api/caja/categorias', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre: nombre.trim() }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  await cargarCategoriasMovimientoCierre(nombre.trim());
+}
+
+function mostrarFormMovimientoCierre() {
+  cierreMovEditandoId = null;
+  document.getElementById('cierreMovTipo').value = 'egreso';
+  document.getElementById('cierreMovConcepto').value = '';
+  document.getElementById('cierreMovFormaPago').value = 'Efectivo';
+  document.getElementById('cierreMovMonto').value = '';
+  document.getElementById('btnGuardarMovimientoCierre').textContent = 'Guardar';
+  document.getElementById('cierreFormMovimiento').style.display = 'flex';
+  cargarCategoriasMovimientoCierre('retiro');
+}
+
+function editarMovimientoCierre(movId) {
+  const m = cierreModalTurno.movimientos.find((x) => x.id === movId);
+  if (!m) return;
+  cierreMovEditandoId = movId;
+  document.getElementById('cierreMovTipo').value = m.tipo;
+  document.getElementById('cierreMovConcepto').value = m.concepto || '';
+  document.getElementById('cierreMovFormaPago').value = m.forma_pago || 'Efectivo';
+  document.getElementById('cierreMovMonto').value = m.monto;
+  document.getElementById('btnGuardarMovimientoCierre').textContent = 'Guardar cambios';
+  document.getElementById('cierreFormMovimiento').style.display = 'flex';
+  cargarCategoriasMovimientoCierre(m.categoria);
+}
+
+async function quitarMovimientoCierre(movId) {
+  const id = document.getElementById('cierreModalTurnoId').value;
+  const res = await fetch(`/api/caja/${id}/movimientos/${movId}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  cierreModalTurno = data;
+  renderCierreModalMovimientos();
+}
+
+async function confirmarMovimientoCierre() {
+  const id = document.getElementById('cierreModalTurnoId').value;
+  const tipo = document.getElementById('cierreMovTipo').value;
+  const categoria = document.getElementById('cierreMovCategoria').value;
+  const concepto = document.getElementById('cierreMovConcepto').value;
+  const forma_pago = document.getElementById('cierreMovFormaPago').value;
+  const monto = document.getElementById('cierreMovMonto').value;
+  const editando = cierreMovEditandoId;
+  const url = editando ? `/api/caja/${id}/movimientos/${editando}` : `/api/caja/${id}/movimientos`;
+  const res = await fetch(url, {
+    method: editando ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tipo, categoria, concepto, forma_pago, monto, usuario_id: session.id }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  cierreModalTurno = data;
+  cierreMovEditandoId = null;
+  document.getElementById('cierreMovConcepto').value = '';
+  document.getElementById('cierreMovMonto').value = '';
+  document.getElementById('cierreFormMovimiento').style.display = 'none';
+  renderCierreModalMovimientos();
 }
 
 async function confirmarModificarCierre() {
@@ -1874,7 +2002,7 @@ async function confirmarModificarCierre() {
 async function borrarCierreCaja(id) {
   if (
     !confirm(
-      '¿Borrar este cierre de caja para siempre? No se puede deshacer y se pierden todos sus movimientos.\n\n¿Te equivocaste al cerrar (efectivo contado, fondo siguiente)? Cancelá y usá el botón ✎ "Modificar cierre" en vez de borrar — corrige el cierre sin perder nada.'
+      '¿Borrar este cierre de caja para siempre? No se puede deshacer y se pierden todos sus movimientos.\n\n¿Te equivocaste al cerrar (efectivo contado, fondo siguiente)? Cancelá y usá el botón ✎ "Modificar cierre" en vez de borrar — corrige el cierre sin perder nada.\n\n¿Cerraste por error y el turno siguiente todavía no tiene movimientos? Mejor usá ↩️ "Reabrir" — deshace el cierre por completo, como si no lo hubieras hecho.'
     )
   )
     return;
@@ -1885,6 +2013,26 @@ async function borrarCierreCaja(id) {
     return;
   }
   await cargarHistorialCaja();
+}
+
+// Deshacer un cierre: solo funciona mientras el turno siguiente (el que se
+// abrió solo al cerrar este) sigue sin movimientos propios — apenas hay
+// alguna venta o movimiento cargado ahí, ya no se puede volver atrás y
+// queda como corrección definitiva (para eso está "Modificar cierre").
+async function reabrirTurnoCaja(id) {
+  if (
+    !confirm(
+      '¿Deshacer este cierre y volver a abrir el turno? El turno siguiente (que todavía no tiene movimientos) se borra, y este turno vuelve a quedar abierto tal como estaba antes de cerrarlo.'
+    )
+  )
+    return;
+  const res = await fetch(`/api/caja/${id}/reabrir`, { method: 'PUT' });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  await cargarCaja();
 }
 
 async function cargarHistorialCaja() {
@@ -1905,7 +2053,7 @@ async function cargarHistorialCaja() {
           <td>${t.fondo_turno_siguiente != null ? moneyStr(t.fondo_turno_siguiente) : '—'}</td>
           <td>${t.estado === 'abierto' ? '<span class="badge green">Abierto</span>' : '<span class="badge">Cerrado</span>'}</td>
           <td>${t.estado === 'cerrado'
-            ? `<button class="btn light" onclick="imprimirTicketCierre(${t.id})">🖨️</button> <button class="btn light" onclick="abrirModificarCierre(${t.id})">✎</button> <button class="btn light" onclick="borrarCierreCaja(${t.id})">🗑️</button>`
+            ? `<button class="btn light" onclick="imprimirTicketCierre(${t.id})">🖨️</button> <button class="btn light" onclick="abrirModificarCierre(${t.id})">✎</button> <button class="btn light" onclick="reabrirTurnoCaja(${t.id})" title="Deshacer este cierre (solo si el turno siguiente todavía no tiene movimientos)">↩️ Reabrir</button> <button class="btn light" onclick="borrarCierreCaja(${t.id})">🗑️</button>`
             : ''}</td>
         </tr>
       `).join('')

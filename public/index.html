@@ -1130,7 +1130,7 @@
 </div>
 
 <div class="modal" id="editarCierreModal">
-  <div class="modal-box" style="max-width:520px">
+  <div class="modal-box" style="max-width:700px">
     <div class="section-title"><h3>Modificar cierre de turno</h3><button class="btn light" onclick="closeEditarCierre()">✕</button></div>
     <input type="hidden" id="cierreModalTurnoId">
     <div class="two-col-form">
@@ -1143,6 +1143,43 @@
         <button type="button" class="btn light" onclick="abrirArqueoBilletes('cierreModalFondoSiguiente')" title="Contar billete por billete">🧮 Contar billetes</button>
       </div>
     </div>
+
+    <div class="section-title" style="margin-top:16px">
+      <h3 style="font-size:14px">Movimientos de este turno</h3>
+      <button class="btn light" type="button" onclick="mostrarFormMovimientoCierre()">+ Agregar movimiento</button>
+    </div>
+    <div class="small" id="cierreModalEsperadoPreview" style="margin:2px 0 8px"></div>
+    <div class="toolbar" id="cierreFormMovimiento" style="display:none">
+      <div class="field"><label>Tipo</label><select id="cierreMovTipo"><option value="egreso">Egreso</option><option value="ingreso">Ingreso</option></select></div>
+      <div class="field"><label>Categoría</label>
+        <div style="display:flex;gap:6px">
+          <select id="cierreMovCategoria" style="flex:1"></select>
+          <button type="button" class="btn light" onclick="agregarCategoriaMovimientoCierre()" title="Agregar categoría nueva">+</button>
+        </div>
+      </div>
+      <div class="field"><label>Concepto</label><input id="cierreMovConcepto" placeholder="Detalle..."></div>
+      <div class="field"><label>Forma de pago</label>
+        <select id="cierreMovFormaPago">
+          <option value="Efectivo">Efectivo</option>
+          <option value="Débito">Débito</option>
+          <option value="Crédito">Crédito</option>
+          <option value="Transferencia">Transferencia</option>
+          <option value="QR">QR</option>
+          <option value="Cheque">Cheque</option>
+          <option value="Cuenta Corriente">Cuenta Corriente</option>
+        </select>
+      </div>
+      <div class="field"><label>Monto</label><input id="cierreMovMonto" type="number" step="any"></div>
+      <button class="btn primary" type="button" id="btnGuardarMovimientoCierre" onclick="confirmarMovimientoCierre()">Guardar</button>
+      <button class="btn light" type="button" onclick="cierreMovEditandoId=null;document.getElementById('cierreFormMovimiento').style.display='none'">Cancelar</button>
+    </div>
+    <div class="table-wrap" style="max-height:240px;overflow:auto">
+      <table>
+        <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Forma pago</th><th>Monto</th><th></th></tr></thead>
+        <tbody id="cierreModalMovimientosBody"></tbody>
+      </table>
+    </div>
+
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="confirmarModificarCierre()">Guardar</button>
       <button class="btn outline" onclick="closeEditarCierre()">Cancelar</button>
