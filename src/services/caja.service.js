@@ -343,7 +343,7 @@ function simularCierrePorFecha(fecha, turnoKey) {
 
   const ticket = {
     id: null,
-    numero: `SIMULADO — ${fecha} ${rango.label}`,
+    numero: `Cierre recuperado — ${fecha} ${rango.label}`,
     terminal: '—',
     abierto_en: desde,
     cerrado_en: hasta,

@@ -2067,8 +2067,8 @@ async function simularCierrePorFecha() {
 
 // Igual que mostrarTicketCierre, pero para un ticket armado a partir de
 // ventas (sin turno real detrás): oculta las acciones que necesitan un
-// turno de verdad (editar cierre, ticket de caja fuerte) y marca el ticket
-// como simulado para que no se confunda con un cierre real archivado.
+// turno de verdad (editar cierre, ticket de caja fuerte) y lo marca como
+// recuperado para que no se confunda con un cierre real archivado.
 async function mostrarTicketCierreSimulado(t) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
@@ -2080,7 +2080,7 @@ async function mostrarTicketCierreSimulado(t) {
   document.getElementById('btnTicketCajaFuerte').style.display = 'none';
   mostrarTicketComoA4(
     construirCierreA4Html(t) +
-      '<div style="margin-top:10px;padding:8px;border:2px dashed #c00;color:#c00;font-weight:800;text-align:center">TICKET SIMULADO — reconstruido a partir de las ventas, no reemplaza un cierre real</div>'
+      '<div style="margin-top:10px;padding:8px;border:2px dashed #1167b1;color:#1167b1;font-weight:800;text-align:center">CIERRE RECUPERADO — reconstruido a partir de las ventas registradas</div>'
   );
   showScreen('ticket-screen');
 }
