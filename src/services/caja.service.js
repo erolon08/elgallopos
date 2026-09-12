@@ -366,6 +366,65 @@ function simularCierrePorFecha(fecha, turnoKey) {
   };
 }
 
+// Convierte una reconstrucción (ver simularCierrePorFecha) en un turno de
+// caja REAL y cerrado: crea el turno con las ventas de esa franja ya
+// cargadas como movimientos (revinculándolas), le suma los egresos/gastos
+// que la persona haya cargado a mano para completar lo que se perdió, y
+// aplica el cierre igual que cerrarTurno (mismo cálculo de efectivo
+// esperado, mismo envío automático a caja fuerte). El resultado es un
+// turno más en el Historial, con su ticket normal — no una simulación
+// aparte — y se puede seguir editando después con "Modificar cierre" como
+// cualquier otro.
+const crearCierreRecuperado = db.transaction((fecha, turnoKey, movimientosManual = [], datosCierre = {}, fondo_inicial = 0) => {
+  const rango = TURNOS_HORARIO[turnoKey];
+  if (!fecha) throw new Error('Falta la fecha');
+  if (!rango) throw new Error('Turno inválido');
+  const desde = `${fecha} ${rango.desde}`;
+  const hasta = `${fecha} ${rango.hasta}`;
+
+  const yaCerrado = db
+    .prepare(`SELECT id FROM caja_turnos WHERE estado = 'cerrado' AND abierto_en <= ? AND cerrado_en >= ? LIMIT 1`)
+    .get(hasta, desde);
+  if (yaCerrado) throw new Error('Ya existe un cierre guardado para ese rango — buscalo en el Historial de turnos.');
+  const enCurso = db
+    .prepare(`SELECT numero FROM caja_turnos WHERE estado = 'abierto' AND abierto_en >= ? AND abierto_en <= ?`)
+    .get(desde, hasta);
+  if (enCurso) throw new Error(`El turno de esa franja (${enCurso.numero}) todavía está abierto — cerralo normal desde "Caja — turno actual".`);
+
+  const info = db
+    .prepare(`INSERT INTO caja_turnos (numero, terminal, fondo_inicial, abierto_en, estado) VALUES (?, ?, ?, ?, 'abierto')`)
+    .run('T-' + Date.now(), 'Recuperado', Number(fondo_inicial) || 0, desde);
+  const turnoId = info.lastInsertRowid;
+
+  const ventas = db.prepare(`SELECT * FROM ventas WHERE estado = 'cobrada' AND cobrado_en >= ? AND cobrado_en <= ?`).all(desde, hasta);
+  const insertVentaMov = db.prepare(
+    `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, creado_en)
+     VALUES (?, 'ingreso', 'venta', ?, ?, ?, 'venta', ?, ?)`
+  );
+  ventas.forEach((v) => {
+    db.prepare('SELECT * FROM venta_pagos WHERE venta_id = ?')
+      .all(v.id)
+      .forEach((p) => {
+        insertVentaMov.run(turnoId, `Venta N° ${v.numero} — ${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}`, p.monto, p.forma_pago, v.id, v.cobrado_en);
+      });
+    db.prepare('UPDATE ventas SET caja_turno_id = ? WHERE id = ?').run(turnoId, v.id);
+  });
+
+  movimientosManual.forEach((m) => {
+    if (!['ingreso', 'egreso'].includes(m.tipo)) throw new Error('Tipo de movimiento inválido');
+    if (!(Number(m.monto) > 0)) throw new Error('El monto debe ser mayor a 0');
+    db.prepare(
+      `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, tipo_egreso, concepto, monto, forma_pago, creado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(turnoId, m.tipo, m.categoria || 'otro', m.tipo_egreso || null, m.concepto || null, Number(m.monto), m.forma_pago || 'Efectivo', desde);
+  });
+
+  const turnoRow = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(turnoId);
+  aplicarCierre(turnoRow, datosCierre);
+  db.prepare(`UPDATE caja_turnos SET estado = 'cerrado', cerrado_en = ? WHERE id = ?`).run(hasta, turnoId);
+  return obtener(turnoId);
+});
+
 // Desvincula lo que quedó ligado a los movimientos de un turno (ventas y
 // rendiciones) antes de borrarlos — común a borrarCierre y vaciarMovimientos.
 function desvincularMovimientosDe(turno_id) {
@@ -453,6 +512,7 @@ module.exports = {
   editarCierre,
   reabrirTurno,
   simularCierrePorFecha,
+  crearCierreRecuperado,
   borrarCierre,
   vaciarMovimientos,
   fondoSugerido,

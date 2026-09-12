@@ -1206,6 +1206,74 @@
   </div>
 </div>
 
+<div class="modal" id="recuperarCierreModal">
+  <div class="modal-box" style="max-width:700px">
+    <div class="section-title"><h3 id="recuperarCierreTitulo">Recuperar cierre</h3><button class="btn light" onclick="closeRecuperarCierre()">✕</button></div>
+    <p class="small" style="margin-top:-6px">
+      Ventas encontradas en esta franja (no se pueden editar acá, son las que ya se cobraron): agregá los
+      egresos/gastos que falten y completá el cierre como uno normal.
+    </p>
+    <div class="table-wrap" style="max-height:160px;overflow:auto">
+      <table>
+        <thead><tr><th>Forma de pago</th><th>Monto</th></tr></thead>
+        <tbody id="recuperarCierreVentasBody"></tbody>
+      </table>
+    </div>
+
+    <div class="section-title" style="margin-top:14px">
+      <h3 style="font-size:14px">Egresos / otros movimientos</h3>
+      <button class="btn light" type="button" onclick="mostrarFormMovimientoRecuperar()">+ Agregar movimiento</button>
+    </div>
+    <div class="toolbar" id="recuperarFormMovimiento" style="display:none">
+      <div class="field"><label>Tipo</label><select id="recupMovTipo"><option value="egreso">Egreso</option><option value="ingreso">Ingreso</option></select></div>
+      <div class="field"><label>Categoría</label>
+        <div style="display:flex;gap:6px">
+          <select id="recupMovCategoria" style="flex:1"></select>
+          <button type="button" class="btn light" onclick="agregarCategoriaMovimientoRecuperar()" title="Agregar categoría nueva">+</button>
+        </div>
+      </div>
+      <div class="field"><label>Concepto</label><input id="recupMovConcepto" placeholder="Detalle..."></div>
+      <div class="field"><label>Forma de pago</label>
+        <select id="recupMovFormaPago">
+          <option value="Efectivo">Efectivo</option>
+          <option value="Débito">Débito</option>
+          <option value="Crédito">Crédito</option>
+          <option value="Transferencia">Transferencia</option>
+          <option value="QR">QR</option>
+          <option value="Cheque">Cheque</option>
+          <option value="Cuenta Corriente">Cuenta Corriente</option>
+        </select>
+      </div>
+      <div class="field"><label>Monto</label><input id="recupMovMonto" type="number" step="any"></div>
+      <button class="btn primary" type="button" onclick="confirmarMovimientoRecuperar()">Agregar</button>
+      <button class="btn light" type="button" onclick="document.getElementById('recuperarFormMovimiento').style.display='none'">Cancelar</button>
+    </div>
+    <div class="table-wrap" style="max-height:200px;overflow:auto">
+      <table>
+        <thead><tr><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Forma pago</th><th>Monto</th><th></th></tr></thead>
+        <tbody id="recuperarCierreMovimientosBody"></tbody>
+      </table>
+    </div>
+
+    <div class="two-col-form" style="margin-top:12px">
+      <div class="field"><label>Fondo inicial (si lo sabés; si no, dejalo en 0)</label><input id="recupFondoInicial" type="number" step="any" value="0"></div>
+      <div class="field"><label>Efectivo contado</label><input id="recupEfectivoContado" type="number" step="any"></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Fondo para el próximo turno</label>
+      <div style="display:flex;gap:6px">
+        <input id="recupFondoSiguiente" type="number" step="any" style="flex:1">
+        <button type="button" class="btn light" onclick="abrirArqueoBilletes('recupFondoSiguiente')" title="Contar billete por billete">🧮 Contar billetes</button>
+      </div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Observación</label><input id="recupObservacion" placeholder="Opcional"></div>
+
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn primary" onclick="confirmarRecuperarCierre()">Generar cierre</button>
+      <button class="btn outline" onclick="closeRecuperarCierre()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="ajusteModal">
   <div class="modal-box">
     <div class="section-title"><h3 id="ajusteTitulo">Ajuste de stock</h3><button class="btn light" onclick="closeAjuste()">✕</button></div>

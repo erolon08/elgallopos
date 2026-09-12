@@ -2035,11 +2035,13 @@ async function reabrirTurnoCaja(id) {
   await cargarCaja();
 }
 
-// Recuperar/simular el ticket de cierre de una fecha y turno (mañana/tarde)
-// puntuales — pensado para cuando el cierre real de esa franja ya no existe
-// (se borró por error) y solo se necesita volver a tener el ticket. Nunca
-// modifica nada: si el turno de caja sigue existiendo se muestra tal cual,
-// y si no, se reconstruye con las ventas cobradas en ese horario.
+// Recuperar el cierre de una fecha y turno (mañana/tarde) puntuales —
+// pensado para cuando el cierre real de esa franja ya no existe (se borró
+// por error). Primero se consulta qué hay para esa franja: si el turno de
+// caja sigue existiendo se muestra su ticket real tal cual, y si sigue
+// abierto se avisa que se cierre ahí normal. Si no queda nada, se abre un
+// formulario para completar los egresos/gastos que falten y generar un
+// cierre nuevo y normal (con las ventas de esa franja ya cargadas).
 async function simularCierrePorFecha() {
   const fecha = document.getElementById('simCierreFecha').value;
   const turno = document.getElementById('simCierreTurno').value;
@@ -2061,28 +2063,150 @@ async function simularCierrePorFecha() {
     mostrarTicketCierre(data.ticket);
     return;
   }
-  if (data.advertencia) alert(data.advertencia);
-  mostrarTicketCierreSimulado(data.ticket);
+  abrirRecuperarCierre(fecha, turno, data.ticket);
 }
 
-// Igual que mostrarTicketCierre, pero para un ticket armado a partir de
-// ventas (sin turno real detrás): oculta las acciones que necesitan un
-// turno de verdad (editar cierre, ticket de caja fuerte) y lo marca como
-// recuperado para que no se confunda con un cierre real archivado.
-async function mostrarTicketCierreSimulado(t) {
-  await cargarConfiguracionGlobal();
-  ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
-  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
-  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
-  document.getElementById('btnImprimirA4').style.display = 'none';
-  document.getElementById('btnEditarTicketRendicion').style.display = 'none';
-  document.getElementById('btnEditarTicketCierre').style.display = 'none';
-  document.getElementById('btnTicketCajaFuerte').style.display = 'none';
-  mostrarTicketComoA4(
-    construirCierreA4Html(t) +
-      '<div style="margin-top:10px;padding:8px;border:2px dashed #1167b1;color:#1167b1;font-weight:800;text-align:center">CIERRE RECUPERADO — reconstruido a partir de las ventas registradas</div>'
-  );
-  showScreen('ticket-screen');
+// ============================================================
+// RECUPERAR CIERRE — arma un turno de caja real y cerrado para una fecha y
+// franja horaria que ya no tienen turno guardado. Las ventas de esa franja
+// se cargan solas (recuperarCierreVentas, de solo lectura); los egresos y
+// demás movimientos sueltos que se hayan perdido se cargan a mano acá,
+// en memoria (recuperarCierreMovimientos), y recién se guardan todos
+// juntos al generar el cierre — antes de eso no se toca la base.
+// ============================================================
+let recuperarCierreContext = null;
+let recuperarCierreMovimientos = [];
+
+function abrirRecuperarCierre(fecha, turno, ticketPreview) {
+  recuperarCierreContext = { fecha, turno };
+  recuperarCierreMovimientos = [];
+  document.getElementById('recuperarCierreTitulo').textContent =
+    `Recuperar cierre — ${fecha} (${turno === 'manana' ? 'Mañana 8:00 a 12:30' : 'Tarde 16:00 a 20:00'})`;
+  document.getElementById('recupFondoInicial').value = 0;
+  document.getElementById('recupEfectivoContado').value = '';
+  document.getElementById('recupFondoSiguiente').value = '';
+  document.getElementById('recupObservacion').value = '';
+  document.getElementById('recuperarFormMovimiento').style.display = 'none';
+
+  const ventasBody = document.getElementById('recuperarCierreVentasBody');
+  const porFormaPago = ticketPreview.resumen ? ticketPreview.resumen.porFormaPago : {};
+  const filas = Object.entries(porFormaPago).filter(([, r]) => r.ingresos > 0);
+  ventasBody.innerHTML = filas.length
+    ? filas.map(([fp, r]) => `<tr><td>${fp}</td><td>${moneyStr(r.ingresos)}</td></tr>`).join('')
+    : '<tr><td colspan="2" class="small">No se encontraron ventas cobradas en esta franja.</td></tr>';
+
+  renderRecuperarCierreMovimientos();
+  document.getElementById('recuperarCierreModal').classList.add('open');
+}
+
+function closeRecuperarCierre() {
+  document.getElementById('recuperarCierreModal').classList.remove('open');
+  recuperarCierreContext = null;
+  recuperarCierreMovimientos = [];
+}
+
+function renderRecuperarCierreMovimientos() {
+  const body = document.getElementById('recuperarCierreMovimientosBody');
+  body.innerHTML = recuperarCierreMovimientos.length
+    ? recuperarCierreMovimientos
+        .map(
+          (m, i) => `
+        <tr>
+          <td>${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
+          <td>${escapeHtml(labelCategoriaMovimiento(m.categoria))}</td>
+          <td>${m.concepto || ''}</td>
+          <td>${m.forma_pago || ''}</td>
+          <td>${moneyStr(m.monto)}</td>
+          <td><button class="btn light" type="button" onclick="quitarMovimientoRecuperar(${i})">✕</button></td>
+        </tr>
+      `
+        )
+        .join('')
+    : '<tr><td colspan="6" class="small">Sin movimientos cargados todavía.</td></tr>';
+}
+
+async function cargarCategoriasMovimientoRecuperar(seleccionar) {
+  const categorias = await (await fetch('/api/caja/categorias')).json();
+  const sel = document.getElementById('recupMovCategoria');
+  const previo = seleccionar || sel.value || 'retiro';
+  sel.innerHTML = categorias
+    .map((c) => `<option value="${escapeHtml(c.nombre)}">${escapeHtml(labelCategoriaMovimiento(c.nombre))}</option>`)
+    .join('');
+  if ([...sel.options].some((o) => o.value === previo)) sel.value = previo;
+}
+
+async function agregarCategoriaMovimientoRecuperar() {
+  const nombre = prompt('Nombre de la categoría nueva (ej: Combustible):');
+  if (!nombre || !nombre.trim()) return;
+  const res = await fetch('/api/caja/categorias', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre: nombre.trim() }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  await cargarCategoriasMovimientoRecuperar(nombre.trim());
+}
+
+function mostrarFormMovimientoRecuperar() {
+  document.getElementById('recupMovTipo').value = 'egreso';
+  document.getElementById('recupMovConcepto').value = '';
+  document.getElementById('recupMovFormaPago').value = 'Efectivo';
+  document.getElementById('recupMovMonto').value = '';
+  document.getElementById('recuperarFormMovimiento').style.display = 'flex';
+  cargarCategoriasMovimientoRecuperar('retiro');
+}
+
+function quitarMovimientoRecuperar(i) {
+  recuperarCierreMovimientos.splice(i, 1);
+  renderRecuperarCierreMovimientos();
+}
+
+function confirmarMovimientoRecuperar() {
+  const tipo = document.getElementById('recupMovTipo').value;
+  const categoria = document.getElementById('recupMovCategoria').value;
+  const concepto = document.getElementById('recupMovConcepto').value;
+  const forma_pago = document.getElementById('recupMovFormaPago').value;
+  const monto = Number(document.getElementById('recupMovMonto').value);
+  if (!(monto > 0)) {
+    alert('El monto debe ser mayor a 0.');
+    return;
+  }
+  recuperarCierreMovimientos.push({ tipo, categoria, concepto, forma_pago, monto });
+  document.getElementById('recuperarFormMovimiento').style.display = 'none';
+  renderRecuperarCierreMovimientos();
+}
+
+async function confirmarRecuperarCierre() {
+  if (!recuperarCierreContext) return;
+  const fondo_inicial = document.getElementById('recupFondoInicial').value;
+  const efectivo_contado = document.getElementById('recupEfectivoContado').value;
+  const fondo_turno_siguiente = document.getElementById('recupFondoSiguiente').value;
+  const observacion = document.getElementById('recupObservacion').value;
+  const res = await fetch('/api/caja/recuperar-cierre', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fecha: recuperarCierreContext.fecha,
+      turno: recuperarCierreContext.turno,
+      movimientos: recuperarCierreMovimientos,
+      fondo_inicial,
+      efectivo_contado,
+      fondo_turno_siguiente,
+      observacion,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  closeRecuperarCierre();
+  await cargarHistorialCaja();
+  mostrarTicketCierre(data);
 }
 
 async function cargarHistorialCaja() {

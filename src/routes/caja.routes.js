@@ -26,6 +26,23 @@ router.get('/simular-cierre', (req, res) => {
   }
 });
 
+router.post('/recuperar-cierre', (req, res) => {
+  try {
+    const { fecha, turno, movimientos, efectivo_contado, fondo_turno_siguiente, observacion, fondo_inicial } = req.body;
+    const turnoCreado = cajaService.crearCierreRecuperado(
+      fecha,
+      turno,
+      movimientos || [],
+      { efectivo_contado, fondo_turno_siguiente, observacion },
+      fondo_inicial
+    );
+    emitVentaEvent('caja:actualizada', turnoCreado);
+    res.status(201).json(turnoCreado);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.post('/categorias', (req, res) => {
   try {
     res.status(201).json(cajaService.categoriaCrear(req.body.nombre));
