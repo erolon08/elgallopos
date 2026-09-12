@@ -2035,6 +2035,56 @@ async function reabrirTurnoCaja(id) {
   await cargarCaja();
 }
 
+// Recuperar/simular el ticket de cierre de una fecha y turno (mañana/tarde)
+// puntuales — pensado para cuando el cierre real de esa franja ya no existe
+// (se borró por error) y solo se necesita volver a tener el ticket. Nunca
+// modifica nada: si el turno de caja sigue existiendo se muestra tal cual,
+// y si no, se reconstruye con las ventas cobradas en ese horario.
+async function simularCierrePorFecha() {
+  const fecha = document.getElementById('simCierreFecha').value;
+  const turno = document.getElementById('simCierreTurno').value;
+  if (!fecha) {
+    alert('Elegí una fecha primero.');
+    return;
+  }
+  const res = await fetch(`/api/caja/simular-cierre?fecha=${fecha}&turno=${turno}`);
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  if (data.modo === 'turno_abierto') {
+    alert(`El turno de esa franja (${data.numero}) todavía está abierto — andá a "Caja — turno actual" y cerralo ahí normalmente.`);
+    return;
+  }
+  if (data.modo === 'real') {
+    mostrarTicketCierre(data.ticket);
+    return;
+  }
+  if (data.advertencia) alert(data.advertencia);
+  mostrarTicketCierreSimulado(data.ticket);
+}
+
+// Igual que mostrarTicketCierre, pero para un ticket armado a partir de
+// ventas (sin turno real detrás): oculta las acciones que necesitan un
+// turno de verdad (editar cierre, ticket de caja fuerte) y marca el ticket
+// como simulado para que no se confunda con un cierre real archivado.
+async function mostrarTicketCierreSimulado(t) {
+  await cargarConfiguracionGlobal();
+  ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
+  document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
+  document.getElementById('btnImprimirA4').style.display = 'none';
+  document.getElementById('btnEditarTicketRendicion').style.display = 'none';
+  document.getElementById('btnEditarTicketCierre').style.display = 'none';
+  document.getElementById('btnTicketCajaFuerte').style.display = 'none';
+  mostrarTicketComoA4(
+    construirCierreA4Html(t) +
+      '<div style="margin-top:10px;padding:8px;border:2px dashed #c00;color:#c00;font-weight:800;text-align:center">TICKET SIMULADO — reconstruido a partir de las ventas, no reemplaza un cierre real</div>'
+  );
+  showScreen('ticket-screen');
+}
+
 async function cargarHistorialCaja() {
   const res = await fetch('/api/caja');
   const turnos = await res.json();

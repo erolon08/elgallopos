@@ -17,6 +17,15 @@ router.get('/categorias', (req, res) => {
   res.json(cajaService.categoriasListar());
 });
 
+router.get('/simular-cierre', (req, res) => {
+  try {
+    const { fecha, turno } = req.query;
+    res.json(cajaService.simularCierrePorFecha(fecha, turno));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.post('/categorias', (req, res) => {
   try {
     res.status(201).json(cajaService.categoriaCrear(req.body.nombre));

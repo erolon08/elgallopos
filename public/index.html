@@ -473,6 +473,25 @@
         </div>
 
         <div class="card" style="margin-top:14px">
+          <div class="section-title"><h3>Recuperar / simular cierre por fecha</h3></div>
+          <p class="small" style="margin-top:-6px">
+            Elegí una fecha y un turno para volver a ver ese ticket de cierre. Si el turno de caja de esa franja
+            ya no existe (por ejemplo, se borró por error), se arma un ticket con las ventas cobradas en ese
+            horario, sin modificar nada.
+          </p>
+          <div class="toolbar">
+            <div class="field"><label>Fecha</label><input id="simCierreFecha" type="date"></div>
+            <div class="field"><label>Turno</label>
+              <select id="simCierreTurno">
+                <option value="manana">Mañana (8:00 a 12:30)</option>
+                <option value="tarde">Tarde (16:00 a 20:00)</option>
+              </select>
+            </div>
+            <button class="btn primary" onclick="simularCierrePorFecha()">Ver ticket</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
           <div class="section-title"><h3>Historial de turnos</h3></div>
           <div class="table-wrap">
             <table>

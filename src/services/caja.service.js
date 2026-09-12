@@ -267,6 +267,105 @@ const reabrirTurno = db.transaction((id) => {
   return obtener(id);
 });
 
+// Franjas horarias fijas de los dos turnos de trabajo del local — se usan
+// para "Simular cierre" cuando hay que reconstruir o repasar el cierre de
+// una fecha puntual (ej. un cierre que se borró por error) sin depender de
+// tener a mano el ID del turno de caja.
+const TURNOS_HORARIO = {
+  manana: { desde: '08:00:00', hasta: '12:30:00', label: 'Mañana (8:00 a 12:30)' },
+  tarde: { desde: '16:00:00', hasta: '20:00:00', label: 'Tarde (16:00 a 20:00)' },
+};
+
+// Para una fecha y franja horaria (mañana/tarde) elegidas a mano, arma el
+// mismo "ticket de cierre" que se ve siempre, de dos formas posibles:
+//
+// 1) Si todavía existe un turno de caja real que se solapa con ese rango
+//    (no se borró), se devuelve tal cual — con sus movimientos reales — en
+//    vez de reconstruir nada.
+// 2) Si no hay ningún turno de caja para ese rango (por ejemplo, se cerró
+//    mal y después se borró el cierre por error), se arma un ticket
+//    SIMULADO a partir de las ventas cobradas en ese horario: eso nunca se
+//    pierde al borrar un cierre. Lo que si se pierde para siempre son los
+//    movimientos sueltos (retiros, gastos, envíos a caja fuerte) de ese
+//    turno — no hay forma de reconstruirlos, así que el resultado avisa
+//    de esto en vez de simular que nunca existieron. Esto NUNCA escribe
+//    nada en la base: es solo para volver a tener el ticket.
+function simularCierrePorFecha(fecha, turnoKey) {
+  const rango = TURNOS_HORARIO[turnoKey];
+  if (!fecha) throw new Error('Falta la fecha');
+  if (!rango) throw new Error('Turno inválido');
+  const desde = `${fecha} ${rango.desde}`;
+  const hasta = `${fecha} ${rango.hasta}`;
+
+  // Un turno CERRADO que se solapa con la franja es la fuente más confiable
+  // (tiene sus movimientos reales) — se prioriza sobre cualquier turno
+  // abierto, para no confundirlo con el turno sucesor que arrancó solo al
+  // cerrar el original (ese sucesor casi siempre "se solapa" en teoría con
+  // cualquier franja futura, por seguir abierto, pero no es lo que se está
+  // buscando acá).
+  const turnoCerrado = db
+    .prepare(`SELECT * FROM caja_turnos WHERE estado = 'cerrado' AND abierto_en <= ? AND cerrado_en >= ? ORDER BY abierto_en DESC LIMIT 1`)
+    .get(hasta, desde);
+  if (turnoCerrado) {
+    return { modo: 'real', ticket: obtener(turnoCerrado.id) };
+  }
+
+  // Si no hay un cierre guardado, pero el turno abierto en este momento
+  // arrancó DENTRO de esta misma franja, es la misma sesión en curso: mejor
+  // avisar que todavía se puede cerrar normal en vez de armar una
+  // reconstrucción parcial de algo que ni terminó.
+  const turnoAbierto = db
+    .prepare(`SELECT * FROM caja_turnos WHERE estado = 'abierto' AND abierto_en >= ? AND abierto_en <= ?`)
+    .get(desde, hasta);
+  if (turnoAbierto) {
+    return { modo: 'turno_abierto', numero: turnoAbierto.numero };
+  }
+
+  const ventas = db.prepare(`SELECT * FROM ventas WHERE estado = 'cobrada' AND cobrado_en >= ? AND cobrado_en <= ?`).all(desde, hasta);
+  const movimientos = [];
+  ventas.forEach((v) => {
+    db.prepare('SELECT * FROM venta_pagos WHERE venta_id = ?')
+      .all(v.id)
+      .forEach((p) => {
+        movimientos.push({
+          id: `v${v.id}p${p.id}`,
+          tipo: 'ingreso',
+          categoria: 'venta',
+          concepto: `Venta N° ${v.numero} — ${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}`,
+          monto: p.monto,
+          forma_pago: p.forma_pago,
+          referencia_tipo: 'venta',
+          referencia_id: v.id,
+          creado_en: v.cobrado_en,
+        });
+      });
+  });
+
+  const ticket = {
+    id: null,
+    numero: `SIMULADO — ${fecha} ${rango.label}`,
+    terminal: '—',
+    abierto_en: desde,
+    cerrado_en: hasta,
+    fondo_inicial: 0,
+    fondo_turno_siguiente: null,
+    efectivo_contado: null,
+    diferencia: 0,
+    observacion: null,
+    movimientos,
+    resumen: resumenDe({ fondo_inicial: 0 }, movimientos),
+  };
+  ticket.efectivo_esperado = ticket.resumen.efectivoEsperado;
+
+  return {
+    modo: 'simulado',
+    ticket,
+    advertencia:
+      'No se encontró un turno de caja guardado para este rango: este ticket se reconstruyó solo con las ventas cobradas en ese horario. ' +
+      'Si hubo retiros, gastos u otros movimientos sueltos en ese turno, no se pueden recuperar y no aparecen acá.',
+  };
+}
+
 // Desvincula lo que quedó ligado a los movimientos de un turno (ventas y
 // rendiciones) antes de borrarlos — común a borrarCierre y vaciarMovimientos.
 function desvincularMovimientosDe(turno_id) {
@@ -353,6 +452,7 @@ module.exports = {
   cerrarTurno,
   editarCierre,
   reabrirTurno,
+  simularCierrePorFecha,
   borrarCierre,
   vaciarMovimientos,
   fondoSugerido,
