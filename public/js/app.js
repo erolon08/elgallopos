@@ -4,6 +4,7 @@ const titles = {
   venta: 'Venta', direcciones: 'Direcciones', agenda: 'Agenda de trabajo', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
   caja: 'Caja y turnos', ranking: 'Ranking', resumen: 'Resumen', configuracion: 'Configuración',
+  recuperarCierre: 'Recuperar cierre',
 };
 
 // ============================================================
@@ -1497,6 +1498,7 @@ function confirmarArqueoBilletes() {
   const target = document.getElementById(arqueoBilletesTargetId);
   target.value = total;
   if (arqueoBilletesTargetId === 'cajaFondoSiguiente') actualizarCajaFuerteCierre();
+  if (arqueoBilletesTargetId === 'recupFondoSiguiente') actualizarRecuperarCajaFuertePreview();
   cerrarArqueoBilletes();
 }
 
@@ -2039,9 +2041,9 @@ async function reabrirTurnoCaja(id) {
 // pensado para cuando el cierre real de esa franja ya no existe (se borró
 // por error). Primero se consulta qué hay para esa franja: si el turno de
 // caja sigue existiendo se muestra su ticket real tal cual, y si sigue
-// abierto se avisa que se cierre ahí normal. Si no queda nada, se abre un
-// formulario para completar los egresos/gastos que falten y generar un
-// cierre nuevo y normal (con las ventas de esa franja ya cargadas).
+// abierto se avisa que se cierre ahí normal. Si no queda nada, se pasa a la
+// pantalla "Recuperando cierre" — igual a la de un turno abierto normal —
+// para completar los egresos/gastos que falten y generar un cierre nuevo.
 async function simularCierrePorFecha() {
   const fecha = document.getElementById('simCierreFecha').value;
   const turno = document.getElementById('simCierreTurno').value;
@@ -2067,62 +2069,108 @@ async function simularCierrePorFecha() {
 }
 
 // ============================================================
-// RECUPERAR CIERRE — arma un turno de caja real y cerrado para una fecha y
-// franja horaria que ya no tienen turno guardado. Las ventas de esa franja
-// se cargan solas (recuperarCierreVentas, de solo lectura); los egresos y
-// demás movimientos sueltos que se hayan perdido se cargan a mano acá,
-// en memoria (recuperarCierreMovimientos), y recién se guardan todos
-// juntos al generar el cierre — antes de eso no se toca la base.
+// RECUPERAR CIERRE — misma pantalla y misma lógica que "Caja — turno
+// actual" (grilla de resumen, movimientos, cerrar turno), pero para una
+// fecha y franja horaria que ya no tienen turno guardado, y trabajando
+// del lado del cliente hasta el final: las ventas de esa franja llegan de
+// solo lectura (recuperarCierreVentasMovs) y los egresos/gastos que se
+// hayan perdido se cargan a mano acá (recuperarCierreMovimientos), todo en
+// memoria — recién se escribe en la base al generar el cierre.
 // ============================================================
 let recuperarCierreContext = null;
+let recuperarCierreVentasMovs = [];
 let recuperarCierreMovimientos = [];
+let recupMovEditandoId = null;
+let recupMovSiguienteId = 1;
 
 function abrirRecuperarCierre(fecha, turno, ticketPreview) {
   recuperarCierreContext = { fecha, turno };
+  recuperarCierreVentasMovs = ticketPreview.movimientos || [];
   recuperarCierreMovimientos = [];
-  document.getElementById('recuperarCierreTitulo').textContent =
-    `Recuperar cierre — ${fecha} (${turno === 'manana' ? 'Mañana 8:00 a 12:30' : 'Tarde 16:00 a 20:00'})`;
+  recupMovEditandoId = null;
+  recupMovSiguienteId = 1;
+
+  document.getElementById('recupTituloFranja').textContent =
+    `${fecha} — ${turno === 'manana' ? 'Mañana (8:00 a 12:30)' : 'Tarde (16:00 a 20:00)'}`;
+  document.getElementById('recupInfoAbierto').textContent = new Date(ticketPreview.abierto_en).toLocaleString('es-AR');
   document.getElementById('recupFondoInicial').value = 0;
   document.getElementById('recupEfectivoContado').value = '';
   document.getElementById('recupFondoSiguiente').value = '';
   document.getElementById('recupObservacion').value = '';
   document.getElementById('recuperarFormMovimiento').style.display = 'none';
 
-  const ventasBody = document.getElementById('recuperarCierreVentasBody');
-  const porFormaPago = ticketPreview.resumen ? ticketPreview.resumen.porFormaPago : {};
-  const filas = Object.entries(porFormaPago).filter(([, r]) => r.ingresos > 0);
-  ventasBody.innerHTML = filas.length
-    ? filas.map(([fp, r]) => `<tr><td>${fp}</td><td>${moneyStr(r.ingresos)}</td></tr>`).join('')
-    : '<tr><td colspan="2" class="small">No se encontraron ventas cobradas en esta franja.</td></tr>';
-
-  renderRecuperarCierreMovimientos();
-  document.getElementById('recuperarCierreModal').classList.add('open');
+  renderRecuperarCierrePantalla();
+  showScreen('recuperarCierre');
 }
 
-function closeRecuperarCierre() {
-  document.getElementById('recuperarCierreModal').classList.remove('open');
+function cancelarRecuperarCierre() {
   recuperarCierreContext = null;
+  recuperarCierreVentasMovs = [];
   recuperarCierreMovimientos = [];
+  showScreen('caja');
 }
 
-function renderRecuperarCierreMovimientos() {
-  const body = document.getElementById('recuperarCierreMovimientosBody');
-  body.innerHTML = recuperarCierreMovimientos.length
-    ? recuperarCierreMovimientos
-        .map(
-          (m, i) => `
+// Recalcula todo (totales, resumen por forma de pago, tabla de
+// movimientos) combinando las ventas de solo lectura con los movimientos
+// manuales — igual que renderCaja() hace con un turno real, pero sin
+// pedirle nada al servidor.
+function resumenLocalRecuperar(fondoInicial, movimientos) {
+  const porFormaPago = {};
+  movimientos.forEach((m) => {
+    const fp = m.forma_pago || 'Otro';
+    if (!porFormaPago[fp]) porFormaPago[fp] = { ingresos: 0, egresos: 0 };
+    porFormaPago[fp][m.tipo === 'ingreso' ? 'ingresos' : 'egresos'] += Number(m.monto) || 0;
+  });
+  const ingresosEfectivo = (porFormaPago['Efectivo'] || {}).ingresos || 0;
+  const egresosEfectivo = (porFormaPago['Efectivo'] || {}).egresos || 0;
+  const totalIngresos = movimientos.filter((m) => m.tipo === 'ingreso').reduce((a, m) => a + (Number(m.monto) || 0), 0);
+  const totalEgresos = movimientos.filter((m) => m.tipo === 'egreso').reduce((a, m) => a + (Number(m.monto) || 0), 0);
+  const efectivoEsperado = (Number(fondoInicial) || 0) + ingresosEfectivo - egresosEfectivo;
+  return { totalIngresos, totalEgresos, porFormaPago, efectivoEsperado };
+}
+
+function renderRecuperarCierrePantalla() {
+  const fondoInicial = Number(document.getElementById('recupFondoInicial').value) || 0;
+  const combinados = recuperarCierreVentasMovs.concat(recuperarCierreMovimientos);
+  const resumen = resumenLocalRecuperar(fondoInicial, combinados);
+
+  document.getElementById('recupTotalIngresos').textContent = moneyStr(resumen.totalIngresos);
+  document.getElementById('recupTotalEgresos').textContent = moneyStr(resumen.totalEgresos);
+  document.getElementById('recupEfectivoEsperado').textContent = moneyStr(resumen.efectivoEsperado);
+
+  const formasBody = document.getElementById('recupResumenFormasBody');
+  const formas = Object.entries(resumen.porFormaPago);
+  formasBody.innerHTML = formas.length
+    ? formas.map(([fp, r]) => `<tr><td>${fp}</td><td>${moneyStr(r.ingresos)}</td><td>${moneyStr(r.egresos)}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="small">Sin movimientos todavía.</td></tr>';
+
+  const movBody = document.getElementById('recuperarCierreMovimientosBody');
+  movBody.innerHTML = recuperarCierreMovimientos.length
+    ? [...recuperarCierreMovimientos].reverse().map((m) => `
         <tr>
           <td>${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
           <td>${escapeHtml(labelCategoriaMovimiento(m.categoria))}</td>
           <td>${m.concepto || ''}</td>
           <td>${m.forma_pago || ''}</td>
           <td>${moneyStr(m.monto)}</td>
-          <td><button class="btn light" type="button" onclick="quitarMovimientoRecuperar(${i})">✕</button></td>
+          <td><button class="btn light" type="button" onclick="editarMovimientoRecuperar(${m._localId})">✎</button> <button class="btn light" type="button" onclick="quitarMovimientoRecuperar(${m._localId})">✕</button></td>
         </tr>
-      `
-        )
-        .join('')
-    : '<tr><td colspan="6" class="small">Sin movimientos cargados todavía.</td></tr>';
+      `).join('')
+    : '<tr><td colspan="6" class="small">Sin movimientos manuales todavía.</td></tr>';
+
+  const fondoSiguienteInput = document.getElementById('recupFondoSiguiente');
+  if (!fondoSiguienteInput.value) fondoSiguienteInput.value = fondoInicial;
+  actualizarRecuperarCajaFuertePreview();
+}
+
+function actualizarRecuperarCajaFuertePreview() {
+  const contado = Number(document.getElementById('recupEfectivoContado').value) || 0;
+  const fondoSiguiente = Number(document.getElementById('recupFondoSiguiente').value) || 0;
+  const aCajaFuerte = contado - fondoSiguiente;
+  const el = document.getElementById('recupCajaFuertePreview');
+  el.textContent = aCajaFuerte < 0
+    ? 'El fondo para el próximo turno no puede ser mayor al efectivo contado.'
+    : `A caja fuerte: ${moneyStr(aCajaFuerte)}`;
 }
 
 async function cargarCategoriasMovimientoRecuperar(seleccionar) {
@@ -2152,17 +2200,32 @@ async function agregarCategoriaMovimientoRecuperar() {
 }
 
 function mostrarFormMovimientoRecuperar() {
+  recupMovEditandoId = null;
   document.getElementById('recupMovTipo').value = 'egreso';
   document.getElementById('recupMovConcepto').value = '';
   document.getElementById('recupMovFormaPago').value = 'Efectivo';
   document.getElementById('recupMovMonto').value = '';
+  document.getElementById('btnGuardarMovimientoRecuperar').textContent = 'Guardar';
   document.getElementById('recuperarFormMovimiento').style.display = 'flex';
   cargarCategoriasMovimientoRecuperar('retiro');
 }
 
-function quitarMovimientoRecuperar(i) {
-  recuperarCierreMovimientos.splice(i, 1);
-  renderRecuperarCierreMovimientos();
+function editarMovimientoRecuperar(localId) {
+  const m = recuperarCierreMovimientos.find((x) => x._localId === localId);
+  if (!m) return;
+  recupMovEditandoId = localId;
+  document.getElementById('recupMovTipo').value = m.tipo;
+  document.getElementById('recupMovConcepto').value = m.concepto || '';
+  document.getElementById('recupMovFormaPago').value = m.forma_pago || 'Efectivo';
+  document.getElementById('recupMovMonto').value = m.monto;
+  document.getElementById('btnGuardarMovimientoRecuperar').textContent = 'Guardar cambios';
+  document.getElementById('recuperarFormMovimiento').style.display = 'flex';
+  cargarCategoriasMovimientoRecuperar(m.categoria);
+}
+
+function quitarMovimientoRecuperar(localId) {
+  recuperarCierreMovimientos = recuperarCierreMovimientos.filter((m) => m._localId !== localId);
+  renderRecuperarCierrePantalla();
 }
 
 function confirmarMovimientoRecuperar() {
@@ -2175,9 +2238,15 @@ function confirmarMovimientoRecuperar() {
     alert('El monto debe ser mayor a 0.');
     return;
   }
-  recuperarCierreMovimientos.push({ tipo, categoria, concepto, forma_pago, monto });
+  if (recupMovEditandoId != null) {
+    const m = recuperarCierreMovimientos.find((x) => x._localId === recupMovEditandoId);
+    Object.assign(m, { tipo, categoria, concepto, forma_pago, monto });
+  } else {
+    recuperarCierreMovimientos.push({ _localId: recupMovSiguienteId++, tipo, categoria, concepto, forma_pago, monto });
+  }
+  recupMovEditandoId = null;
   document.getElementById('recuperarFormMovimiento').style.display = 'none';
-  renderRecuperarCierreMovimientos();
+  renderRecuperarCierrePantalla();
 }
 
 async function confirmarRecuperarCierre() {
@@ -2192,7 +2261,7 @@ async function confirmarRecuperarCierre() {
     body: JSON.stringify({
       fecha: recuperarCierreContext.fecha,
       turno: recuperarCierreContext.turno,
-      movimientos: recuperarCierreMovimientos,
+      movimientos: recuperarCierreMovimientos.map(({ tipo, categoria, concepto, forma_pago, monto }) => ({ tipo, categoria, concepto, forma_pago, monto })),
       fondo_inicial,
       efectivo_contado,
       fondo_turno_siguiente,
@@ -2204,7 +2273,9 @@ async function confirmarRecuperarCierre() {
     alert('Error: ' + data.error);
     return;
   }
-  closeRecuperarCierre();
+  recuperarCierreContext = null;
+  recuperarCierreVentasMovs = [];
+  recuperarCierreMovimientos = [];
   await cargarHistorialCaja();
   mostrarTicketCierre(data);
 }

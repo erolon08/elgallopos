@@ -502,6 +502,82 @@
         </div>
       </section>
 
+      <section class="screen" id="recuperarCierre">
+        <div class="card">
+          <div class="section-title"><h3>Recuperando cierre — <span id="recupTituloFranja"></span></h3><span class="badge">En edición (todavía no se guardó)</span></div>
+          <div class="grid g2">
+            <div class="small">
+              <div>Abierto: <b id="recupInfoAbierto"></b></div>
+              <div>Fondo inicial: <input id="recupFondoInicial" type="number" step="any" value="0" style="width:120px" oninput="renderRecuperarCierrePantalla()"></div>
+            </div>
+            <div class="small" style="text-align:right">
+              <div>Total ingresos: <b id="recupTotalIngresos"></b></div>
+              <div>Total egresos: <b id="recupTotalEgresos"></b></div>
+              <div style="font-size:16px;margin-top:4px">Efectivo esperado: <b id="recupEfectivoEsperado"></b></div>
+            </div>
+          </div>
+
+          <div class="table-wrap" style="margin-top:12px">
+            <table>
+              <thead><tr><th>Forma de pago</th><th>Ingresos</th><th>Egresos</th></tr></thead>
+              <tbody id="recupResumenFormasBody"></tbody>
+            </table>
+          </div>
+
+          <div class="section-title" style="margin-top:14px">
+            <h3 style="font-size:14px">Movimientos</h3>
+            <div>
+              <button class="btn light" onclick="mostrarFormMovimientoRecuperar()">+ Agregar movimiento</button>
+            </div>
+          </div>
+          <div class="toolbar" id="recuperarFormMovimiento" style="display:none">
+            <div class="field"><label>Tipo</label><select id="recupMovTipo"><option value="egreso">Egreso</option><option value="ingreso">Ingreso</option></select></div>
+            <div class="field"><label>Categoría</label>
+              <div style="display:flex;gap:6px">
+                <select id="recupMovCategoria" style="flex:1"></select>
+                <button type="button" class="btn light" onclick="agregarCategoriaMovimientoRecuperar()" title="Agregar categoría nueva">+</button>
+              </div>
+            </div>
+            <div class="field"><label>Concepto</label><input id="recupMovConcepto" placeholder="Detalle..."></div>
+            <div class="field"><label>Forma de pago</label>
+              <select id="recupMovFormaPago">
+                <option value="Efectivo">Efectivo</option>
+                <option value="Débito">Débito</option>
+                <option value="Crédito">Crédito</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="QR">QR</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Cuenta Corriente">Cuenta Corriente</option>
+              </select>
+            </div>
+            <div class="field"><label>Monto</label><input id="recupMovMonto" type="number" step="any"></div>
+            <button class="btn primary" id="btnGuardarMovimientoRecuperar" type="button" onclick="confirmarMovimientoRecuperar()">Guardar</button>
+            <button class="btn light" type="button" onclick="recupMovEditandoId=null;document.getElementById('recuperarFormMovimiento').style.display='none'">Cancelar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Forma pago</th><th>Monto</th><th></th></tr></thead>
+              <tbody id="recuperarCierreMovimientosBody"></tbody>
+            </table>
+          </div>
+          <p class="small" style="margin-top:6px">
+            Arriba, en "Forma de pago", ya están sumadas las ventas cobradas en esta franja (no aparecen como
+            movimiento individual acá, igual que en un turno normal) — acá solo se cargan los egresos, gastos
+            u otros movimientos sueltos que falten.
+          </p>
+
+          <div class="section-title" style="margin-top:14px"><h3 style="font-size:14px">Generar cierre</h3></div>
+          <div class="toolbar">
+            <div class="field"><label>Efectivo contado</label><input id="recupEfectivoContado" type="number" step="any" oninput="actualizarRecuperarCajaFuertePreview()"></div>
+            <div class="field"><label>Fondo para el próximo turno</label><input id="recupFondoSiguiente" type="number" step="any" readonly oninput="actualizarRecuperarCajaFuertePreview()" onclick="abrirArqueoBilletes('recupFondoSiguiente')"></div>
+            <div class="field"><label>Observación</label><input id="recupObservacion" placeholder="Opcional"></div>
+            <button class="btn primary" onclick="confirmarRecuperarCierre()">Generar cierre</button>
+            <button class="btn outline" onclick="cancelarRecuperarCierre()">Cancelar</button>
+          </div>
+          <div class="small" id="recupCajaFuertePreview" style="margin-top:6px"></div>
+        </div>
+      </section>
+
       <section class="screen" id="stock">
         <div class="card">
           <div class="section-title">
@@ -1202,74 +1278,6 @@
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="confirmarModificarCierre()">Guardar</button>
       <button class="btn outline" onclick="closeEditarCierre()">Cancelar</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="recuperarCierreModal">
-  <div class="modal-box" style="max-width:700px">
-    <div class="section-title"><h3 id="recuperarCierreTitulo">Recuperar cierre</h3><button class="btn light" onclick="closeRecuperarCierre()">✕</button></div>
-    <p class="small" style="margin-top:-6px">
-      Ventas encontradas en esta franja (no se pueden editar acá, son las que ya se cobraron): agregá los
-      egresos/gastos que falten y completá el cierre como uno normal.
-    </p>
-    <div class="table-wrap" style="max-height:160px;overflow:auto">
-      <table>
-        <thead><tr><th>Forma de pago</th><th>Monto</th></tr></thead>
-        <tbody id="recuperarCierreVentasBody"></tbody>
-      </table>
-    </div>
-
-    <div class="section-title" style="margin-top:14px">
-      <h3 style="font-size:14px">Egresos / otros movimientos</h3>
-      <button class="btn light" type="button" onclick="mostrarFormMovimientoRecuperar()">+ Agregar movimiento</button>
-    </div>
-    <div class="toolbar" id="recuperarFormMovimiento" style="display:none">
-      <div class="field"><label>Tipo</label><select id="recupMovTipo"><option value="egreso">Egreso</option><option value="ingreso">Ingreso</option></select></div>
-      <div class="field"><label>Categoría</label>
-        <div style="display:flex;gap:6px">
-          <select id="recupMovCategoria" style="flex:1"></select>
-          <button type="button" class="btn light" onclick="agregarCategoriaMovimientoRecuperar()" title="Agregar categoría nueva">+</button>
-        </div>
-      </div>
-      <div class="field"><label>Concepto</label><input id="recupMovConcepto" placeholder="Detalle..."></div>
-      <div class="field"><label>Forma de pago</label>
-        <select id="recupMovFormaPago">
-          <option value="Efectivo">Efectivo</option>
-          <option value="Débito">Débito</option>
-          <option value="Crédito">Crédito</option>
-          <option value="Transferencia">Transferencia</option>
-          <option value="QR">QR</option>
-          <option value="Cheque">Cheque</option>
-          <option value="Cuenta Corriente">Cuenta Corriente</option>
-        </select>
-      </div>
-      <div class="field"><label>Monto</label><input id="recupMovMonto" type="number" step="any"></div>
-      <button class="btn primary" type="button" onclick="confirmarMovimientoRecuperar()">Agregar</button>
-      <button class="btn light" type="button" onclick="document.getElementById('recuperarFormMovimiento').style.display='none'">Cancelar</button>
-    </div>
-    <div class="table-wrap" style="max-height:200px;overflow:auto">
-      <table>
-        <thead><tr><th>Tipo</th><th>Categoría</th><th>Concepto</th><th>Forma pago</th><th>Monto</th><th></th></tr></thead>
-        <tbody id="recuperarCierreMovimientosBody"></tbody>
-      </table>
-    </div>
-
-    <div class="two-col-form" style="margin-top:12px">
-      <div class="field"><label>Fondo inicial (si lo sabés; si no, dejalo en 0)</label><input id="recupFondoInicial" type="number" step="any" value="0"></div>
-      <div class="field"><label>Efectivo contado</label><input id="recupEfectivoContado" type="number" step="any"></div>
-    </div>
-    <div class="field" style="margin-top:10px"><label>Fondo para el próximo turno</label>
-      <div style="display:flex;gap:6px">
-        <input id="recupFondoSiguiente" type="number" step="any" style="flex:1">
-        <button type="button" class="btn light" onclick="abrirArqueoBilletes('recupFondoSiguiente')" title="Contar billete por billete">🧮 Contar billetes</button>
-      </div>
-    </div>
-    <div class="field" style="margin-top:10px"><label>Observación</label><input id="recupObservacion" placeholder="Opcional"></div>
-
-    <div class="toolbar" style="margin-top:14px">
-      <button class="btn primary" onclick="confirmarRecuperarCierre()">Generar cierre</button>
-      <button class="btn outline" onclick="closeRecuperarCierre()">Cancelar</button>
     </div>
   </div>
 </div>
