@@ -1077,6 +1077,17 @@ async function guardarCliente() {
     document.getElementById('btnEliminarCli').style.display = 'inline-block';
     vehiculosEnEdicion = actualizado.vehiculos;
     renderVehiculosModal();
+  } else if (clienteModalOrigenVenta) {
+    // Se editó desde la pantalla de Venta el mismo cliente que ya estaba
+    // elegido ahí: refrescamos nombre/datos en el encabezado y cerramos,
+    // sin quedarse en modo edición.
+    clienteModalOrigenVenta = false;
+    closeCliente();
+    if (clienteVentaActual && clienteVentaActual.id === data.id) {
+      elegirClienteEnVenta(data);
+    }
+    cargarClientes();
+    return;
   }
   cargarClientes();
 }
@@ -5176,6 +5187,8 @@ function datosClienteVentaTexto(c) {
 function actualizarDatosClienteVenta() {
   const el = document.getElementById('ventaClienteDatos');
   if (el) el.textContent = datosClienteVentaTexto(clienteVentaActual);
+  const btnEditar = document.getElementById('btnEditarClienteVenta');
+  if (btnEditar) btnEditar.style.display = clienteVentaActual ? '' : 'none';
 }
 
 // Comprobante automático según la situación fiscal del cliente: Responsable
@@ -5272,6 +5285,15 @@ function nuevoClienteDesdeVenta() {
   document.getElementById('ventaClienteBuscar').value = '';
   clienteModalOrigenVenta = true;
   openCliente();
+}
+
+// Editar el cliente ya elegido en esta venta sin salir a la pantalla de
+// Clientes: mismo modal de siempre, y al guardar (ver guardarCliente) se
+// refresca acá mismo lo que se ve en el encabezado de la venta.
+function editarClienteDesdeVenta() {
+  if (!clienteVentaActual) return;
+  clienteModalOrigenVenta = true;
+  openCliente(clienteVentaActual.id);
 }
 
 function limpiarCarrito() {
