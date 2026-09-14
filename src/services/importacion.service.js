@@ -226,4 +226,80 @@ function importarStock(filas) {
   };
 }
 
-module.exports = { importarProductos, importarStock, normalizarFamilia };
+// Actualización masiva del proveedor de productos que YA existen, a partir
+// de una planilla chica de dos columnas:
+//   0 Código (tiene que coincidir con el código ya cargado en Productos)
+//   1 Proveedor (nombre — si no existe todavía como proveedor, se crea solo)
+// No crea productos nuevos ni toca ningún otro campo (precio, costo, etc.):
+// pensado para el caso de una importación de productos vieja que dejó
+// proveedores vacíos o mal cargados, y corregirlos sin tener que editar
+// producto por producto.
+function importarProveedores(filas) {
+  let actualizados = 0;
+  let sinCambios = 0;
+  let noEncontrados = 0;
+  const errores = [];
+  const noEncontradosDetalle = [];
+
+  const buscarProducto = db.prepare('SELECT id, proveedor_id FROM productos WHERE codigo = ?');
+  const getProveedorPorNombre = db.prepare('SELECT id FROM proveedores WHERE nombre = ? COLLATE NOCASE');
+  const insertProveedor = db.prepare('INSERT INTO proveedores (nombre) VALUES (?)');
+  const actualizarProducto = db.prepare(
+    `UPDATE productos SET proveedor_id = ?, actualizado_en = datetime('now','localtime') WHERE id = ?`
+  );
+  const proveedorCache = new Map();
+  function obtenerProveedorId(nombreRaw) {
+    const nombre = String(nombreRaw ?? '').trim();
+    const key = nombre.toLowerCase();
+    if (proveedorCache.has(key)) return proveedorCache.get(key);
+    const prov = getProveedorPorNombre.get(nombre);
+    const id = prov ? prov.id : insertProveedor.run(nombre).lastInsertRowid;
+    proveedorCache.set(key, id);
+    return id;
+  }
+
+  const ejecutar = db.transaction((filas) => {
+    filas.forEach((fila, idx) => {
+      const numeroFila = idx + 2;
+      const codigo = String(fila[0] ?? '').trim();
+      const proveedorNombre = String(fila[1] ?? '').trim();
+
+      if (!codigo) {
+        errores.push({ fila: numeroFila, motivo: 'Falta el código' });
+        return;
+      }
+      if (!proveedorNombre) {
+        errores.push({ fila: numeroFila, codigo, motivo: 'Falta el proveedor' });
+        return;
+      }
+
+      const producto = buscarProducto.get(codigo);
+      if (!producto) {
+        noEncontrados++;
+        noEncontradosDetalle.push({ fila: numeroFila, codigo });
+        return;
+      }
+
+      const proveedorId = obtenerProveedorId(proveedorNombre);
+      if (proveedorId === producto.proveedor_id) {
+        sinCambios++;
+        return;
+      }
+
+      actualizarProducto.run(proveedorId, producto.id);
+      actualizados++;
+    });
+  });
+  ejecutar(filas);
+
+  return {
+    actualizados,
+    sinCambios,
+    noEncontrados,
+    totalErrores: errores.length,
+    errores: errores.slice(0, 50),
+    noEncontradosDetalle: noEncontradosDetalle.slice(0, 100),
+  };
+}
+
+module.exports = { importarProductos, importarStock, importarProveedores, normalizarFamilia };

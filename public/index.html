@@ -272,6 +272,8 @@
             <div class="toolbar" style="margin:0">
               <button class="btn outline" onclick="document.getElementById('prodImportarInput').click()">Importar Excel</button>
               <input type="file" id="prodImportarInput" accept=".xlsx,.xls" style="display:none" onchange="importarExcel(event)">
+              <button class="btn outline" onclick="document.getElementById('prodImportarProveedoresInput').click()" title="Planilla de 2 columnas: Código y Proveedor — solo actualiza el proveedor de los productos que ya existen">Importar proveedores</button>
+              <input type="file" id="prodImportarProveedoresInput" accept=".xlsx,.xls" style="display:none" onchange="importarProveedoresExcel(event)">
               <button class="btn outline" onclick="abrirActualizarPrecios()">Actualizar precios masivo</button>
               <button class="btn primary" onclick="openProducto()">+ Nuevo producto</button>
             </div>

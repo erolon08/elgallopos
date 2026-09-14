@@ -385,6 +385,56 @@ async function importarExcel(event) {
   }
 }
 
+// Actualización masiva de proveedor a partir de una planilla chica (Código
+// + Proveedor): pensada para corregir productos que quedaron sin proveedor
+// (o con uno mal cargado) después de la importación grande, sin tocar
+// precios, costos ni ningún otro dato — y sin tener que editar producto
+// por producto.
+async function importarProveedoresExcel(event) {
+  const input = event.target;
+  const archivo = input.files[0];
+  if (!archivo) return;
+
+  if (
+    !confirm(
+      `¿Importar "${archivo.name}"? Columnas esperadas: Código (el mismo que ya tiene el producto cargado acá) y Proveedor. Solo se actualiza el proveedor de los productos que ya existen — no se toca ningún otro dato ni se crean productos nuevos.`
+    )
+  ) {
+    input.value = '';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+
+  const boton = document.querySelector('button[onclick*="prodImportarProveedoresInput"]');
+  const textoOriginal = boton.textContent;
+  boton.textContent = 'Importando...';
+  boton.disabled = true;
+
+  try {
+    const res = await fetch('/api/productos/importar-proveedores', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Error al importar: ' + data.error);
+      return;
+    }
+    let msg = `Importación completa.\nProductos actualizados: ${data.actualizados}`;
+    if (data.sinCambios) msg += `\nYa tenían ese mismo proveedor (sin cambios): ${data.sinCambios}`;
+    if (data.noEncontrados) msg += `\nCódigos no encontrados (revisar a mano): ${data.noEncontrados}`;
+    if (data.totalErrores) msg += `\nFilas con error: ${data.totalErrores}`;
+    alert(msg);
+    await cargarProveedoresGlobal();
+    cargarProductos();
+  } catch (err) {
+    alert('Error al importar: ' + err.message);
+  } finally {
+    boton.textContent = textoOriginal;
+    boton.disabled = false;
+    input.value = '';
+  }
+}
+
 function filaProducto(p) {
   const tr = document.createElement('tr');
   const incompletoMsg = p.usa_mano_obra ? 'Falta configurar los recargos de mano de obra' : 'Falta proveedor, costo o precio final';
