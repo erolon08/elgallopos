@@ -681,11 +681,15 @@ document.getElementById('prodSearch').addEventListener('input', cargarProductos)
 // Bronzen 15%"): primero arma una vista previa (sin tocar la base) para que
 // el usuario vea exactamente qué códigos y montos van a cambiar antes de
 // aplicar de verdad.
+let masPrecPreviewFilas = [];
+
 function abrirActualizarPrecios() {
   document.getElementById('masPrecProveedor').value = '';
   document.getElementById('masPrecFamilia').value = '';
   document.getElementById('masPrecAumentoCosto').value = '';
   document.getElementById('masPrecMargen').value = '';
+  document.getElementById('masPrecFiltro').value = '';
+  masPrecPreviewFilas = [];
   document.getElementById('masPrecPreviewWrap').style.display = 'none';
   document.getElementById('actualizarPreciosModal').classList.add('open');
 }
@@ -708,6 +712,21 @@ async function previsualizarActualizarPrecios() {
   const filas = await res.json();
   if (!res.ok) return alert('Error: ' + filas.error);
 
+  masPrecPreviewFilas = filas;
+  document.getElementById('masPrecFiltro').value = '';
+  renderMasPrecPreview();
+  document.getElementById('masPrecPreviewWrap').style.display = 'block';
+}
+
+// El filtro de la vista previa es solo para revisar cómo queda un producto
+// puntual dentro de los ~cientos que puede tocar un cambio masivo — no
+// restringe lo que se va a aplicar (eso sigue siendo TODO lo que matchea
+// proveedor/familia, filtrado o no).
+function renderMasPrecPreview() {
+  const q = (document.getElementById('masPrecFiltro').value || '').trim().toLowerCase();
+  const filas = q
+    ? masPrecPreviewFilas.filter((f) => f.codigo.toLowerCase().includes(q) || f.descripcion.toLowerCase().includes(q))
+    : masPrecPreviewFilas;
   const tbody = document.getElementById('masPrecPreviewBody');
   tbody.innerHTML = filas.length
     ? filas
@@ -715,9 +734,10 @@ async function previsualizarActualizarPrecios() {
           (f) => `<tr><td>${f.codigo}</td><td>${f.descripcion}</td><td>$ ${money.format(f.costo_actual)}</td><td>$ ${money.format(f.costo_nuevo)}</td><td>$ ${money.format(f.precio_final_actual)}</td><td><b>$ ${money.format(f.precio_final_nuevo)}</b></td></tr>`
         )
         .join('')
-    : '<tr><td colspan="6">No hay productos que matcheen ese filtro.</td></tr>';
-  document.getElementById('masPrecPreviewTotal').textContent = `${filas.length} producto(s) van a actualizarse.`;
-  document.getElementById('masPrecPreviewWrap').style.display = 'block';
+    : '<tr><td colspan="6">Ningún producto de la vista previa matchea ese filtro.</td></tr>';
+  document.getElementById('masPrecPreviewTotal').textContent = q
+    ? `Mostrando ${filas.length} de ${masPrecPreviewFilas.length} producto(s) (el filtro es solo para revisar: los ${masPrecPreviewFilas.length} se van a actualizar igual).`
+    : `${masPrecPreviewFilas.length} producto(s) van a actualizarse.`;
 }
 async function confirmarActualizarPrecios() {
   const proveedor_id = document.getElementById('masPrecProveedor').value;
