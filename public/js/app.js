@@ -6902,7 +6902,15 @@ async function guardarComoPresupuesto() {
 async function cargarPresupuestos() {
   document.getElementById('presupuestoDetalleCard').style.display = 'none';
   const estado = document.getElementById('presupuestosEstado').value;
-  const res = await fetch('/api/presupuestos' + (estado ? '?estado=' + encodeURIComponent(estado) : ''));
+  const cliente = document.getElementById('presupuestosCliente').value.trim();
+  const dni = document.getElementById('presupuestosDni').value.trim();
+  const codigo_cliente = document.getElementById('presupuestosCodigoCliente').value.trim();
+  const params = new URLSearchParams();
+  if (estado) params.set('estado', estado);
+  if (cliente) params.set('cliente', cliente);
+  if (dni) params.set('dni', dni);
+  if (codigo_cliente) params.set('codigo_cliente', codigo_cliente);
+  const res = await fetch('/api/presupuestos' + (params.toString() ? '?' + params.toString() : ''));
   const rows = await res.json();
   const tbody = document.getElementById('presupuestosBody');
   tbody.innerHTML = '';

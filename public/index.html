@@ -869,16 +869,20 @@
         <div class="card">
           <div class="section-title">
             <h3>Presupuestos</h3>
-            <div style="display:flex;gap:10px;align-items:center">
-              <div class="field" style="max-width:220px;margin-bottom:0">
-                <select id="presupuestosEstado" onchange="cargarPresupuestos()">
-                  <option value="vigente">Vigentes</option>
-                  <option value="historial">Historial (convertidos / cerrados)</option>
-                  <option value="">Todos</option>
-                </select>
-              </div>
-              <button class="btn light" onclick="borrarTodosLosPresupuestos()">🗑️ Borrar todos los presupuestos</button>
+            <button class="btn light" onclick="borrarTodosLosPresupuestos()">🗑️ Borrar todos los presupuestos</button>
+          </div>
+          <div class="toolbar">
+            <div class="field"><label>Estado</label>
+              <select id="presupuestosEstado" onchange="cargarPresupuestos()">
+                <option value="vigente">Vigentes</option>
+                <option value="historial">Historial (convertidos / cerrados)</option>
+                <option value="">Todos</option>
+              </select>
             </div>
+            <div class="field"><label>Cliente</label><input id="presupuestosCliente" placeholder="Nombre del cliente"></div>
+            <div class="field"><label>DNI</label><input id="presupuestosDni" placeholder="ej: 30423965"></div>
+            <div class="field"><label>N° de cliente</label><input id="presupuestosCodigoCliente" placeholder="ej: 128"></div>
+            <button class="btn primary" onclick="cargarPresupuestos()">Buscar</button>
           </div>
           <div class="table-wrap">
             <table>
@@ -1198,7 +1202,7 @@
       <div class="field"><label>Margen sobre el costo nuevo</label><input id="masPrecMargen" type="number" step="any" placeholder="Ej: 115"></div>
     </div>
     <div class="notice" style="margin-top:8px">
-      Primero se sube el costo ese %, y sobre el costo nuevo se calcula el precio final con el margen indicado. Ej: costo $1.000, aumento 5% → costo $1.050. Margen 115% → precio final $1.050 × 2,15 = $2.257.
+      Primero se sube el costo ese %, y sobre el costo nuevo se calcula el precio final con el margen indicado, redondeado hacia arriba a $100 (igual que en todo el sistema). Ej: costo $1.000, aumento 5% → costo $1.050. Margen 115% → precio final $1.050 × 2,15 = $2.257 → redondea a $2.300.
     </div>
     <div class="toolbar" style="margin-top:12px">
       <button class="btn primary" onclick="previsualizarActualizarPrecios()">Vista previa</button>

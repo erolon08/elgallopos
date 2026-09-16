@@ -1,5 +1,5 @@
 const db = require('../db');
-const { calcularPrecios, parsearRecargos } = require('./pricing.service');
+const { calcularPrecios, parsearRecargos, roundUpTo100 } = require('./pricing.service');
 
 function estadoStock(p) {
   if (p.stock_actual <= 0) return 'sin_stock';
@@ -249,7 +249,10 @@ function listarParaActualizacionMasiva({ proveedor_id, familia_id }) {
 
 function calcularNuevoPrecioMasivo(p, aumentoCostoPct, margenPct) {
   const costo = Math.round(p.costo * (1 + aumentoCostoPct / 100));
-  const precio_final = Math.round(costo * (1 + margenPct / 100));
+  // El precio final (lo que ve el cliente) siempre se redondea hacia arriba
+  // a múltiplos de $100, mismo criterio que se usa en todo el sistema
+  // (débito/efectivo de un producto normal, precio final de un servicio).
+  const precio_final = roundUpTo100(costo * (1 + margenPct / 100));
   let precio_debito;
   let precio_efectivo;
   if (p.usa_precio_rendicion) {
@@ -263,10 +266,10 @@ function calcularNuevoPrecioMasivo(p, aumentoCostoPct, margenPct) {
     // Precios cargados a mano (regla automática apagada): no hay margen
     // definido para recalcularlos desde el costo, así que se mueven en la
     // misma proporción en que cambió el precio final para no perder la
-    // personalización.
+    // personalización — pero redondeando igual hacia arriba a $100.
     const ratio = p.precio_final ? precio_final / p.precio_final : 1;
-    precio_debito = Math.round(p.precio_debito * ratio);
-    precio_efectivo = Math.round(p.precio_efectivo * ratio);
+    precio_debito = roundUpTo100(p.precio_debito * ratio);
+    precio_efectivo = roundUpTo100(p.precio_efectivo * ratio);
   }
   return { costo, precio_final, precio_debito, precio_efectivo };
 }
