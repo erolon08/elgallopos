@@ -9,6 +9,13 @@ const CARPETA_BACKUPS = path.join(path.dirname(db.DB_PATH), 'backups');
 const ARCHIVO_BACKUP = path.join(CARPETA_BACKUPS, 'gallopos-backup.db');
 const ARCHIVO_MARCA = path.join(CARPETA_BACKUPS, 'ultimo-backup.txt');
 const ARCHIVO_MARCA_DRIVE = path.join(CARPETA_BACKUPS, 'ultimo-backup-drive.txt');
+// Si existe este archivo (con el ID de la carpeta de Drive adentro, sin
+// nada más), la subida apunta a esa carpeta por ID en vez de por nombre —
+// evita depender de que el nombre/mayúsculas de la carpeta coincidan
+// exactamente con lo que espera el código, que es lo que hacía que
+// terminara subiendo el backup suelto a la raíz del Drive en vez de a la
+// carpeta. Ver el manual para cómo sacar el ID de una carpeta de Drive.
+const ARCHIVO_ID_CARPETA_DRIVE = path.join(path.dirname(db.DB_PATH), 'gdrive-carpeta-id.txt');
 
 // Subida a Google Drive con rclone (herramienta externa gratuita: se
 // instala y se conecta a la cuenta de Google UNA sola vez en esta PC con
@@ -56,11 +63,16 @@ function ultimoBackupDriveFecha() {
   return fs.readFileSync(ARCHIVO_MARCA_DRIVE, 'utf8').trim();
 }
 
+function idCarpetaDriveConfigurado() {
+  if (!fs.existsSync(ARCHIVO_ID_CARPETA_DRIVE)) return null;
+  return fs.readFileSync(ARCHIVO_ID_CARPETA_DRIVE, 'utf8').trim() || null;
+}
+
 function estado() {
   const fecha = ultimoBackupFecha();
   const existe = fs.existsSync(ARCHIVO_BACKUP);
   const tamanioBytes = existe ? fs.statSync(ARCHIVO_BACKUP).size : 0;
-  return { fecha, existe, tamanioBytes, driveFecha: ultimoBackupDriveFecha() };
+  return { fecha, existe, tamanioBytes, driveFecha: ultimoBackupDriveFecha(), driveCarpetaPorId: !!idCarpetaDriveConfigurado() };
 }
 
 async function hacerBackupSiCorresponde() {
@@ -70,21 +82,23 @@ async function hacerBackupSiCorresponde() {
 }
 
 // Copia el archivo de backup a la carpeta de Drive indicada, vía rclone.
+// Si hay un ID de carpeta configurado (ver idCarpetaDriveConfigurado), se
+// usa ESE en vez del nombre — así no importa cómo esté escrita la carpeta
+// en Drive ni si hay mayúsculas de por medio.
 function subirBackupADrive() {
+  const idCarpeta = idCarpetaDriveConfigurado();
+  const args = idCarpeta
+    ? ['copy', ARCHIVO_BACKUP, `${GDRIVE_REMOTE}:`, '--drive-root-folder-id', idCarpeta]
+    : ['copy', ARCHIVO_BACKUP, `${GDRIVE_REMOTE}:${GDRIVE_CARPETA}`];
   return new Promise((resolve, reject) => {
-    execFile(
-      RCLONE_BIN,
-      ['copy', ARCHIVO_BACKUP, `${GDRIVE_REMOTE}:${GDRIVE_CARPETA}`],
-      { timeout: 5 * 60 * 1000 },
-      (err, stdout, stderr) => {
-        if (err) {
-          reject(new Error(stderr?.trim() || err.message));
-          return;
-        }
-        fs.writeFileSync(ARCHIVO_MARCA_DRIVE, hoyISO());
-        resolve();
+    execFile(RCLONE_BIN, args, { timeout: 5 * 60 * 1000 }, (err, stdout, stderr) => {
+      if (err) {
+        reject(new Error(stderr?.trim() || err.message));
+        return;
       }
-    );
+      fs.writeFileSync(ARCHIVO_MARCA_DRIVE, hoyISO());
+      resolve();
+    });
   });
 }
 

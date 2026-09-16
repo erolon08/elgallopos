@@ -1086,10 +1086,13 @@
             <span class="small" id="backupEstado"></span>
           </div>
           <div class="notice" style="margin-top:14px">
-            Copia automática a Google Drive, una vez por semana, a la carpeta "backup el gallo pos" — usa una
-            herramienta externa gratuita (rclone) que se instala y se conecta a tu cuenta de Google una sola vez en
-            esta PC. Mientras no esté configurada, esta parte simplemente no hace nada (el backup local de arriba
-            sigue funcionando igual).
+            Copia automática a Google Drive, una vez por semana, a tu carpeta de backups — usa una herramienta
+            externa gratuita (rclone) que se instala y se conecta a tu cuenta de Google una sola vez en esta PC.
+            Mientras no esté configurada, esta parte simplemente no hace nada (el backup local de arriba sigue
+            funcionando igual). Para que encuentre la carpeta exacta sin importar cómo esté escrito el nombre,
+            creá un archivo de texto llamado <code>gdrive-carpeta-id.txt</code> dentro de la carpeta <code>data</code>
+            del sistema, con el ID de esa carpeta adentro (lo sacás de la URL cuando la abrís en Drive:
+            drive.google.com/drive/folders/<b>ESTE-ES-EL-ID</b>).
           </div>
           <div class="toolbar" style="margin-top:12px;align-items:center">
             <button class="btn light" id="btnSubirBackupDrive" onclick="subirBackupADriveAhora()">Subir a Google Drive ahora</button>

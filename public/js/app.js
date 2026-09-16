@@ -2950,7 +2950,7 @@ async function cargarBackupEstado() {
       el.textContent = `Último backup automático: ${estado.fecha} (${kb.toLocaleString('es-AR')} KB)`;
     }
     elDrive.textContent = estado.driveFecha
-      ? `Última subida a Google Drive: ${estado.driveFecha}`
+      ? `Última subida a Google Drive: ${estado.driveFecha}${estado.driveCarpetaPorId ? '' : ' (ubicando la carpeta por nombre — si no la encontrás, configurá el ID de la carpeta, ver más abajo)'}`
       : 'Todavía no se subió ningún backup a Google Drive.';
   } catch (err) {
     el.textContent = '';
