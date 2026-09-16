@@ -19,6 +19,12 @@ const ARCHIVO_MARCA_DRIVE = path.join(CARPETA_BACKUPS, 'ultimo-backup-drive.txt'
 const GDRIVE_REMOTE = process.env.GDRIVE_REMOTE || 'gdrive';
 const GDRIVE_CARPETA = process.env.GDRIVE_BACKUP_FOLDER || 'backup el gallo pos';
 const DIAS_ENTRE_BACKUPS_DRIVE = 7;
+// En Windows, Node busca el ejecutable con Windows (CreateProcess) directo,
+// sin pasar por cmd.exe — así que NO completa la extensión sola como sí
+// hace la consola cuando escribís "rclone" a mano (eso lo hace cmd.exe, no
+// Windows). Sin el ".exe" explícito, esto tira "spawn rclone ENOENT" aunque
+// "rclone.exe" esté perfectamente instalado y en el PATH.
+const RCLONE_BIN = process.platform === 'win32' ? 'rclone.exe' : 'rclone';
 
 function hoyISO() {
   return new Date().toISOString().slice(0, 10);
@@ -67,7 +73,7 @@ async function hacerBackupSiCorresponde() {
 function subirBackupADrive() {
   return new Promise((resolve, reject) => {
     execFile(
-      'rclone',
+      RCLONE_BIN,
       ['copy', ARCHIVO_BACKUP, `${GDRIVE_REMOTE}:${GDRIVE_CARPETA}`],
       { timeout: 5 * 60 * 1000 },
       (err, stdout, stderr) => {
