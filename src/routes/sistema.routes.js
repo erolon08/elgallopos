@@ -22,6 +22,17 @@ router.get('/backup/descargar', async (req, res) => {
   }
 });
 
+router.post('/backup/subir-drive', async (req, res) => {
+  try {
+    const fecha = await backupService.subirBackupADriveAhora();
+    res.json({ fecha });
+  } catch (err) {
+    res.status(500).json({
+      error: `No se pudo subir a Google Drive: ${err.message}. Revisá que rclone esté instalado y configurado (ver Configuración → Copia de seguridad).`,
+    });
+  }
+});
+
 router.post('/reset', (req, res) => {
   const { password, confirmacion } = req.body;
 

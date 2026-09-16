@@ -2940,16 +2940,43 @@ async function guardarNotasTicketConfig() {
 
 async function cargarBackupEstado() {
   const el = document.getElementById('backupEstado');
+  const elDrive = document.getElementById('backupEstadoDrive');
   try {
     const estado = await (await fetch('/api/sistema/backup/estado')).json();
     if (!estado.fecha) {
       el.textContent = 'Todavía no se hizo ningún backup automático.';
-      return;
+    } else {
+      const kb = Math.round(estado.tamanioBytes / 1024);
+      el.textContent = `Último backup automático: ${estado.fecha} (${kb.toLocaleString('es-AR')} KB)`;
     }
-    const kb = Math.round(estado.tamanioBytes / 1024);
-    el.textContent = `Último backup automático: ${estado.fecha} (${kb.toLocaleString('es-AR')} KB)`;
+    elDrive.textContent = estado.driveFecha
+      ? `Última subida a Google Drive: ${estado.driveFecha}`
+      : 'Todavía no se subió ningún backup a Google Drive.';
   } catch (err) {
     el.textContent = '';
+    elDrive.textContent = '';
+  }
+}
+
+async function subirBackupADriveAhora() {
+  const btn = document.getElementById('btnSubirBackupDrive');
+  const textoOriginal = btn.textContent;
+  btn.textContent = 'Subiendo...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/sistema/backup/subir-drive', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Error: ' + data.error);
+      return;
+    }
+    alert('Backup subido a Google Drive correctamente.');
+    cargarBackupEstado();
+  } catch (err) {
+    alert('Error al subir: ' + err.message);
+  } finally {
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
   }
 }
 
