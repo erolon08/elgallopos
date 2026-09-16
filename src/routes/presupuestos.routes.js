@@ -4,7 +4,8 @@ const presupuestosService = require('../services/presupuestos.service');
 const router = express.Router();
 
 router.get('/', (req, res) => {
-  res.json(presupuestosService.listar({ estado: req.query.estado }));
+  const { estado, cliente, dni, codigo_cliente } = req.query;
+  res.json(presupuestosService.listar({ estado, cliente, dni, codigo_cliente }));
 });
 
 router.get('/:id', (req, res) => {

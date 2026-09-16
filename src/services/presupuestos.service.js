@@ -81,7 +81,7 @@ function obtener(id) {
   return { ...presupuesto, items, cliente };
 }
 
-function listar({ estado } = {}) {
+function listar({ estado, cliente, dni, codigo_cliente } = {}) {
   let sql = `
     SELECT p.*, c.nombre AS cliente_nombre
     FROM presupuestos p LEFT JOIN clientes c ON c.id = p.cliente_id
@@ -93,6 +93,21 @@ function listar({ estado } = {}) {
   } else if (estado) {
     sql += ' AND p.estado = @estado';
     params.estado = estado;
+  }
+  // Para ver todos los presupuestos que se le mandaron a un cliente puntual
+  // (nombre, DNI o N° de cliente) sin depender de acordarse a qué venta
+  // terminó cada uno.
+  if (cliente) {
+    sql += ' AND c.nombre LIKE @cliente';
+    params.cliente = `%${cliente}%`;
+  }
+  if (dni) {
+    sql += ' AND c.documento LIKE @dni';
+    params.dni = `%${dni}%`;
+  }
+  if (codigo_cliente) {
+    sql += ' AND c.codigo LIKE @codigo_cliente';
+    params.codigo_cliente = `%${codigo_cliente}%`;
   }
   sql += ' ORDER BY p.id DESC LIMIT 300';
   return db.prepare(sql).all(params);
