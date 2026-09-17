@@ -113,6 +113,16 @@ router.post('/:id/anular', (req, res) => {
   }
 });
 
+router.post('/:id/desanular', (req, res) => {
+  try {
+    const venta = ventasService.desanular(Number(req.params.id), req.body);
+    emitVentaEvent('venta:actualizada', venta);
+    res.json(venta);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.delete('/:id', (req, res) => {
   try {
     ventasService.borrarDefinitivo(Number(req.params.id));

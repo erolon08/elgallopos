@@ -6695,6 +6695,9 @@ function filaVentaHistorial(v) {
   const botonBorrar = v.estado === 'anulada' && !esSoloConsulta
     ? `<button class="btn light" onclick="borrarVentaDefinitivo(${v.id})">🗑️ Borrar</button>`
     : '';
+  const botonDeshacerAnulacion = v.estado === 'anulada' && !esSoloConsulta
+    ? `<button class="btn light" onclick="desanularVenta(${v.id})">↩️ Deshacer anulación</button>`
+    : '';
   // Abreviada con "..." y puntos suspensivos por CSS (celda angosta), con el
   // texto completo en el title para verlo pasando el mouse por encima.
   const descripcionCelda = v.descripcion_items
@@ -6705,7 +6708,7 @@ function filaVentaHistorial(v) {
     <td>${descripcionCelda}</td>
     <td>${v.tipo_comprobante}</td><td>${formaPagoCelda}</td><td>$ ${money.format(v.total)}</td>
     <td><span class="status ${estadoCls}">${v.estado}</span></td>
-    <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button> ${botonFacturar} ${botonBorrar}</td>
+    <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button> ${botonFacturar} ${botonDeshacerAnulacion} ${botonBorrar}</td>
   `;
   return tr;
 }
@@ -6828,6 +6831,7 @@ async function verDetalleVenta(id) {
     <p><b>Total: $ ${money.format(venta.total)}</b></p>
   `;
   document.getElementById('btnAnularVenta').style.display = venta.estado === 'anulada' || esSoloConsulta ? 'none' : 'inline-block';
+  document.getElementById('btnDesanularVenta').style.display = venta.estado === 'anulada' && !esSoloConsulta ? 'inline-block' : 'none';
   document.getElementById('detalleVentaModal').classList.add('open');
 }
 function closeDetalleVenta() {
@@ -6855,6 +6859,32 @@ async function anularVentaUI() {
     return;
   }
   alert('Venta anulada. El stock se repuso automáticamente.');
+  closeDetalleVenta();
+}
+
+// Deshace una anulación hecha por error: si la venta ya estaba cobrada
+// antes de anularla, vuelve a descontar el stock, vuelve a generar el
+// ingreso en caja y, si tenía pago por Cuenta Corriente, vuelve a sumar
+// esa deuda — como si nunca se hubiera anulado. Si nunca llegó a
+// cobrarse, simplemente vuelve a quedar pendiente.
+async function desanularVenta(id) {
+  if (!confirm('¿Deshacer la anulación de esta venta? Si estaba cobrada, se vuelve a descontar el stock, se vuelve a generar el ingreso en caja y, si tenía Cuenta Corriente, se vuelve a sumar esa deuda.')) return;
+  const res = await fetch(`/api/ventas/${id}/desanular`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario_id: session.id, terminal: session.rol }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  alert('Listo, se deshizo la anulación.');
+  cargarVentasHistorial();
+}
+async function desanularVentaUI() {
+  if (!ventaDetalleActual) return;
+  await desanularVenta(ventaDetalleActual.id);
   closeDetalleVenta();
 }
 async function borrarVentaDefinitivo(id) {

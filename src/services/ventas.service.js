@@ -612,6 +612,90 @@ const anular = db.transaction((id, { motivo, usuario_id, terminal } = {}) => {
   return obtener(id);
 });
 
+// Deshace una anulación por error: espejo exacto de lo que "anular"
+// deshizo. Si la venta ya se había cobrado antes de anularla (tiene
+// cobrado_en), vuelve a descontar el stock, vuelve a generar el ingreso en
+// caja y, si tuvo pago por Cuenta Corriente, vuelve a sumar la deuda —
+// todo como movimientos NUEVOS (no se borra nada de lo que dejó la
+// anulación, que queda como historial de que esa reversión pasó de
+// verdad). Si nunca llegó a cobrarse (se anuló estando pendiente o
+// enviada a caja), simplemente vuelve a "pendiente" — no hay nada de
+// stock/caja/cta-cte que reconstruir en ese caso.
+const desanular = db.transaction((id, { usuario_id, terminal } = {}) => {
+  const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
+  if (!venta) throw new Error('Venta no encontrada');
+  if (venta.estado !== 'anulada') throw new Error('La venta no está anulada');
+
+  if (!venta.cobrado_en) {
+    db.prepare("UPDATE ventas SET estado = 'pendiente', motivo_anulacion = NULL WHERE id = ?").run(id);
+    return obtener(id);
+  }
+
+  const items = db
+    .prepare('SELECT vi.*, f.usa_mano_obra FROM venta_items vi LEFT JOIN productos p ON p.id = vi.producto_id LEFT JOIN familias f ON f.id = p.familia_id WHERE vi.venta_id = ?')
+    .all(id);
+  items.forEach((it) => {
+    if (it.producto_id && !it.usa_mano_obra) {
+      stockService.registrarMovimiento({
+        producto_id: it.producto_id,
+        tipo: 'venta',
+        cantidad: -Math.abs(it.cantidad),
+        motivo: `Venta N° ${venta.numero} (se deshizo la anulación)`,
+        referencia_tipo: 'venta',
+        referencia_id: id,
+        usuario_id,
+        terminal,
+      });
+    }
+    if (it.pila_producto_id) {
+      stockService.registrarMovimiento({
+        producto_id: it.pila_producto_id,
+        tipo: 'venta',
+        cantidad: -Math.abs(it.cantidad),
+        motivo: `Venta N° ${venta.numero} — pila usada (se deshizo la anulación)`,
+        referencia_tipo: 'venta',
+        referencia_id: id,
+        usuario_id,
+        terminal,
+      });
+    }
+  });
+
+  const turno = cajaService.turnoAbiertoOCrear(terminal || venta.terminal_origen);
+  const pagos = db.prepare('SELECT * FROM venta_pagos WHERE venta_id = ?').all(id);
+  const insertCajaMov = db.prepare(`
+    INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
+    VALUES (?, 'ingreso', 'venta', ?, ?, ?, 'venta', ?, ?)
+  `);
+  let totalCtaCte = 0;
+  pagos.forEach((p) => {
+    insertCajaMov.run(
+      turno.id,
+      `Venta N° ${venta.numero} — ${p.forma_pago} (se deshizo la anulación)`,
+      p.monto,
+      p.forma_pago,
+      id,
+      usuario_id || null
+    );
+    if (p.forma_pago === 'Cuenta Corriente' && venta.cliente_id) {
+      ccService.registrarMovimiento({
+        cliente_id: venta.cliente_id,
+        tipo: 'venta',
+        monto: Math.abs(Number(p.monto) || 0),
+        motivo: `Venta N° ${venta.numero} (se deshizo la anulación)`,
+        referencia_tipo: 'venta',
+        referencia_id: id,
+        usuario_id,
+        terminal,
+      });
+      totalCtaCte += Number(p.monto) || 0;
+    }
+  });
+
+  db.prepare("UPDATE ventas SET estado = 'cobrada', cta_cte_saldo_pendiente = ?, motivo_anulacion = NULL WHERE id = ?").run(totalCtaCte, id);
+  return obtener(id);
+});
+
 // Borra para siempre una venta ya anulada — para vaciar el historial (ej.
 // arrancar de cero después de pruebas), no para el flujo normal de trabajo
 // (para eso está "anular", que preserva todo como registro). Solo se
@@ -661,6 +745,7 @@ module.exports = {
   facturarVentaExistente,
   enviarACaja,
   anular,
+  desanular,
   borrarDefinitivo,
   actualizar,
   actualizarCerrajeroLinea,
