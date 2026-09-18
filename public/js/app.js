@@ -1330,21 +1330,52 @@ async function cargarCtaCte() {
   const tbody = document.getElementById('ctaCteBody');
   tbody.innerHTML = '';
   if (!movs.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Todavía no hay movimientos.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Todavía no hay movimientos.</td></tr>';
     return;
   }
   const TIPO_LABEL = { saldo_inicial: 'Saldo inicial', venta: 'Venta', pago: 'Pago', ajuste: 'Ajuste', nota_credito: 'Nota de crédito' };
-  movs.forEach((m) => {
+  movs.forEach((m, i) => {
     const tr = document.createElement('tr');
     const fecha = new Date(m.creado_en.replace(' ', 'T')).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    // Solo el ÚLTIMO movimiento se puede deshacer (y solo si es un cobro):
+    // misma regla que aplica el servidor, así el botón no aparece donde
+    // igual iba a fallar.
+    const puedeDeshacer = i === 0 && m.tipo === 'pago' && session.rol !== 'VENTA';
     tr.innerHTML = `
       <td>${fecha}</td>
-      <td>${TIPO_LABEL[m.tipo] || m.tipo}${m.venta_numero ? ` (Venta N° ${m.venta_numero})` : ''}<br><span class="small" style="color:var(--muted)">${m.motivo || ''}</span></td>
-      <td style="text-align:right;color:${m.monto > 0 ? 'var(--red)' : 'inherit'}">${m.monto > 0 ? '+' : ''}$ ${money.format(m.monto)}</td>
-      <td style="text-align:right"><b>$ ${money.format(m.saldo_resultante)}</b></td>
+      <td>${TIPO_LABEL[m.tipo] || m.tipo}${m.venta_numero ? ` (Venta N° ${m.venta_numero})` : ''}${m.tipo === 'pago' && m.forma_pago ? ` · ${m.forma_pago}` : ''}<br><span class="small" style="color:var(--muted)">${m.motivo || ''}</span></td>
+      <td style="text-align:right;white-space:nowrap;color:${m.monto > 0 ? 'var(--red)' : 'inherit'}">${m.monto > 0 ? '+' : ''}$ ${money.format(m.monto)}</td>
+      <td style="text-align:right;white-space:nowrap"><b>$ ${money.format(m.saldo_resultante)}</b></td>
+      <td style="white-space:nowrap">${puedeDeshacer ? `<button class="btn light" onclick="deshacerCobroCtaCte(${m.id})" title="Deshace este cobro para volver a cargarlo bien (ej. con otra forma de pago)">↩️ Deshacer</button>` : ''}</td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+// Deshace el último cobro cargado (ej. se puso Efectivo y fue Transferencia):
+// el saldo vuelve a subir, las facturas que había saldado vuelven a quedar
+// pendientes y en caja se compensa el ingreso equivocado con un egreso por
+// la misma forma de pago. Después se carga el cobro de nuevo, bien.
+async function deshacerCobroCtaCte(movId) {
+  if (
+    !confirm(
+      '¿Deshacer este cobro? El saldo del cliente vuelve a subir, las facturas que había saldado vuelven a quedar pendientes, y en la caja se compensa el ingreso con un egreso por la misma forma de pago. Después podés volver a cargarlo con la forma de pago correcta.'
+    )
+  )
+    return;
+  const res = await fetch(`/api/clientes/${ctaCteClienteId}/cta-cte/cobros/${movId}/deshacer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario_id: session.id, terminal: session.rol }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  alert(`Listo, se deshizo el cobro de $ ${money.format(data.monto)} (${data.forma_pago}). Ahora podés volver a cargarlo con la forma de pago correcta.`);
+  await cargarCtaCte();
+  cargarClientes();
 }
 
 // Al elegir una factura puntual, precarga el monto con lo que le queda
@@ -1752,11 +1783,13 @@ function construirCierreA4Html(t) {
   // Los cobros de Cuenta Corriente (clientes saldando deuda vieja) se
   // muestran aparte, por forma de pago, igual que las ventas del día —
   // aunque ambos sumen al mismo total de caja, no son lo mismo.
+  // Un cobro deshecho (deshacerCobroCtaCte) deja un egreso en esta misma
+  // categoría que cancela al ingreso equivocado: tiene que restar, no sumar.
   const ctaCteMov = t.movimientos.filter((m) => m.categoria === 'cuenta_corriente');
   const porFormaCtaCte = {};
   ctaCteMov.forEach((m) => {
     const fp = m.forma_pago || 'Otro';
-    porFormaCtaCte[fp] = (porFormaCtaCte[fp] || 0) + m.monto;
+    porFormaCtaCte[fp] = (porFormaCtaCte[fp] || 0) + (m.tipo === 'ingreso' ? m.monto : -m.monto);
   });
   const totalCtaCteCobrada = Object.values(porFormaCtaCte).reduce((a, b) => a + b, 0);
   const filasCtaCte = Object.entries(porFormaCtaCte)

@@ -52,12 +52,15 @@ function resumenDe(turno, movimientos) {
   // Desglose aparte de lo cobrado de cuenta corriente (clientes saldando
   // deuda vieja) por forma de pago — para que el cierre lo muestre separado
   // de lo vendido en el día, aunque ambos sumen al mismo total de caja.
+  // Un cobro deshecho (cc.service deshacerPago) deja en esta misma categoría
+  // un egreso que cancela al ingreso equivocado: tiene que restar, si no el
+  // cierre diría que entró plata que en realidad nunca entró.
   const ctaCteCobrada = {};
   movimientos
-    .filter((m) => m.categoria === 'cuenta_corriente' && m.tipo === 'ingreso')
+    .filter((m) => m.categoria === 'cuenta_corriente')
     .forEach((m) => {
       const fp = m.forma_pago || 'Otro';
-      ctaCteCobrada[fp] = (ctaCteCobrada[fp] || 0) + m.monto;
+      ctaCteCobrada[fp] = (ctaCteCobrada[fp] || 0) + (m.tipo === 'ingreso' ? m.monto : -m.monto);
     });
   const totalCtaCteCobrada = Object.values(ctaCteCobrada).reduce((a, v) => a + v, 0);
 

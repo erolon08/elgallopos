@@ -4,6 +4,7 @@ const XLSX = require('xlsx');
 const clientesService = require('../services/clientes.service');
 const importacionClientesService = require('../services/importacion-clientes.service');
 const ccService = require('../services/cc.service');
+const { emitVentaEvent } = require('../sockets');
 const arcaPadronService = require('../services/arca-padron.service');
 
 const router = express.Router();
@@ -142,6 +143,19 @@ router.post('/:id/cta-cte/cobro', (req, res) => {
       deuda_id: req.body.deuda_id || null,
       deuda_tipo: req.body.deuda_tipo || null,
     });
+    res.json(resultado);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/:id/cta-cte/cobros/:movId/deshacer', (req, res) => {
+  try {
+    const resultado = ccService.deshacerPago(Number(req.params.id), Number(req.params.movId), {
+      usuario_id: req.body.usuario_id,
+      terminal: req.body.terminal,
+    });
+    emitVentaEvent('caja:actualizada', resultado);
     res.json(resultado);
   } catch (err) {
     res.status(400).json({ error: err.message });

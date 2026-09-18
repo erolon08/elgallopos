@@ -96,7 +96,7 @@ function aplicarAdeuda(deuda, aplicado) {
   } else {
     db.prepare('UPDATE ventas SET cta_cte_saldo_pendiente = ? WHERE id = ?').run(nuevoSaldo, deuda.id);
   }
-  return { numero: deuda.numero, tipo: deuda.tipo, aplicado, saldada: nuevoSaldo <= 0 };
+  return { deuda_id: deuda.id, numero: deuda.numero, tipo: deuda.tipo, aplicado, saldada: nuevoSaldo <= 0 };
 }
 
 // Registra que el cliente pagó (total o parcial) su deuda: resta del saldo y
@@ -157,6 +157,13 @@ const registrarPago = db.transaction(({ cliente_id, monto, forma_pago, motivo, u
     }
   }
 
+  // Queda asentado a qué deuda fue cada peso, para poder deshacer el cobro
+  // con exactitud si se cargó mal (ver deshacerPago).
+  const insAplicacion = db.prepare(
+    'INSERT INTO cc_pago_aplicaciones (cc_movimiento_id, deuda_tipo, deuda_id, monto) VALUES (?, ?, ?, ?)'
+  );
+  for (const a of ventasAfectadas) insAplicacion.run(resultado.movimiento_id, a.tipo, a.deuda_id, a.aplicado);
+
   const turno = cajaService.turnoAbiertoOCrear(terminal);
   db.prepare(
     `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
@@ -194,4 +201,80 @@ function listarDeudas() {
     .all();
 }
 
-module.exports = { registrarMovimiento, movimientos, registrarPago, listarDeudas, pendientesDeCliente };
+// Deshace un cobro cargado mal (ej. se puso Efectivo y en realidad fue por
+// Transferencia, con lo que a la caja le "faltaría" plata). Revierte las
+// tres cosas que hizo registrarPago, siempre agregando movimientos
+// inversos, nunca borrando (mismo criterio que anular una venta):
+//   1. vuelve a sumar el monto al saldo del cliente (cc_movimientos 'ajuste');
+//   2. vuelve a dejar pendientes las facturas que ese cobro había saldado,
+//      exactamente por lo que se les aplicó (cc_pago_aplicaciones);
+//   3. mete en la caja del turno abierto un egreso con la misma forma de
+//      pago, que cancela el ingreso equivocado.
+// Después se vuelve a cargar el cobro con la forma de pago correcta.
+// Solo se puede deshacer el ÚLTIMO movimiento del cliente: si después ya
+// hubo otra venta o pago, deshacer este dejaría los saldos de esas
+// facturas en un estado que no se corresponde con nada real.
+const deshacerPago = db.transaction((cliente_id, movimiento_id, { usuario_id, terminal } = {}) => {
+  const pago = db.prepare('SELECT * FROM cc_movimientos WHERE id = ? AND cliente_id = ?').get(movimiento_id, cliente_id);
+  if (!pago) throw new Error('Cobro no encontrado');
+  if (pago.tipo !== 'pago') throw new Error('Solo se puede deshacer un cobro (pago de cuenta corriente)');
+  const posterior = db.prepare('SELECT id FROM cc_movimientos WHERE cliente_id = ? AND id > ? LIMIT 1').get(cliente_id, movimiento_id);
+  if (posterior) {
+    throw new Error('Este cliente ya tiene movimientos posteriores a ese cobro — no se puede deshacer. Si hace falta, corregilo con un ajuste manual de saldo.');
+  }
+
+  const cliente = db.prepare('SELECT id, nombre FROM clientes WHERE id = ?').get(cliente_id);
+  const monto = Math.abs(Number(pago.monto));
+
+  const resultado = registrarMovimiento({
+    cliente_id,
+    tipo: 'ajuste',
+    monto,
+    motivo: `Se deshizo el cobro del ${pago.creado_en.slice(0, 16)} ($${monto}, ${pago.forma_pago || 'Efectivo'})`,
+    referencia_tipo: 'cc_movimiento',
+    referencia_id: pago.id,
+    usuario_id,
+    terminal,
+  });
+
+  const aplicaciones = db.prepare('SELECT * FROM cc_pago_aplicaciones WHERE cc_movimiento_id = ?').all(pago.id);
+  const devolverAdeuda = (tipo, id, cuanto) => {
+    if (tipo === 'migrada') {
+      db.prepare('UPDATE cc_deudas_migradas SET saldo_pendiente = ROUND(saldo_pendiente + ?, 2) WHERE id = ?').run(cuanto, id);
+    } else {
+      db.prepare('UPDATE ventas SET cta_cte_saldo_pendiente = ROUND(cta_cte_saldo_pendiente + ?, 2) WHERE id = ?').run(cuanto, id);
+    }
+  };
+  if (aplicaciones.length) {
+    for (const a of aplicaciones) devolverAdeuda(a.deuda_tipo, a.deuda_id, a.monto);
+  } else {
+    // Cobro anterior a que se guardara el detalle de aplicación: como fue el
+    // último movimiento del cliente (lo garantiza el chequeo de arriba) y
+    // registrarPago aplica de la más vieja a la más nueva, el inverso exacto
+    // es devolver de la más nueva a la más vieja hasta agotar el monto.
+    let restante = monto;
+    const deudas = [
+      ...db.prepare("SELECT id, 'venta' AS tipo, total AS original, cta_cte_saldo_pendiente AS pendiente, creado_en FROM ventas WHERE cliente_id = ? AND estado = 'cobrada' AND forma_pago LIKE '%Cuenta Corriente%'").all(cliente_id),
+      ...db.prepare("SELECT id, 'migrada' AS tipo, monto_original AS original, saldo_pendiente AS pendiente, creado_en FROM cc_deudas_migradas WHERE cliente_id = ?").all(cliente_id),
+    ].sort((a, b) => b.creado_en.localeCompare(a.creado_en) || b.id - a.id);
+    for (const d of deudas) {
+      if (restante <= 0) break;
+      const cabe = Math.max(0, Number(d.original) - Number(d.pendiente));
+      const devolver = Math.min(restante, cabe);
+      if (devolver > 0) {
+        devolverAdeuda(d.tipo, d.id, devolver);
+        restante -= devolver;
+      }
+    }
+  }
+
+  const turno = cajaService.turnoAbiertoOCrear(terminal);
+  db.prepare(
+    `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
+     VALUES (?, 'egreso', 'cuenta_corriente', ?, ?, ?, 'cliente', ?, ?)`
+  ).run(turno.id, `Se deshizo cobro cuenta corriente — ${cliente.nombre}`, monto, pago.forma_pago || 'Efectivo', cliente_id, usuario_id || null);
+
+  return { monto, forma_pago: pago.forma_pago || 'Efectivo', saldo_nuevo: resultado.saldo_resultante };
+});
+
+module.exports = { registrarMovimiento, movimientos, registrarPago, deshacerPago, listarDeudas, pendientesDeCliente };

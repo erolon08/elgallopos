@@ -185,6 +185,19 @@ CREATE TABLE IF NOT EXISTS cc_deudas_migradas (
 );
 CREATE INDEX IF NOT EXISTS idx_ccdeudas_cliente ON cc_deudas_migradas(cliente_id, saldo_pendiente);
 
+-- A qué deuda (venta real o factura migrada) y por cuánto se aplicó cada
+-- cobro de cuenta corriente (cc_movimientos.tipo='pago'). Sin esto no hay
+-- forma de deshacer un cobro con exactitud: el saldo del cliente se puede
+-- revertir, pero no se sabría qué facturas volver a marcar como pendientes.
+CREATE TABLE IF NOT EXISTS cc_pago_aplicaciones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cc_movimiento_id INTEGER NOT NULL REFERENCES cc_movimientos(id),
+  deuda_tipo TEXT NOT NULL CHECK (deuda_tipo IN ('venta','migrada')),
+  deuda_id INTEGER NOT NULL,
+  monto REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ccpagoapl_mov ON cc_pago_aplicaciones(cc_movimiento_id);
+
 -- patente: única por vehículo, se busca como identificador principal.
 CREATE TABLE IF NOT EXISTS vehiculos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
