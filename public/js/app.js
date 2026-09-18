@@ -1428,7 +1428,7 @@ async function cargarCcDeudas() {
   const tbody = document.getElementById('ccDeudasBody');
   tbody.innerHTML = '';
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No hay clientes con cuenta corriente pendiente.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No hay clientes con cuenta corriente pendiente ni con movimientos en los últimos 30 días.</td></tr>';
     return;
   }
   rows.forEach((c) => {
@@ -1535,6 +1535,28 @@ function renderCaja() {
 
   const movBody = document.getElementById('cajaMovimientosBody');
   const movimientosManuales = cajaTurnoActual.movimientos.filter((m) => m.categoria !== 'venta');
+  // Un cobro de cuenta corriente ya deshecho tiene en este mismo turno un
+  // egreso que lo cancela (mismo cobro por cc_movimiento_id, o — en cobros
+  // anteriores a que se guardara ese dato — mismo cliente, monto y forma de
+  // pago). A esos no se les ofrece deshacer de nuevo.
+  const cobroCcYaDeshecho = (m) =>
+    cajaTurnoActual.movimientos.some(
+      (e) =>
+        e.tipo === 'egreso' &&
+        e.categoria === 'cuenta_corriente' &&
+        (m.cc_movimiento_id
+          ? e.cc_movimiento_id === m.cc_movimiento_id
+          : e.referencia_id === m.referencia_id && Number(e.monto) === Number(m.monto) && (e.forma_pago || '') === (m.forma_pago || ''))
+    );
+  const accionesMovimiento = (m) => {
+    if (!m.referencia_tipo) {
+      return `<button class="btn light" onclick="editarMovimientoCaja(${m.id})">✎</button> <button class="btn light" onclick="quitarMovimientoCaja(${m.id})">✕</button>`;
+    }
+    if (m.categoria === 'cuenta_corriente' && m.tipo === 'ingreso' && m.referencia_tipo === 'cliente' && !cobroCcYaDeshecho(m)) {
+      return `<button class="btn light" onclick="deshacerCobroCcDesdeCaja(${m.id})" title="Deshace este cobro (el saldo del cliente vuelve a subir y acá se compensa con un egreso) para volver a cargarlo bien">↩️ Deshacer cobro</button>`;
+    }
+    return '';
+  };
   movBody.innerHTML = movimientosManuales.length
     ? [...movimientosManuales].reverse().map((m) => `
         <tr>
@@ -1544,9 +1566,7 @@ function renderCaja() {
           <td>${m.concepto || ''}</td>
           <td>${m.forma_pago || ''}</td>
           <td>${moneyStr(m.monto)}</td>
-          <td>${!m.referencia_tipo
-            ? `<button class="btn light" onclick="editarMovimientoCaja(${m.id})">✎</button> <button class="btn light" onclick="quitarMovimientoCaja(${m.id})">✕</button>`
-            : ''}</td>
+          <td style="white-space:nowrap">${accionesMovimiento(m)}</td>
         </tr>
       `).join('')
     : '<tr><td colspan="7" class="small">Sin movimientos manuales todavía.</td></tr>';
@@ -1736,6 +1756,34 @@ async function confirmarMovimientoCaja() {
   document.getElementById('cajaMovMonto').value = '';
   document.getElementById('cajaFormMovimiento').style.display = 'none';
   renderCaja();
+}
+
+// Deshacer un cobro de cuenta corriente desde su fila en la caja (ej. se
+// cargó en Efectivo y fue por Transferencia): el saldo del cliente vuelve a
+// subir, sus facturas vuelven a quedar pendientes y acá aparece un egreso
+// que cancela este ingreso. Después se vuelve a cobrar bien desde la
+// Cuenta Corriente del cliente.
+async function deshacerCobroCcDesdeCaja(movId) {
+  if (
+    !confirm(
+      '¿Deshacer este cobro de cuenta corriente? El saldo del cliente vuelve a subir, sus facturas vuelven a quedar pendientes, y acá se compensa este ingreso con un egreso por la misma forma de pago. Después volvé a cobrarlo con la forma de pago correcta desde la Cuenta Corriente del cliente.'
+    )
+  )
+    return;
+  const res = await fetch(`/api/caja/movimientos/${movId}/deshacer-cobro-cc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario_id: session.id, terminal: session.rol }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  cajaTurnoActual = data;
+  renderCaja();
+  cargarHistorialCaja();
+  alert('Listo, se deshizo el cobro. Ahora volvé a cobrarlo con la forma de pago correcta desde la Cuenta Corriente del cliente.');
 }
 
 async function cerrarTurnoCaja() {

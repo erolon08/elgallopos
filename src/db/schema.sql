@@ -334,8 +334,12 @@ CREATE TABLE IF NOT EXISTS caja_movimientos (
   monto REAL NOT NULL,
   forma_pago TEXT,                -- 'Efectivo' | 'Débito' | 'Crédito' | 'Transferencia' | 'QR' | 'Cuenta Corriente'
                                    -- solo los movimientos en Efectivo entran al arqueo de caja física
-  referencia_tipo TEXT,           -- 'venta' | 'rendicion' | null
+  referencia_tipo TEXT,           -- 'venta' | 'rendicion' | 'cliente' | 'caja_turno' | null
   referencia_id INTEGER,
+  -- Solo en los movimientos de categoría 'cuenta_corriente': el cobro
+  -- (cc_movimientos.tipo='pago') que generó este ingreso, o que este egreso
+  -- deshace. Permite deshacer un cobro desde la fila de caja sin adivinar.
+  cc_movimiento_id INTEGER,
   usuario_id INTEGER REFERENCES usuarios(id),
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

@@ -80,6 +80,7 @@ ensureColumn('ventas', 'nc_numero_comprobante', 'TEXT');
 ensureColumn('ventas', 'nc_cae', 'TEXT');
 ensureColumn('ventas', 'nc_cae_vencimiento', 'TEXT');
 ensureColumn('ventas', 'nc_emitida_en', 'TEXT');
+ensureColumn('caja_movimientos', 'cc_movimiento_id', 'INTEGER');
 ensureColumn('configuracion', 'mostrar_anuladas_ventas', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('cerrajeros', 'estacionamiento_fijo', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('cerrajeros', 'pago_manual', 'INTEGER NOT NULL DEFAULT 0');

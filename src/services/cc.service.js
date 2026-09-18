@@ -166,14 +166,15 @@ const registrarPago = db.transaction(({ cliente_id, monto, forma_pago, motivo, u
 
   const turno = cajaService.turnoAbiertoOCrear(terminal);
   db.prepare(
-    `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
-     VALUES (?, 'ingreso', 'cuenta_corriente', ?, ?, ?, 'cliente', ?, ?)`
+    `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, cc_movimiento_id, usuario_id)
+     VALUES (?, 'ingreso', 'cuenta_corriente', ?, ?, ?, 'cliente', ?, ?, ?)`
   ).run(
     turno.id,
     `Cobro cuenta corriente — ${clienteAntes.nombre}`,
     montoNum,
     forma_pago || 'Efectivo',
     cliente_id,
+    resultado.movimiento_id,
     usuario_id || null
   );
 
@@ -188,15 +189,23 @@ const registrarPago = db.transaction(({ cliente_id, monto, forma_pago, motivo, u
   };
 });
 
-// Todos los clientes con saldo distinto de $0 (deben o tienen a favor) — la
-// base del menú "Cuenta Corriente".
+// Base del menú "Cuenta Corriente": los clientes que deben (o tienen a
+// favor), y ADEMÁS los que tuvieron movimiento de cuenta corriente en los
+// últimos 30 días aunque hayan quedado en $0. Antes un cliente desaparecía
+// de esta pantalla apenas se le cobraba todo — y si ese cobro estaba mal
+// cargado, ya no había por dónde entrar a su cuenta para deshacerlo.
+// Primero los que deben, después los saldados recientes.
 function listarDeudas() {
   return db
     .prepare(
-      `SELECT id, codigo, nombre, telefono, saldo_cta_cte
-       FROM clientes
-       WHERE activo = 1 AND saldo_cta_cte != 0
-       ORDER BY saldo_cta_cte DESC`
+      `SELECT c.id, c.codigo, c.nombre, c.telefono, c.saldo_cta_cte,
+              (SELECT MAX(m.creado_en) FROM cc_movimientos m WHERE m.cliente_id = c.id) AS ultimo_movimiento
+       FROM clientes c
+       WHERE c.activo = 1
+         AND (c.saldo_cta_cte != 0
+              OR EXISTS (SELECT 1 FROM cc_movimientos m
+                         WHERE m.cliente_id = c.id AND m.creado_en >= datetime('now','localtime','-30 days')))
+       ORDER BY (c.saldo_cta_cte != 0) DESC, c.saldo_cta_cte DESC, ultimo_movimiento DESC`
     )
     .all();
 }
@@ -270,11 +279,41 @@ const deshacerPago = db.transaction((cliente_id, movimiento_id, { usuario_id, te
 
   const turno = cajaService.turnoAbiertoOCrear(terminal);
   db.prepare(
-    `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
-     VALUES (?, 'egreso', 'cuenta_corriente', ?, ?, ?, 'cliente', ?, ?)`
-  ).run(turno.id, `Se deshizo cobro cuenta corriente — ${cliente.nombre}`, monto, pago.forma_pago || 'Efectivo', cliente_id, usuario_id || null);
+    `INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, cc_movimiento_id, usuario_id)
+     VALUES (?, 'egreso', 'cuenta_corriente', ?, ?, ?, 'cliente', ?, ?, ?)`
+  ).run(turno.id, `Se deshizo cobro cuenta corriente — ${cliente.nombre}`, monto, pago.forma_pago || 'Efectivo', cliente_id, pago.id, usuario_id || null);
 
-  return { monto, forma_pago: pago.forma_pago || 'Efectivo', saldo_nuevo: resultado.saldo_resultante };
+  return { cliente_id, monto, forma_pago: pago.forma_pago || 'Efectivo', saldo_nuevo: resultado.saldo_resultante };
 });
 
-module.exports = { registrarMovimiento, movimientos, registrarPago, deshacerPago, listarDeudas, pendientesDeCliente };
+// Deshacer un cobro parado en la fila de la CAJA (el ingreso "Cobro cuenta
+// corriente — Fulano"), que es donde uno se da cuenta de que la forma de
+// pago quedó mal. Resuelve a qué cobro corresponde esa fila y delega en
+// deshacerPago (mismas reglas). Los ingresos nuevos traen cc_movimiento_id
+// directo; los anteriores a esta versión no, así que para esos se busca el
+// último movimiento del cliente y se exige que sea un cobro por el mismo
+// monto y forma de pago — si no coincide, mejor no adivinar.
+function deshacerPagoDesdeCaja(caja_movimiento_id, opts = {}) {
+  const mov = db.prepare('SELECT * FROM caja_movimientos WHERE id = ?').get(caja_movimiento_id);
+  if (!mov) throw new Error('Movimiento de caja no encontrado');
+  if (mov.categoria !== 'cuenta_corriente' || mov.tipo !== 'ingreso' || mov.referencia_tipo !== 'cliente') {
+    throw new Error('Ese movimiento no es un cobro de cuenta corriente');
+  }
+  const cliente_id = mov.referencia_id;
+  let pagoId = mov.cc_movimiento_id;
+  if (!pagoId) {
+    const ultimo = db.prepare('SELECT * FROM cc_movimientos WHERE cliente_id = ? ORDER BY id DESC LIMIT 1').get(cliente_id);
+    const coincide =
+      ultimo &&
+      ultimo.tipo === 'pago' &&
+      Math.abs(Math.abs(Number(ultimo.monto)) - Number(mov.monto)) < 0.01 &&
+      (ultimo.forma_pago || 'Efectivo') === (mov.forma_pago || 'Efectivo');
+    if (!coincide) {
+      throw new Error('No se pudo identificar con certeza ese cobro en la cuenta del cliente (ya hubo otros movimientos después). Deshacelo desde la Cuenta Corriente del cliente, o corregilo con un ajuste manual.');
+    }
+    pagoId = ultimo.id;
+  }
+  return deshacerPago(cliente_id, pagoId, opts);
+}
+
+module.exports = { registrarMovimiento, movimientos, registrarPago, deshacerPago, deshacerPagoDesdeCaja, listarDeudas, pendientesDeCliente };

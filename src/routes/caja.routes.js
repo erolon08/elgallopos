@@ -1,5 +1,6 @@
 const express = require('express');
 const cajaService = require('../services/caja.service');
+const ccService = require('../services/cc.service');
 const { emitVentaEvent } = require('../sockets');
 
 const router = express.Router();
@@ -67,6 +68,23 @@ router.post('/abrir', (req, res) => {
     const turno = cajaService.abrirTurno(req.body);
     emitVentaEvent('caja:actualizada', turno);
     res.status(201).json(turno);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Deshacer un cobro de cuenta corriente parado en su fila de la caja (ver
+// cc.service deshacerPagoDesdeCaja). Devuelve el turno abierto actualizado,
+// igual que el resto de las acciones de esta pantalla.
+router.post('/movimientos/:movId/deshacer-cobro-cc', (req, res) => {
+  try {
+    ccService.deshacerPagoDesdeCaja(Number(req.params.movId), {
+      usuario_id: req.body.usuario_id,
+      terminal: req.body.terminal,
+    });
+    const turno = cajaService.obtener(cajaService.turnoAbierto().id);
+    emitVentaEvent('caja:actualizada', turno);
+    res.json(turno);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
