@@ -6085,7 +6085,10 @@ async function mostrarTicket(venta) {
     venta.descuento_general > 0 ? `Descuento general: -$${money.format(venta.descuento_general)}<br>` : '';
   const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
   const caeHtml = venta.cae
-    ? `<hr>Comprobante N°: ${venta.numero_comprobante}<br>CAE: ${venta.cae}<br>Vto. CAE: ${formatFechaAfip(venta.cae_vencimiento)}<br>`
+    ? `<hr>Comprobante N°: ${venta.numero_comprobante}<br>CAE: ${venta.cae}<br>Vto. CAE: ${formatFechaAfip(venta.cae_vencimiento)}<br>` +
+      (venta.nc_cae
+        ? `<b>COMPENSADA POR NOTA DE CRÉDITO</b><br>N°: ${venta.nc_numero_comprobante}<br>CAE NC: ${venta.nc_cae}<br>`
+        : '')
     : '';
   // Factura A tiene que discriminar el IVA (a diferencia de la B, que va a
   // Consumidor Final y solo necesita el total).
@@ -6265,6 +6268,7 @@ function construirDocumentoA4Html(tipo, doc) {
           <div>Inicio de Actividades: ${cfg.inicio_actividades || '--'}</div>
           <div>CUIT: ${cfg.cuit_negocio || '--'} / Ingresos Brutos: ${cfg.ingresos_brutos || '--'}</div>
           ${doc.cae ? `<div>CAE: ${doc.cae}</div><div>Vto. CAE: ${formatFechaAfip(doc.cae_vencimiento)}</div>` : ''}
+          ${doc.nc_cae ? `<div style="margin-top:6px;font-weight:800;color:#c00">COMPENSADA POR NOTA DE CRÉDITO N° ${doc.nc_numero_comprobante}</div><div style="color:#c00">CAE NC: ${doc.nc_cae}</div>` : ''}
         ` : ''}
       </div>
     </div>
@@ -6698,6 +6702,11 @@ function filaVentaHistorial(v) {
   const botonDeshacerAnulacion = v.estado === 'anulada' && !esSoloConsulta
     ? `<button class="btn light" onclick="desanularVenta(${v.id})">↩️ Deshacer anulación</button>`
     : '';
+  // Solo si la venta tiene una factura electrónica real (CAE) y todavía no
+  // se le emitió la nota de crédito. Es independiente de anular.
+  const botonNotaCredito = v.cae && !v.nc_cae && !esSoloConsulta
+    ? `<button class="btn light" onclick="notaCreditoVenta(${v.id})" title="Emite en ARCA la nota de crédito que compensa esta factura">🧾 Nota de crédito</button>`
+    : '';
   // Abreviada con "..." y puntos suspensivos por CSS (celda angosta), con el
   // texto completo en el title para verlo pasando el mouse por encima.
   const descripcionCelda = v.descripcion_items
@@ -6708,7 +6717,7 @@ function filaVentaHistorial(v) {
     <td>${descripcionCelda}</td>
     <td>${v.tipo_comprobante}</td><td>${formaPagoCelda}</td><td>$ ${money.format(v.total)}</td>
     <td><span class="status ${estadoCls}">${v.estado}</span></td>
-    <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button> ${botonFacturar} ${botonDeshacerAnulacion} ${botonBorrar}</td>
+    <td><button class="btn light" onclick="verDetalleVenta(${v.id})">Ver detalle</button> ${botonFacturar} ${botonNotaCredito} ${botonDeshacerAnulacion} ${botonBorrar}</td>
   `;
   return tr;
 }
@@ -6823,8 +6832,16 @@ async function verDetalleVenta(id) {
     venta.estado === 'anulada'
       ? `<p class="text-red"><b>Motivo de anulación:</b> ${venta.motivo_anulacion || '(sin motivo cargado)'}</p>`
       : '';
+  const facturaHtml = venta.cae
+    ? `<p><b>Factura:</b> ${venta.numero_comprobante} &nbsp; <b>CAE:</b> ${venta.cae}</p>`
+    : '';
+  const notaCreditoHtml = venta.nc_cae
+    ? `<p class="text-red"><b>Nota de crédito emitida:</b> ${venta.nc_numero_comprobante} &nbsp; <b>CAE:</b> ${venta.nc_cae} &nbsp; (${new Date(venta.nc_emitida_en).toLocaleDateString('es-AR')}) — esta factura quedó compensada ante ARCA.</p>`
+    : '';
   document.getElementById('detalleVentaContenido').innerHTML = `
     <p><b>Cliente:</b> ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'} &nbsp; <b>Estado:</b> ${venta.estado} &nbsp; <b>Comprobante:</b> ${venta.tipo_comprobante}</p>
+    ${facturaHtml}
+    ${notaCreditoHtml}
     ${motivoAnulacionHtml}
     <div class="table-wrap"><table class="tabla-venta-detalle"><thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${filasItems}</tbody></table></div>
     <p style="margin-top:10px"><b>Pagos:</b> ${pagosTxt}</p>
@@ -6832,6 +6849,7 @@ async function verDetalleVenta(id) {
   `;
   document.getElementById('btnAnularVenta').style.display = venta.estado === 'anulada' || esSoloConsulta ? 'none' : 'inline-block';
   document.getElementById('btnDesanularVenta').style.display = venta.estado === 'anulada' && !esSoloConsulta ? 'inline-block' : 'none';
+  document.getElementById('btnNotaCreditoVenta').style.display = venta.cae && !venta.nc_cae && !esSoloConsulta ? 'inline-block' : 'none';
   document.getElementById('detalleVentaModal').classList.add('open');
 }
 function closeDetalleVenta() {
@@ -6886,6 +6904,31 @@ async function desanularVentaUI() {
   if (!ventaDetalleActual) return;
   await desanularVenta(ventaDetalleActual.id);
   closeDetalleVenta();
+}
+// Nota de crédito electrónica que compensa la factura A/B de una venta.
+// Acción aparte de anular: esto es solo lo fiscal (ARCA); no devuelve stock
+// ni saca plata de caja — para eso está "Anular". Emite un comprobante
+// real e irreversible, por eso la confirmación es explícita.
+async function notaCreditoVenta(id) {
+  if (
+    !confirm(
+      '¿Emitir la NOTA DE CRÉDITO en ARCA para esta factura?\n\nEs un comprobante fiscal REAL e irreversible, por el total de la factura. No toca stock ni caja (para eso está "Anular venta").'
+    )
+  )
+    return;
+  const res = await fetch(`/api/ventas/${id}/nota-credito`, { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  alert(`Nota de crédito emitida: ${data.nc_numero_comprobante} — CAE ${data.nc_cae}`);
+  cargarVentasHistorial();
+}
+async function notaCreditoVentaUI() {
+  if (!ventaDetalleActual) return;
+  await notaCreditoVenta(ventaDetalleActual.id);
+  verDetalleVenta(ventaDetalleActual.id);
 }
 async function borrarVentaDefinitivo(id) {
   if (!confirm('¿Borrar esta venta anulada para siempre? No se puede deshacer.')) return;

@@ -447,6 +447,57 @@ async function cobrar(id, datos) {
 // Convierte una venta ya cobrada como "Eventual" en una Factura A/B real,
 // pidiendo el CAE a ARCA en el momento (a diferencia de cobrar(), acá si
 // falla se corta con un error — no hay a qué "bajar", ya está cobrada).
+// Emite en ARCA la Nota de Crédito (A o B, según la factura) que compensa
+// fiscalmente la factura de esta venta, por el total. Es una acción APARTE
+// de anular: anular revierte stock, caja y cuenta corriente; esto no toca
+// nada de eso, solo deja asentado ante ARCA que esa factura queda sin
+// efecto. Lo normal ante una venta facturada por error es hacer las dos.
+// Como toda emisión, es real e irreversible, así que si ARCA falla se
+// corta con error y la venta queda como estaba (sin nota de crédito).
+async function emitirNotaCredito(id) {
+  const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
+  if (!venta) throw new Error('Venta no encontrada');
+  if (!venta.cae || !venta.numero_comprobante) {
+    throw new Error('Esta venta no tiene una factura electrónica emitida — no hay nada que compensar con una nota de crédito.');
+  }
+  if (venta.nc_cae) {
+    throw new Error(`Esta venta ya tiene la Nota de Crédito ${venta.nc_numero_comprobante} emitida.`);
+  }
+
+  const config = configuracionService.obtener();
+  if (!config.arca_facturacion_activa || !config.arca_punto_venta) {
+    throw new Error('La facturación electrónica no está activa (Configuración → Facturación electrónica).');
+  }
+
+  const cliente = venta.cliente_id ? db.prepare('SELECT * FROM clientes WHERE id = ?').get(venta.cliente_id) : null;
+  const items = db
+    .prepare(
+      'SELECT vi.*, f.usa_mano_obra FROM venta_items vi LEFT JOIN productos p ON p.id = vi.producto_id LEFT JOIN familias f ON f.id = p.familia_id WHERE vi.venta_id = ?'
+    )
+    .all(id);
+  // Fecha de la factura original en AAAAMMDD, para el comprobante asociado
+  // (cobrado_en viene "AAAA-MM-DD HH:MM:SS"; si por algo no está, va sin
+  // fecha y ARCA la valida igual por tipo/punto de venta/número).
+  const fechaOriginal = venta.cobrado_en ? venta.cobrado_en.slice(0, 10).replace(/-/g, '') : null;
+
+  const resultado = await arcaFacturacionService.emitirNotaCredito({
+    tipoComprobanteOriginal: venta.tipo_comprobante,
+    numeroComprobanteOriginal: venta.numero_comprobante,
+    fechaOriginal,
+    total: venta.total,
+    cliente,
+    ptoVta: config.arca_punto_venta,
+    concepto: determinarConcepto(items),
+  });
+
+  db.prepare(
+    `UPDATE ventas SET nc_numero_comprobante = ?, nc_cae = ?, nc_cae_vencimiento = ?,
+       nc_emitida_en = datetime('now','localtime') WHERE id = ?`
+  ).run(resultado.numeroCompleto, resultado.cae, resultado.caeVencimiento, id);
+
+  return obtener(id);
+}
+
 async function facturarVentaExistente(id, { tipo_comprobante, cliente_id } = {}) {
   const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
   if (!venta) throw new Error('Venta no encontrada');
@@ -743,6 +794,7 @@ module.exports = {
   exportarFilas,
   cobrar,
   facturarVentaExistente,
+  emitirNotaCredito,
   enviarACaja,
   anular,
   desanular,

@@ -1,11 +1,15 @@
 // Arma los datos de una factura electrónica a partir de un total (con IVA
 // incluido, como maneja Gallo POS) y los datos del cliente, y pide el CAE a
 // ARCA. Esto SÍ emite un comprobante real e irreversible — no hay forma de
-// "deshacer" una factura ya autorizada, solo notas de crédito (que todavía
-// no está implementado). Por eso valida todo antes de mandar el pedido.
+// "deshacer" una factura ya autorizada: la única compensación fiscal es una
+// Nota de Crédito (emitirNotaCredito), que también es un comprobante real e
+// irreversible. Por eso se valida todo antes de mandar cada pedido.
 const wsfe = require('./arca-wsfe.service');
 
 const CBTE_TIPO = { 'Factura A': 1, 'Factura B': 6 };
+// Nota de Crédito que compensa a cada tipo de factura (A → NC A, B → NC B).
+const NC_TIPO_POR_FACTURA = { 'Factura A': 3, 'Factura B': 8 };
+const NC_NOMBRE_POR_FACTURA = { 'Factura A': 'Nota de Crédito A', 'Factura B': 'Nota de Crédito B' };
 
 // Único IVA que maneja el negocio por ahora (21%, la alícuota general — la
 // gran mayoría de productos/servicios de una cerrajería no tienen un
@@ -100,4 +104,71 @@ async function emitirFactura({ tipoComprobante, total, cliente, ptoVta, concepto
   };
 }
 
-module.exports = { emitirFactura };
+// Nota de Crédito por el TOTAL de una factura ya emitida (la compensa
+// entera, no hay notas parciales por ahora). Mismo receptor y mismo
+// concepto que la factura original; la única diferencia con emitirFactura
+// es el tipo de comprobante y el bloque CbtesAsoc que apunta a la factura
+// que se está compensando. numeroComprobanteOriginal viene como lo guarda
+// la venta: "PPPPP-NNNNNNNN". fechaOriginal en AAAAMMDD.
+async function emitirNotaCredito({ tipoComprobanteOriginal, numeroComprobanteOriginal, fechaOriginal, total, cliente, ptoVta, concepto = 1 }) {
+  const cbteTipoOriginal = CBTE_TIPO[tipoComprobanteOriginal];
+  const cbteTipo = NC_TIPO_POR_FACTURA[tipoComprobanteOriginal];
+  if (!cbteTipo) {
+    throw new Error(`"${tipoComprobanteOriginal}" no tiene nota de crédito electrónica (solo Factura A o Factura B).`);
+  }
+  if (!ptoVta) throw new Error('Falta el número de Punto de Venta.');
+
+  const partes = String(numeroComprobanteOriginal || '').split('-');
+  const ptoVtaOriginal = Number(partes[0]);
+  const nroOriginal = Number(partes[1]);
+  if (!(ptoVtaOriginal > 0) || !(nroOriginal > 0)) {
+    throw new Error(`No se pudo leer el número de la factura original ("${numeroComprobanteOriginal}").`);
+  }
+
+  const { docTipo, docNro } = datosReceptor(cliente);
+  if (cbteTipoOriginal === 1 && docTipo !== 80) {
+    throw new Error('Para Nota de Crédito A el cliente tiene que tener un CUIT cargado.');
+  }
+
+  const impTotal = redondear2(total);
+  if (!(impTotal > 0)) throw new Error('El total de la nota de crédito tiene que ser mayor a 0.');
+  const impNeto = redondear2(impTotal / (1 + ALICUOTA_IVA_PCT / 100));
+  const impIva = redondear2(impTotal - impNeto);
+
+  const { CbteNro } = await wsfe.ultimoAutorizado(ptoVta, cbteTipo);
+  const cbteNro = Number(CbteNro) + 1;
+  const fecha = fechaAfip();
+
+  const detalle = {
+    concepto,
+    docTipo,
+    docNro,
+    cbteNro,
+    cbteFch: fecha,
+    impTotal,
+    impNeto,
+    impIva,
+    condicionIvaReceptorId: condicionIvaReceptor(cliente),
+    alicuotas: [{ id: ALICUOTA_IVA_ID, baseImp: impNeto, importe: impIva }],
+    cbtesAsoc: [{ tipo: cbteTipoOriginal, ptoVta: ptoVtaOriginal, nro: nroOriginal, cbteFch: fechaOriginal || null }],
+  };
+  if (concepto !== 1) {
+    detalle.fchServDesde = fecha;
+    detalle.fchServHasta = fecha;
+    detalle.fchVtoPago = fecha;
+  }
+
+  const resultado = await wsfe.solicitarCAE(ptoVta, cbteTipo, detalle);
+  return {
+    ...resultado,
+    ptoVta,
+    cbteTipo,
+    tipoComprobante: NC_NOMBRE_POR_FACTURA[tipoComprobanteOriginal],
+    numeroCompleto: `${String(ptoVta).padStart(5, '0')}-${String(resultado.cbteNro).padStart(8, '0')}`,
+    impTotal,
+    impNeto,
+    impIva,
+  };
+}
+
+module.exports = { emitirFactura, emitirNotaCredito };

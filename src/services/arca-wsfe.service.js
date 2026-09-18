@@ -73,6 +73,19 @@ async function solicitarCAE(ptoVta, cbteTipo, detalle) {
     )
     .join('');
 
+  // Comprobantes asociados: obligatorio en una Nota de Crédito (indica qué
+  // factura está compensando). El Cuit es el del emisor (el nuestro), no el
+  // del cliente. Va después de CondicionIVAReceptorId y antes de Iva por el
+  // orden de elementos que fija el esquema de WSFEv1.
+  const cbtesAsocXml = detalle.cbtesAsoc?.length
+    ? `<CbtesAsoc>${detalle.cbtesAsoc
+        .map(
+          (c) =>
+            `<CbteAsoc><Tipo>${c.tipo}</Tipo><PtoVta>${c.ptoVta}</PtoVta><Nro>${c.nro}</Nro><Cuit>${cuit}</Cuit>${c.cbteFch ? `<CbteFch>${c.cbteFch}</CbteFch>` : ''}</CbteAsoc>`
+        )
+        .join('')}</CbtesAsoc>`
+    : '';
+
   const soapBody = `<FECAESolicitar xmlns="${NS}">
     <Auth><Token>${token}</Token><Sign>${sign}</Sign><Cuit>${cuit}</Cuit></Auth>
     <FeCAEReq>
@@ -94,6 +107,7 @@ async function solicitarCAE(ptoVta, cbteTipo, detalle) {
         <MonCotiz>1</MonCotiz>
         <CondicionIVAReceptorId>${detalle.condicionIvaReceptorId}</CondicionIVAReceptorId>
         ${camposServicio}
+        ${cbtesAsocXml}
         <Iva>${ivaXml}</Iva>
       </FECAEDetRequest></FeDetReq>
     </FeCAEReq>
@@ -121,7 +135,7 @@ async function solicitarCAE(ptoVta, cbteTipo, detalle) {
     : null;
 
   if (det.Resultado !== 'A') {
-    throw new Error(`ARCA rechazó la factura (Resultado=${det.Resultado}).${observaciones ? ' Observaciones: ' + observaciones : ''}`);
+    throw new Error(`ARCA rechazó el comprobante (Resultado=${det.Resultado}).${observaciones ? ' Observaciones: ' + observaciones : ''}`);
   }
 
   // fast-xml-parser convierte solo los valores con pinta de número (CAE,

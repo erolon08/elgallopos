@@ -353,6 +353,14 @@ CREATE TABLE IF NOT EXISTS ventas (
   -- mostrarlos discriminados en el ticket de Factura A, que lo exige).
   iva_neto REAL,
   iva_monto REAL,
+  -- Nota de Crédito electrónica que compensa la Factura A/B de esta venta
+  -- (acción aparte de "anular": anular revierte stock/caja/cta cte, la nota
+  -- de crédito solo resuelve lo fiscal ante ARCA). Una sola por venta, por
+  -- el total.
+  nc_numero_comprobante TEXT,
+  nc_cae TEXT,
+  nc_cae_vencimiento TEXT,
+  nc_emitida_en TEXT,
   enviado_whatsapp INTEGER NOT NULL DEFAULT 0,
   -- Cuánto de la parte pagada "Cuenta Corriente" de ESTA venta sigue sin
   -- cobrarse (0 = saldada). Se inicializa al cobrar y baja a medida que el

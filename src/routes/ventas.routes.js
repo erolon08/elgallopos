@@ -103,6 +103,16 @@ router.post('/:id/facturar', async (req, res) => {
   }
 });
 
+router.post('/:id/nota-credito', async (req, res) => {
+  try {
+    const venta = await ventasService.emitirNotaCredito(Number(req.params.id));
+    emitVentaEvent('venta:actualizada', venta);
+    res.json(venta);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.post('/:id/anular', (req, res) => {
   try {
     const venta = ventasService.anular(Number(req.params.id), req.body);
