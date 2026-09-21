@@ -744,6 +744,10 @@
               <option value="debito">Precio: Déb./Transf.</option>
               <option value="efectivo">Precio: Efectivo</option>
             </select>
+            <select id="presupuestoMostrarPrecioUnitario" title="Si cada producto muestra su propio precio, o solo el total de abajo (como siempre)">
+              <option value="0" selected>Sin precio unitario (como ahora)</option>
+              <option value="1">Con precio unitario por producto</option>
+            </select>
             <button class="btn outline" onclick="cancelarVenta()">Cancelar<br><span class="key key-dark">F6</span></button>
             <div class="sale-footer-hint" id="ventaHint">En esta terminal, F10 abre el cobro directamente.</div>
             <p class="small" id="presupuestoOrigenAviso" style="flex-basis:100%;margin:0;color:#bcdcff"></p>

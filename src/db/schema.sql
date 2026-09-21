@@ -540,6 +540,10 @@ CREATE TABLE IF NOT EXISTS presupuestos (
   cliente_id INTEGER REFERENCES clientes(id),
   vigencia_dias INTEGER NOT NULL DEFAULT 15,
   modo_precio TEXT NOT NULL DEFAULT 'todos' CHECK (modo_precio IN ('todos','final','debito','efectivo')),
+  -- Si el presupuesto muestra, además del total, el precio unitario de cada
+  -- producto en su propia línea (0 = como fue siempre: solo cantidad y
+  -- descripción, el precio queda solo en el total de abajo).
+  mostrar_precio_unitario INTEGER NOT NULL DEFAULT 0,
   estado TEXT NOT NULL DEFAULT 'vigente' CHECK (estado IN ('vigente','convertido','vencido','cerrado')),
   total REAL NOT NULL DEFAULT 0,
   venta_id INTEGER REFERENCES ventas(id),

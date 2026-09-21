@@ -47,6 +47,7 @@ ensureColumn('usuarios', 'reset_codigo', 'TEXT');
 ensureColumn('usuarios', 'reset_expira', 'TEXT');
 ensureColumn('cerrajeros', 'porcentaje_urgencia', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('presupuestos', 'modo_precio', "TEXT NOT NULL DEFAULT 'todos'");
+ensureColumn('presupuestos', 'mostrar_precio_unitario', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('presupuesto_items', 'tipo_precio', "TEXT NOT NULL DEFAULT 'final'");
 ensureColumn('configuracion', 'arca_punto_venta', 'TEXT');
 ensureColumn('configuracion', 'arca_facturacion_activa', 'INTEGER NOT NULL DEFAULT 0');

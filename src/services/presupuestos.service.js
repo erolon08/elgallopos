@@ -17,14 +17,15 @@ const crear = db.transaction((datos) => {
 
   const info = db
     .prepare(
-      `INSERT INTO presupuestos (numero, cliente_id, vigencia_dias, modo_precio, total, usuario_id)
-       VALUES (@numero, @cliente_id, @vigencia_dias, @modo_precio, @total, @usuario_id)`
+      `INSERT INTO presupuestos (numero, cliente_id, vigencia_dias, modo_precio, mostrar_precio_unitario, total, usuario_id)
+       VALUES (@numero, @cliente_id, @vigencia_dias, @modo_precio, @mostrar_precio_unitario, @total, @usuario_id)`
     )
     .run({
       numero: generarNumero(),
       cliente_id: datos.cliente_id || null,
       vigencia_dias: Number(datos.vigencia_dias) || 15,
       modo_precio,
+      mostrar_precio_unitario: datos.mostrar_precio_unitario ? 1 : 0,
       total,
       usuario_id: datos.usuario_id || null,
     });

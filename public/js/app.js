@@ -6153,12 +6153,24 @@ function calcularDesglosePresupuesto(presupuesto) {
     totales,
     hayDebito: lineas.some((l) => l.tieneDebito),
     modo_precio: presupuesto.modo_precio || 'todos',
+    mostrarPrecioUnitario: !!presupuesto.mostrar_precio_unitario,
     // Suma real de precio_unitario×cantidad-descuento tal cual quedó cargada la
     // línea (incluye precios tocados a mano, que no siguen la lista F/D/E del
     // producto). Se usa cuando el presupuesto pide mostrar un solo precio: ese
     // precio tiene que ser el que se cargó, no el recalculado desde el catálogo.
     totalReal: presupuesto.total,
   };
+}
+// El precio unitario de una línea sigue el mismo criterio que ya usa el
+// total: en modo 'todos' (F/D/E) se muestra el Final como precio principal
+// de esa línea (las otras dos formas de pago quedan solo en el total de
+// abajo, igual que siempre); en un modo puntual, el de esa forma de pago.
+function precioUnitarioLinea(l, modo) {
+  const cantidad = Number(l.cantidad) || 1;
+  let monto = l.final;
+  if (modo === 'efectivo') monto = l.efectivo;
+  else if (modo === 'debito') monto = l.tieneDebito ? l.debito : l.final;
+  return monto / cantidad;
 }
 // El presupuesto puede pedir mostrar los 3 precios (Final/Débito/Efectivo) o
 // uno solo puntual (ej. cuando se le puso un precio efectivo a mano que no
@@ -6311,7 +6323,14 @@ async function mostrarTicketPresupuesto(presupuesto) {
   document.getElementById('btnTicketCajaFuerte').style.display = 'none';
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
   const desglose = calcularDesglosePresupuesto(presupuesto);
-  const lineasHtml = desglose.lineas.map((l) => `${l.cantidad} x ${l.descripcion}<br>`).join('');
+  const lineasHtml = desglose.lineas
+    .map((l) => {
+      const precioHtml = desglose.mostrarPrecioUnitario
+        ? `&nbsp;&nbsp;$${money.format(precioUnitarioLinea(l, desglose.modo_precio))} c/u`
+        : '';
+      return `${l.cantidad} x ${l.descripcion}${precioHtml}<br>`;
+    })
+    .join('');
   mostrarTicketComoTermico(`
     ${ticketEncabezadoHtml()}
     ${datosFiscalesNegocioHtmlTicket(false)}
@@ -6328,23 +6347,32 @@ async function mostrarTicketPresupuesto(presupuesto) {
   showScreen('ticket-screen');
 }
 
-// El presupuesto no repite el precio en cada línea (queda solo en el total
-// de abajo, que ya lo desglosa por forma de pago): la tabla es únicamente
-// código/cantidad/descripción.
+// Por default el presupuesto no repite el precio en cada línea (queda solo
+// en el total de abajo, que ya lo desglosa por forma de pago): la tabla es
+// únicamente código/cantidad/descripción. Si el presupuesto pidió mostrar
+// precio unitario (checkbox al armarlo en Venta), se le suman las columnas
+// Precio U. y Subtotal, igual que ya tiene una venta normal.
 function tablaPresupuestoA4Html(desglose) {
+  const conPrecio = desglose.mostrarPrecioUnitario;
   const filas = desglose.lineas
-    .map(
-      (l) => `
+    .map((l) => {
+      const precioUnitario = conPrecio ? precioUnitarioLinea(l, desglose.modo_precio) : 0;
+      const columnasPrecio = conPrecio
+        ? `<td class="a4-num">$${money.format(precioUnitario)}</td><td class="a4-num">$${money.format(precioUnitario * l.cantidad)}</td>`
+        : '';
+      return `
       <tr>
         <td>${l.producto_codigo || ''}</td>
         <td class="a4-num">${l.cantidad}</td>
         <td>${l.descripcion}${l.cerrajero_nombre ? `<br><span class="a4-muted">Cerrajero: ${l.cerrajero_nombre}</span>` : ''}</td>
-      </tr>`
-    )
+        ${columnasPrecio}
+      </tr>`;
+    })
     .join('');
+  const encabezadoPrecio = conPrecio ? '<th>Precio U.</th><th>Subtotal</th>' : '';
   return `
     <table class="a4-tabla">
-      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th></tr></thead>
+      <thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th>${encabezadoPrecio}</tr></thead>
       <tbody>${filas}</tbody>
     </table>`;
 }
@@ -7126,6 +7154,7 @@ async function guardarComoPresupuesto() {
     cliente_id: clienteVentaActual ? clienteVentaActual.id : null,
     vigencia_dias: Number(document.getElementById('presupuestoVigencia').value) || 15,
     modo_precio: document.getElementById('presupuestoModoPrecio').value || 'todos',
+    mostrar_precio_unitario: document.getElementById('presupuestoMostrarPrecioUnitario').value === '1',
     usuario_id: session.id,
     items: itemsParaApi(),
   };
