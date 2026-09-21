@@ -3109,14 +3109,100 @@ function ticketPieHtml() {
   return `<hr><div class="center">${cfg.ticket_pie.replace(/\n/g, '<br>')}</div>`;
 }
 
+// ============================================================
+// VENTANAS (modales) — se pueden arrastrar tomándolas del título, y se
+// cierran con Escape. Genérico para las ~19 pantallas modales del
+// sistema: no hace falta tocar cada una para sumarle esto.
+// ============================================================
+
+// Qué función cierra cada modal — la misma que ya usa su botón "✕", así
+// Escape hace exactamente lo mismo que cerrarlo a mano (incluido resetear
+// las variables de edición que tenga cada una). cobroModal queda afuera a
+// propósito: ya tiene su propio manejo de Escape, junto con los atajos
+// F1-F9 para elegir forma de pago.
+const MODAL_CLOSERS = {
+  agendaAvisoModal: () => cerrarAgendaAviso(),
+  olvideClaveModal: () => closeOlvideClave(),
+  facturarVentaModal: () => closeFacturarVenta(),
+  actualizarPreciosModal: () => closeActualizarPrecios(),
+  arqueoBilletesModal: () => cerrarArqueoBilletes(),
+  editarCierreModal: () => closeEditarCierre(),
+  ajusteModal: () => closeAjuste(),
+  historialStockModal: () => closeHistorialStock(),
+  productoModal: () => closeProducto(),
+  familiaModal: () => closeFamilia(),
+  ctaCteModal: () => closeCtaCte(),
+  pilaModal: () => cancelarDialogoPila(),
+  cerrajeroModal: () => closeCerrajero(),
+  rendicionDetalleModal: () => closeRendicionDetalle(),
+  trabajosCodificadosModal: () => closeTrabajosCodificados(),
+  clienteModal: () => closeCliente(),
+  detalleVentaModal: () => closeDetalleVenta(),
+  mensajesModal: () => cerrarMensajes(),
+};
+
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    closeAjuste();
-    closeProducto();
-    closeFamilia();
-    closeCliente();
-  }
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('cobroModal')?.classList.contains('open')) return;
+  const abiertos = [...document.querySelectorAll('.modal.open')];
+  if (!abiertos.length) return;
+  // Entre modales abiertos a la vez (ej. "Contar billetes" sobre "Modificar
+  // cierre"), el de arriba es el de mayor z-index y, a igual z-index, el
+  // último en el HTML (mismo criterio que usa el navegador para pintarlos).
+  const maxZ = Math.max(...abiertos.map((m) => Number(getComputedStyle(m).zIndex) || 0));
+  const candidatos = abiertos.filter((m) => (Number(getComputedStyle(m).zIndex) || 0) === maxZ);
+  const top = candidatos[candidatos.length - 1];
+  const cerrar = MODAL_CLOSERS[top.id];
+  if (cerrar) cerrar();
+  else top.classList.remove('open');
 });
+
+// Arrastrar una ventana tomándola de su título (el resto del contenido
+// sigue funcionando normal: solo agarra el arrastre si el clic no fue
+// sobre un botón/input/select/link). Se mueve con transform, que no
+// afecta el resto del layout; al volver a abrirse (cualquier modal),
+// queda otra vez centrada como al principio.
+(function habilitarArrastreModales() {
+  let arrastre = null; // { box, dx, dy }
+
+  document.addEventListener('mousedown', (e) => {
+    const cabecera = e.target.closest('.modal.open > .modal-box > .section-title:first-child');
+    if (!cabecera || e.target.closest('button, input, select, textarea, a')) return;
+    const box = cabecera.closest('.modal-box');
+    const rect = box.getBoundingClientRect();
+    arrastre = { box, dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!arrastre) return;
+    const { box, dx, dy } = arrastre;
+    box.style.position = 'fixed';
+    box.style.margin = '0';
+    box.style.left = `${Math.max(0, Math.min(window.innerWidth - 80, e.clientX - dx))}px`;
+    box.style.top = `${Math.max(0, Math.min(window.innerHeight - 40, e.clientY - dy))}px`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    arrastre = null;
+  });
+
+  // Cada vez que un modal se abre (se le agrega la clase "open"), su
+  // ventana vuelve a la posición centrada de siempre — no queda "pegada"
+  // donde la hayan dejado la vez anterior.
+  document.querySelectorAll('.modal').forEach((modal) => {
+    new MutationObserver((mutaciones) => {
+      if (!mutaciones.some((m) => m.attributeName === 'class') || !modal.classList.contains('open')) return;
+      const box = modal.querySelector('.modal-box');
+      if (box) {
+        box.style.position = '';
+        box.style.left = '';
+        box.style.top = '';
+        box.style.margin = '';
+      }
+    }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+  });
+})();
 
 // ============================================================
 // SOCKET.IO — sincronización en tiempo real entre terminales

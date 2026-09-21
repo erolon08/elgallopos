@@ -113,6 +113,7 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .notice{border-left:4px solid var(--blue);background:#edf5fc;padding:10px 12px;border-radius:8px;font-size:13px}
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;align-items:center;justify-content:center;padding:20px}
 .modal.open{display:flex} .modal-box{background:var(--card);border-radius:14px;max-width:420px;width:100%;max-height:92vh;overflow:auto;padding:18px}
+.modal-box>.section-title:first-child{cursor:move;user-select:none}
 .two-col-form{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 
 .mensajes-badge{display:none;background:var(--red);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;min-width:16px;text-align:center;line-height:16px}
