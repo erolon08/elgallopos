@@ -105,7 +105,7 @@ router.post('/:id/facturar', async (req, res) => {
 
 router.post('/:id/nota-credito', async (req, res) => {
   try {
-    const venta = await ventasService.emitirNotaCredito(Number(req.params.id));
+    const venta = await ventasService.emitirNotaCredito(Number(req.params.id), req.body);
     emitVentaEvent('venta:actualizada', venta);
     res.json(venta);
   } catch (err) {

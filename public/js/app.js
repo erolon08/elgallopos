@@ -6262,7 +6262,13 @@ async function mostrarTicket(venta) {
     .join('');
   const descuentoGeneralHtml =
     venta.descuento_general > 0 ? `Descuento general: -$${money.format(venta.descuento_general)}<br>` : '';
-  const pagosHtml = venta.pagos.map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`).join('');
+  // "Canje" no es plata real (se paga con mercadería/trabajo, no afecta la
+  // caja) — no tiene sentido mostrarlo en el ticket como si fuera una forma
+  // de pago cobrada.
+  const pagosHtml = venta.pagos
+    .filter((p) => p.forma_pago !== 'Canje')
+    .map((p) => `${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}: $${money.format(p.monto)}<br>`)
+    .join('');
   const caeHtml = venta.cae
     ? `<hr>Comprobante N°: ${venta.numero_comprobante}<br>CAE: ${venta.cae}<br>Vto. CAE: ${formatFechaAfip(venta.cae_vencimiento)}<br>` +
       (venta.nc_cae
@@ -7101,23 +7107,28 @@ async function desanularVentaUI() {
   closeDetalleVenta();
 }
 // Nota de crédito electrónica que compensa la factura A/B de una venta.
-// Acción aparte de anular: esto es solo lo fiscal (ARCA); no devuelve stock
-// ni saca plata de caja — para eso está "Anular". Emite un comprobante
-// real e irreversible, por eso la confirmación es explícita.
+// Acción aparte de anular: esto es solo lo fiscal (ARCA) y devuelve el
+// stock vendido (igual que "Anular"), pero no saca plata de caja ni toca
+// cuenta corriente — para eso está "Anular". Emite un comprobante real e
+// irreversible, por eso la confirmación es explícita.
 async function notaCreditoVenta(id) {
   if (
     !confirm(
-      '¿Emitir la NOTA DE CRÉDITO en ARCA para esta factura?\n\nEs un comprobante fiscal REAL e irreversible, por el total de la factura. No toca stock ni caja (para eso está "Anular venta").'
+      '¿Emitir la NOTA DE CRÉDITO en ARCA para esta factura?\n\nEs un comprobante fiscal REAL e irreversible, por el total de la factura. Devuelve el stock vendido, pero no toca caja ni cuenta corriente (para eso está "Anular venta").'
     )
   )
     return;
-  const res = await fetch(`/api/ventas/${id}/nota-credito`, { method: 'POST' });
+  const res = await fetch(`/api/ventas/${id}/nota-credito`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario_id: session.id, terminal: session.rol }),
+  });
   const data = await res.json();
   if (!res.ok) {
     alert('Error: ' + data.error);
     return;
   }
-  alert(`Nota de crédito emitida: ${data.nc_numero_comprobante} — CAE ${data.nc_cae}`);
+  alert(`Nota de crédito emitida: ${data.nc_numero_comprobante} — CAE ${data.nc_cae}\nSe devolvió el stock vendido.`);
   cargarVentasHistorial();
 }
 async function notaCreditoVentaUI() {

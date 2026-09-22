@@ -448,13 +448,15 @@ async function cobrar(id, datos) {
 // pidiendo el CAE a ARCA en el momento (a diferencia de cobrar(), acá si
 // falla se corta con un error — no hay a qué "bajar", ya está cobrada).
 // Emite en ARCA la Nota de Crédito (A o B, según la factura) que compensa
-// fiscalmente la factura de esta venta, por el total. Es una acción APARTE
-// de anular: anular revierte stock, caja y cuenta corriente; esto no toca
-// nada de eso, solo deja asentado ante ARCA que esa factura queda sin
-// efecto. Lo normal ante una venta facturada por error es hacer las dos.
-// Como toda emisión, es real e irreversible, así que si ARCA falla se
-// corta con error y la venta queda como estaba (sin nota de crédito).
-async function emitirNotaCredito(id) {
+// fiscalmente la factura de esta venta, por el total, y devuelve el stock
+// vendido — igual que hace anular(). Es una acción APARTE de anular: no
+// toca caja ni cuenta corriente (la plata ya cobrada sigue siendo del
+// negocio); solo deja asentado ante ARCA que la factura queda sin efecto
+// y repone la mercadería. Si además hay que devolver la plata, hay que
+// anular la venta a mano aparte. Como toda emisión, es real e
+// irreversible, así que si ARCA falla se corta con error y la venta queda
+// como estaba (sin nota de crédito, sin tocar el stock).
+async function emitirNotaCredito(id, { usuario_id, terminal } = {}) {
   const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
   if (!venta) throw new Error('Venta no encontrada');
   if (!venta.cae || !venta.numero_comprobante) {
@@ -490,13 +492,49 @@ async function emitirNotaCredito(id) {
     concepto: determinarConcepto(items),
   });
 
+  aplicarNotaCredito(id, venta, items, resultado, { usuario_id, terminal });
+
+  return obtener(id);
+}
+
+// Parte sincrónica de emitirNotaCredito: se ejecuta recién después de que
+// ARCA confirmó la Nota de Crédito, para no dejar stock devuelto si la
+// emisión fiscal termina fallando. Devuelve el stock vendido (mismo tipo
+// de movimiento 'nota_credito' que usa anular()) y deja asentados los
+// datos del comprobante en la venta.
+const aplicarNotaCredito = db.transaction((id, venta, items, resultado, { usuario_id, terminal } = {}) => {
+  items.forEach((it) => {
+    if (it.producto_id && !it.usa_mano_obra) {
+      stockService.registrarMovimiento({
+        producto_id: it.producto_id,
+        tipo: 'nota_credito',
+        cantidad: Math.abs(it.cantidad),
+        motivo: `Nota de crédito venta N° ${venta.numero}`,
+        referencia_tipo: 'venta',
+        referencia_id: id,
+        usuario_id,
+        terminal,
+      });
+    }
+    if (it.pila_producto_id) {
+      stockService.registrarMovimiento({
+        producto_id: it.pila_producto_id,
+        tipo: 'nota_credito',
+        cantidad: Math.abs(it.cantidad),
+        motivo: `Nota de crédito venta N° ${venta.numero} — pila devuelta`,
+        referencia_tipo: 'venta',
+        referencia_id: id,
+        usuario_id,
+        terminal,
+      });
+    }
+  });
+
   db.prepare(
     `UPDATE ventas SET nc_numero_comprobante = ?, nc_cae = ?, nc_cae_vencimiento = ?,
        nc_emitida_en = datetime('now','localtime') WHERE id = ?`
   ).run(resultado.numeroCompleto, resultado.cae, resultado.caeVencimiento, id);
-
-  return obtener(id);
-}
+});
 
 async function facturarVentaExistente(id, { tipo_comprobante, cliente_id } = {}) {
   const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
