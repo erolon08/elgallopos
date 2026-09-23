@@ -372,13 +372,16 @@ const cobrarTx = db.transaction((id, datos) => {
       referencia_id: id,
       usuario_id: datos.usuario_id || null,
     });
-    // La parte pagada "Cuenta Corriente" suma como deuda del cliente.
+    // La parte pagada "Cuenta Corriente" suma como deuda del cliente. Si es
+    // Factura A/B ya facturada, el motivo queda con el número de factura
+    // (el que el cliente reconoce), no el número interno de venta.
     if (p.forma_pago === 'Cuenta Corriente' && venta.cliente_id) {
+      const esFacturaAB = (datos.tipo_comprobante === 'Factura A' || datos.tipo_comprobante === 'Factura B') && datos.numero_comprobante;
       ccService.registrarMovimiento({
         cliente_id: venta.cliente_id,
         tipo: 'venta',
         monto: Math.abs(Number(p.monto) || 0),
-        motivo: `Venta N° ${venta.numero}`,
+        motivo: esFacturaAB ? `Factura N° ${datos.numero_comprobante}` : `Venta N° ${venta.numero}`,
         referencia_tipo: 'venta',
         referencia_id: id,
         usuario_id: datos.usuario_id,

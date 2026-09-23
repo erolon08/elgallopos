@@ -47,7 +47,8 @@ const registrarMovimiento = db.transaction((params) => {
 
 function movimientos(cliente_id, { desde, hasta } = {}) {
   let sql = `
-    SELECT cc.*, u.nombre AS usuario_nombre, v.numero AS venta_numero
+    SELECT cc.*, u.nombre AS usuario_nombre, v.numero AS venta_numero,
+           v.numero_comprobante AS venta_numero_comprobante, v.tipo_comprobante AS venta_tipo_comprobante
     FROM cc_movimientos cc
     LEFT JOIN usuarios u ON u.id = cc.usuario_id
     LEFT JOIN ventas v ON cc.referencia_tipo = 'venta' AND cc.referencia_id = v.id
@@ -72,7 +73,7 @@ function movimientos(cliente_id, { desde, hasta } = {}) {
 function pendientesDeCliente(cliente_id) {
   const deVentas = db
     .prepare(
-      `SELECT id, 'venta' AS tipo, numero, total, cta_cte_saldo_pendiente AS saldo_pendiente, creado_en
+      `SELECT id, 'venta' AS tipo, numero, numero_comprobante, tipo_comprobante, total, cta_cte_saldo_pendiente AS saldo_pendiente, creado_en
        FROM ventas
        WHERE cliente_id = ? AND estado = 'cobrada' AND cta_cte_saldo_pendiente > 0`
     )
@@ -96,7 +97,15 @@ function aplicarAdeuda(deuda, aplicado) {
   } else {
     db.prepare('UPDATE ventas SET cta_cte_saldo_pendiente = ? WHERE id = ?').run(nuevoSaldo, deuda.id);
   }
-  return { deuda_id: deuda.id, numero: deuda.numero, tipo: deuda.tipo, aplicado, saldada: nuevoSaldo <= 0 };
+  return {
+    deuda_id: deuda.id,
+    numero: deuda.numero,
+    numero_comprobante: deuda.numero_comprobante || null,
+    tipo_comprobante: deuda.tipo_comprobante || null,
+    tipo: deuda.tipo,
+    aplicado,
+    saldada: nuevoSaldo <= 0,
+  };
 }
 
 // Registra que el cliente pagó (total o parcial) su deuda: resta del saldo y

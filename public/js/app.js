@@ -1295,6 +1295,14 @@ async function importarSaldosExcel(event) {
 // ============================================================
 let ctaCteClienteId = null;
 
+// Si la venta es Factura A/B (tiene número de comprobante fiscal real), en
+// cuenta corriente se identifica por ESE número — no por el número interno
+// de venta, que no es el que el cliente reconoce en su factura.
+function etiquetaComprobanteVenta(numero, numeroComprobante, tipoComprobante) {
+  const esFacturaAB = (tipoComprobante === 'Factura A' || tipoComprobante === 'Factura B') && numeroComprobante;
+  return esFacturaAB ? `Factura N° ${numeroComprobante}` : `Venta N° ${numero}`;
+}
+
 async function abrirCtaCte(clienteId, nombre) {
   ctaCteClienteId = clienteId;
   document.getElementById('ctaCteTitulo').textContent = `Cuenta Corriente — ${nombre}`;
@@ -1322,7 +1330,7 @@ async function cargarCtaCte() {
     ctaCtePendientesCache
       .map(
         (v, i) =>
-          `<option value="${i}">${v.tipo === 'migrada' ? `Factura N° ${v.numero} (migrada)` : `Venta N° ${v.numero}`} — $ ${money.format(v.saldo_pendiente)} pendiente</option>`
+          `<option value="${i}">${v.tipo === 'migrada' ? `Factura N° ${v.numero} (migrada)` : etiquetaComprobanteVenta(v.numero, v.numero_comprobante, v.tipo_comprobante)} — $ ${money.format(v.saldo_pendiente)} pendiente</option>`
       )
       .join('');
 
@@ -1343,7 +1351,7 @@ async function cargarCtaCte() {
     const puedeDeshacer = i === 0 && m.tipo === 'pago' && session.rol !== 'VENTA';
     tr.innerHTML = `
       <td>${fecha}</td>
-      <td>${TIPO_LABEL[m.tipo] || m.tipo}${m.venta_numero ? ` (Venta N° ${m.venta_numero})` : ''}${m.tipo === 'pago' && m.forma_pago ? ` · ${m.forma_pago}` : ''}<br><span class="small" style="color:var(--muted)">${m.motivo || ''}</span></td>
+      <td>${TIPO_LABEL[m.tipo] || m.tipo}${m.venta_numero ? ` (${etiquetaComprobanteVenta(m.venta_numero, m.venta_numero_comprobante, m.venta_tipo_comprobante)})` : ''}${m.tipo === 'pago' && m.forma_pago ? ` · ${m.forma_pago}` : ''}<br><span class="small" style="color:var(--muted)">${m.motivo || ''}</span></td>
       <td style="text-align:right;white-space:nowrap;color:${m.monto > 0 ? 'var(--red)' : 'inherit'}">${m.monto > 0 ? '+' : ''}$ ${money.format(m.monto)}</td>
       <td style="text-align:right;white-space:nowrap"><b>$ ${money.format(m.saldo_resultante)}</b></td>
       <td style="white-space:nowrap">${puedeDeshacer ? `<button class="btn light" onclick="deshacerCobroCtaCte(${m.id})" title="Deshace este cobro para volver a cargarlo bien (ej. con otra forma de pago)">↩️ Deshacer</button>` : ''}</td>
@@ -1453,7 +1461,7 @@ function construirTicketCtaCteHtml(data) {
       ? `<b>FACTURAS ABONADAS</b><br>${data.ventas_afectadas
           .map(
             (v) =>
-              `${v.tipo === 'migrada' ? `Factura N° ${v.numero}` : `Venta N° ${v.numero}`}&nbsp;&nbsp;${moneyStr(v.aplicado)}${v.saldada ? ' (saldada)' : ' (parcial)'}<br>`
+              `${v.tipo === 'migrada' ? `Factura N° ${v.numero}` : etiquetaComprobanteVenta(v.numero, v.numero_comprobante, v.tipo_comprobante)}&nbsp;&nbsp;${moneyStr(v.aplicado)}${v.saldada ? ' (saldada)' : ' (parcial)'}<br>`
           )
           .join('')}<hr>`
       : '';
