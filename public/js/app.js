@@ -5286,9 +5286,9 @@ function renderVenta() {
     }
     const subtotal = calcularSubtotalLinea(it);
     const tr = document.createElement('tr');
-    const descripcionCell = it.es_servicio
-      ? `<input value="${it.descripcion}" style="width:170px" oninput="cambiarDescripcionLinea(${i}, this.value)">`
-      : `<b>${it.descripcion}</b>`;
+    // Editable en todas las líneas: cambia solo lo que sale en el ticket de
+    // esta venta (se guarda en venta_items), nunca la descripción del producto.
+    const descripcionCell = `<input value="${escapeHtml(it.descripcion)}" style="width:170px${it.es_servicio ? '' : ';font-weight:700'}" title="Podés cambiar el texto para esta venta; el producto no se modifica" oninput="cambiarDescripcionLinea(${i}, this.value)">`;
     const precioCell = it.es_servicio
       ? `<div class="line-price-choice">
            <button class="${it.tipo_precio === 'final' ? 'active' : ''}" onclick="elegirPrecioServicioLinea(${i},'final')">F</button>
