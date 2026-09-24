@@ -1,5 +1,8 @@
 const db = require('../db');
 
+// Parte de la venta "v" pagada con Canje (mercadería/trabajo, no plata).
+const SQL_CANJE_DE_VENTA = "COALESCE((SELECT SUM(vpc.monto) FROM venta_pagos vpc WHERE vpc.venta_id = v.id AND vpc.forma_pago = 'Canje'), 0)";
+
 function condicionFecha(columna, { anio, mes }) {
   const cond = [];
   const params = {};
@@ -86,10 +89,25 @@ function cambioFondo({ anio, mes, desde, hasta }) {
 }
 
 // Total facturado (ventas cobradas), sin importar la forma de pago —
-// incluye lo vendido a Cuenta Corriente, que todavía no se cobró.
+// incluye lo vendido a Cuenta Corriente, que todavía no se cobró. Lo pagado
+// con Canje no cuenta: no es plata que entró (solo sirve para rendirle el
+// trabajo al cerrajero).
 function facturacion({ anio, mes, desde, hasta }) {
   const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
-  return db.prepare(`SELECT COALESCE(SUM(v.total), 0) AS total FROM ventas v WHERE v.estado = 'cobrada' ${sql}`).get(params).total;
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(v.total - ${SQL_CANJE_DE_VENTA}), 0) AS total
+       FROM ventas v WHERE v.estado = 'cobrada' ${sql}`
+    )
+    .get(params).total;
+}
+
+// Una venta cuenta como venta si tuvo algo pagado con plata real (no Canje).
+function cantidadVentas({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
+  return db
+    .prepare(`SELECT COUNT(*) AS n FROM ventas v WHERE v.estado = 'cobrada' AND v.total - ${SQL_CANJE_DE_VENTA} > 0 ${sql}`)
+    .get(params).n;
 }
 
 // Parte de lo facturado que quedó a cuenta del cliente (todavía no ingresó a caja).
@@ -147,7 +165,7 @@ function ventasPorFormaPago({ anio, mes, desde, hasta }) {
     .prepare(
       `SELECT vp.forma_pago, COALESCE(SUM(vp.monto), 0) AS total
        FROM venta_pagos vp JOIN ventas v ON v.id = vp.venta_id
-       WHERE v.estado = 'cobrada' ${sql}
+       WHERE v.estado = 'cobrada' AND vp.forma_pago != 'Canje' ${sql}
        GROUP BY vp.forma_pago
        ORDER BY total DESC`
     )
@@ -230,7 +248,8 @@ function reversasVentaAnuladaDeOtroPeriodo({ anio, mes, desde, hasta }) {
       `SELECT COALESCE(SUM(cm.monto), 0) AS total
        FROM caja_movimientos cm
        JOIN ventas v ON v.id = cm.referencia_id
-       WHERE cm.tipo = 'egreso' AND cm.categoria = 'venta' AND cm.referencia_tipo = 'venta' ${sql}
+       WHERE cm.tipo = 'egreso' AND cm.categoria = 'venta' AND cm.referencia_tipo = 'venta'
+         AND COALESCE(cm.forma_pago, '') != 'Canje' ${sql}
          AND date(v.cobrado_en) < date(@rangoDesde)`
     )
     .get({ ...params, rangoDesde: rango.desde }).total;
@@ -411,8 +430,6 @@ function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
 // facturado y desglosado por forma de pago, más cuánto de eso fue efectivo /
 // medios electrónicos / cuenta corriente y cuánto terminó en caja fuerte.
 function resumenVentas({ desde, hasta }) {
-  const { sql, params } = condicionRango('v.cobrado_en', { desde, hasta });
-  const cantidadVentas = db.prepare(`SELECT COUNT(*) AS n FROM ventas v WHERE v.estado = 'cobrada' ${sql}`).get(params).n;
   return {
     desde,
     hasta,
@@ -422,7 +439,7 @@ function resumenVentas({ desde, hasta }) {
     cuentaCorriente: cuentaCorriente({ desde, hasta }),
     cajaFuerte: cajaFuerte({ desde, hasta }),
     porFormaPago: ventasPorFormaPago({ desde, hasta }),
-    cantidadVentas,
+    cantidadVentas: cantidadVentas({ desde, hasta }),
   };
 }
 

@@ -233,12 +233,15 @@ function listar(filtros = {}) {
 // Total facturado y cantidad de ventas para los mismos filtros que listar(),
 // pero sin el LIMIT 300 del listado — así el total que se muestra en
 // pantalla es el de TODA la selección, no solo el de las filas visibles.
+// Lo pagado con Canje no es plata que entró: no suma al total, y una venta
+// pagada entera con Canje no cuenta como venta (sigue existiendo, para
+// rendírsela al cerrajero).
 function totalFacturado(filtros = {}) {
   const { sql: condiciones, params } = condicionesVentas(filtros);
   const sql = `
-    SELECT COALESCE(SUM(t.total), 0) AS total, COUNT(*) AS cantidad
+    SELECT COALESCE(SUM(t.total), 0) AS total, COALESCE(SUM(t.total > 0), 0) AS cantidad
     FROM (
-      SELECT v.id, v.total
+      SELECT v.id, v.total - COALESCE((SELECT SUM(vp.monto) FROM venta_pagos vp WHERE vp.venta_id = v.id AND vp.forma_pago = 'Canje'), 0) AS total
       FROM ventas v
       LEFT JOIN clientes cl ON cl.id = v.cliente_id
       LEFT JOIN venta_items vi ON vi.venta_id = v.id
@@ -364,6 +367,9 @@ const cobrarTx = db.transaction((id, datos) => {
   `);
   datos.pagos.forEach((p) => {
     insertPago.run(id, p.forma_pago, p.marca || null, Number(p.monto) || 0);
+    // El Canje no es plata real (se paga con mercadería/trabajo): queda en
+    // venta_pagos para la rendición del cerrajero, pero no entra a la caja.
+    if (p.forma_pago === 'Canje') return;
     insertCajaMov.run({
       caja_turno_id: turno.id,
       concepto: `Venta N° ${venta.numero} — ${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}`,
@@ -676,6 +682,7 @@ const anular = db.transaction((id, { motivo, usuario_id, terminal } = {}) => {
       VALUES (?, 'egreso', 'venta', ?, ?, ?, 'venta', ?, ?)
     `);
     pagos.forEach((p) => {
+      if (p.forma_pago === 'Canje') return;
       insertCajaMov.run(
         turno.id,
         `Anulación venta N° ${venta.numero}${motivo ? ' — ' + motivo : ''} (${p.forma_pago})`,
@@ -761,6 +768,7 @@ const desanular = db.transaction((id, { usuario_id, terminal } = {}) => {
   `);
   let totalCtaCte = 0;
   pagos.forEach((p) => {
+    if (p.forma_pago === 'Canje') return;
     insertCajaMov.run(
       turno.id,
       `Venta N° ${venta.numero} — ${p.forma_pago} (se deshizo la anulación)`,

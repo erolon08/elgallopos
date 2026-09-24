@@ -5865,7 +5865,7 @@ function elegirFormaPago(forma) {
     btnIrAClientes.style.display = 'none';
     let texto = `Confirmar ${forma} por $ ${money.format(ventaEnCobroTotal)}.`;
     if (forma === 'Canje') {
-      texto = `Confirmar Canje por $ ${money.format(ventaEnCobroTotal)} — no entra dinero real (se paga con mercadería/trabajo), pero el stock se descuenta y el cerrajero cobra su parte igual que una venta normal.`;
+      texto = `Confirmar Canje por $ ${money.format(ventaEnCobroTotal)} — no entra dinero real (se paga con mercadería/trabajo): no suma en la caja, ni en el cierre, ni en el total de ventas. El stock se descuenta y el cerrajero cobra su parte igual que una venta normal.`;
     }
     if (forma === 'Cuenta Corriente') {
       if (!clienteVentaActual || !clienteVentaActual.venta_a_credito) {

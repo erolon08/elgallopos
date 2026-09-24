@@ -70,7 +70,12 @@ function resumenDe(turno, movimientos) {
 function obtener(id) {
   const turno = db.prepare('SELECT * FROM caja_turnos WHERE id = ?').get(id);
   if (!turno) return null;
-  const movimientos = db.prepare('SELECT * FROM caja_movimientos WHERE caja_turno_id = ? ORDER BY id').all(id);
+  // Las ventas con Canje ya no generan movimiento de caja (no es plata que
+  // entró), pero las cobradas antes de ese cambio sí lo dejaron: se ocultan
+  // para que no aparezcan en la caja ni en el ticket de cierre.
+  const movimientos = db
+    .prepare("SELECT * FROM caja_movimientos WHERE caja_turno_id = ? AND COALESCE(forma_pago, '') != 'Canje' ORDER BY id")
+    .all(id);
   return { ...turno, movimientos, resumen: resumenDe(turno, movimientos) };
 }
 
@@ -327,7 +332,7 @@ function simularCierrePorFecha(fecha, turnoKey) {
   const ventas = db.prepare(`SELECT * FROM ventas WHERE estado = 'cobrada' AND cobrado_en >= ? AND cobrado_en <= ?`).all(desde, hasta);
   const movimientos = [];
   ventas.forEach((v) => {
-    db.prepare('SELECT * FROM venta_pagos WHERE venta_id = ?')
+    db.prepare("SELECT * FROM venta_pagos WHERE venta_id = ? AND forma_pago != 'Canje'")
       .all(v.id)
       .forEach((p) => {
         movimientos.push({
@@ -405,7 +410,7 @@ const crearCierreRecuperado = db.transaction((fecha, turnoKey, movimientosManual
      VALUES (?, 'ingreso', 'venta', ?, ?, ?, 'venta', ?, ?)`
   );
   ventas.forEach((v) => {
-    db.prepare('SELECT * FROM venta_pagos WHERE venta_id = ?')
+    db.prepare("SELECT * FROM venta_pagos WHERE venta_id = ? AND forma_pago != 'Canje'")
       .all(v.id)
       .forEach((p) => {
         insertVentaMov.run(turnoId, `Venta N° ${v.numero} — ${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}`, p.monto, p.forma_pago, v.id, v.cobrado_en);
