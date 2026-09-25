@@ -6908,7 +6908,7 @@ function filaVentaHistorial(v) {
   const botonBorrar = v.estado === 'anulada' && !esSoloConsulta
     ? `<button class="btn light" onclick="borrarVentaDefinitivo(${v.id})">🗑️ Borrar</button>`
     : '';
-  const botonDeshacerAnulacion = v.estado === 'anulada' && !esSoloConsulta
+  const botonDeshacerAnulacion = v.estado === 'anulada' && !v.nc_cae && !esSoloConsulta
     ? `<button class="btn light" onclick="desanularVenta(${v.id})">↩️ Deshacer anulación</button>`
     : '';
   // Solo si la venta tiene una factura electrónica real (CAE) y todavía no
@@ -7057,7 +7057,7 @@ async function verDetalleVenta(id) {
     <p><b>Total: $ ${money.format(venta.total)}</b></p>
   `;
   document.getElementById('btnAnularVenta').style.display = venta.estado === 'anulada' || esSoloConsulta ? 'none' : 'inline-block';
-  document.getElementById('btnDesanularVenta').style.display = venta.estado === 'anulada' && !esSoloConsulta ? 'inline-block' : 'none';
+  document.getElementById('btnDesanularVenta').style.display = venta.estado === 'anulada' && !venta.nc_cae && !esSoloConsulta ? 'inline-block' : 'none';
   document.getElementById('btnNotaCreditoVenta').style.display = venta.cae && !venta.nc_cae && !esSoloConsulta ? 'inline-block' : 'none';
   document.getElementById('detalleVentaModal').classList.add('open');
 }
@@ -7114,15 +7114,16 @@ async function desanularVentaUI() {
   await desanularVenta(ventaDetalleActual.id);
   closeDetalleVenta();
 }
-// Nota de crédito electrónica que compensa la factura A/B de una venta.
-// Acción aparte de anular: esto es solo lo fiscal (ARCA) y devuelve el
-// stock vendido (igual que "Anular"), pero no saca plata de caja ni toca
-// cuenta corriente — para eso está "Anular". Emite un comprobante real e
-// irreversible, por eso la confirmación es explícita.
+// Nota de crédito electrónica que compensa la factura A/B de una venta, y
+// además la anula (stock, caja por forma de pago y cuenta corriente) si
+// todavía no estaba anulada. Emite un comprobante real e irreversible, por
+// eso la confirmación es explícita.
 async function notaCreditoVenta(id) {
   if (
     !confirm(
-      '¿Emitir la NOTA DE CRÉDITO en ARCA para esta factura?\n\nEs un comprobante fiscal REAL e irreversible, por el total de la factura. Devuelve el stock vendido, pero no toca caja ni cuenta corriente (para eso está "Anular venta").'
+      '¿Emitir la NOTA DE CRÉDITO en ARCA para esta factura?\n\n' +
+        'Es un comprobante fiscal REAL e irreversible, por el total de la factura.\n\n' +
+        'Además la venta queda anulada: vuelve el stock, se descuenta de la caja lo cobrado con la misma forma de pago (efectivo, transferencia, etc.) y, si fue a cuenta corriente, se le baja la deuda al cliente. Si la venta ya estaba anulada, eso ya se hizo y solo se emite el comprobante.'
     )
   )
     return;
@@ -7136,7 +7137,7 @@ async function notaCreditoVenta(id) {
     alert('Error: ' + data.error);
     return;
   }
-  alert(`Nota de crédito emitida: ${data.nc_numero_comprobante} — CAE ${data.nc_cae}\nSe devolvió el stock vendido.`);
+  alert(`Nota de crédito emitida: ${data.nc_numero_comprobante} — CAE ${data.nc_cae}\nLa venta quedó anulada (stock, caja y cuenta corriente al día).`);
   cargarVentasHistorial();
 }
 async function notaCreditoVentaUI() {

@@ -457,14 +457,12 @@ async function cobrar(id, datos) {
 // pidiendo el CAE a ARCA en el momento (a diferencia de cobrar(), acá si
 // falla se corta con un error — no hay a qué "bajar", ya está cobrada).
 // Emite en ARCA la Nota de Crédito (A o B, según la factura) que compensa
-// fiscalmente la factura de esta venta, por el total, y devuelve el stock
-// vendido — igual que hace anular(). Es una acción APARTE de anular: no
-// toca caja ni cuenta corriente (la plata ya cobrada sigue siendo del
-// negocio); solo deja asentado ante ARCA que la factura queda sin efecto
-// y repone la mercadería. Si además hay que devolver la plata, hay que
-// anular la venta a mano aparte. Como toda emisión, es real e
-// irreversible, así que si ARCA falla se corta con error y la venta queda
-// como estaba (sin nota de crédito, sin tocar el stock).
+// fiscalmente la factura de esta venta, por el total, y además la anula:
+// devuelve el stock, descuenta de la caja lo cobrado con la misma forma de
+// pago (efectivo, transferencia, etc.) y baja la deuda de cuenta corriente
+// — todo lo que hace anular(). Si la venta ya estaba anulada, eso ya se
+// hizo y solo queda lo fiscal. Como toda emisión, es real e irreversible,
+// así que si ARCA falla se corta con error y la venta queda como estaba.
 async function emitirNotaCredito(id, { usuario_id, terminal } = {}) {
   const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
   if (!venta) throw new Error('Venta no encontrada');
@@ -501,44 +499,16 @@ async function emitirNotaCredito(id, { usuario_id, terminal } = {}) {
     concepto: determinarConcepto(items),
   });
 
-  aplicarNotaCredito(id, venta, items, resultado, { usuario_id, terminal });
+  aplicarNotaCredito(id, resultado, { usuario_id, terminal });
 
   return obtener(id);
 }
 
 // Parte sincrónica de emitirNotaCredito: se ejecuta recién después de que
-// ARCA confirmó la Nota de Crédito, para no dejar stock devuelto si la
-// emisión fiscal termina fallando. Devuelve el stock vendido (mismo tipo
-// de movimiento 'nota_credito' que usa anular()) y deja asentados los
-// datos del comprobante en la venta.
-const aplicarNotaCredito = db.transaction((id, venta, items, resultado, { usuario_id, terminal } = {}) => {
-  items.forEach((it) => {
-    if (it.producto_id && !it.usa_mano_obra) {
-      stockService.registrarMovimiento({
-        producto_id: it.producto_id,
-        tipo: 'nota_credito',
-        cantidad: Math.abs(it.cantidad),
-        motivo: `Nota de crédito venta N° ${venta.numero}`,
-        referencia_tipo: 'venta',
-        referencia_id: id,
-        usuario_id,
-        terminal,
-      });
-    }
-    if (it.pila_producto_id) {
-      stockService.registrarMovimiento({
-        producto_id: it.pila_producto_id,
-        tipo: 'nota_credito',
-        cantidad: Math.abs(it.cantidad),
-        motivo: `Nota de crédito venta N° ${venta.numero} — pila devuelta`,
-        referencia_tipo: 'venta',
-        referencia_id: id,
-        usuario_id,
-        terminal,
-      });
-    }
-  });
-
+// ARCA confirmó la Nota de Crédito, para no revertir nada si la emisión
+// fiscal termina fallando.
+const aplicarNotaCredito = db.transaction((id, resultado, { usuario_id, terminal } = {}) => {
+  anular(id, { motivo: `Nota de crédito N° ${resultado.numeroCompleto}`, usuario_id, terminal });
   db.prepare(
     `UPDATE ventas SET nc_numero_comprobante = ?, nc_cae = ?, nc_cae_vencimiento = ?,
        nc_emitida_en = datetime('now','localtime') WHERE id = ?`
@@ -649,7 +619,13 @@ const anular = db.transaction((id, { motivo, usuario_id, terminal } = {}) => {
 
   if (venta.estado === 'cobrada') {
     const items = db.prepare('SELECT vi.*, f.usa_mano_obra FROM venta_items vi LEFT JOIN productos p ON p.id = vi.producto_id LEFT JOIN familias f ON f.id = p.familia_id WHERE vi.venta_id = ?').all(id);
-    items.forEach((it) => {
+    // Una versión anterior emitía la nota de crédito devolviendo solo el
+    // stock (sin anular la venta): si esta venta pasó por eso, el stock ya
+    // volvió y no hay que devolverlo de nuevo.
+    const stockYaDevuelto = db
+      .prepare("SELECT 1 FROM stock_movimientos WHERE referencia_tipo = 'venta' AND referencia_id = ? AND tipo = 'nota_credito' AND motivo LIKE 'Nota de crédito venta%'")
+      .get(id);
+    if (!stockYaDevuelto) items.forEach((it) => {
       if (it.producto_id && !it.usa_mano_obra) {
         stockService.registrarMovimiento({
           producto_id: it.producto_id,
@@ -724,6 +700,9 @@ const desanular = db.transaction((id, { usuario_id, terminal } = {}) => {
   const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
   if (!venta) throw new Error('Venta no encontrada');
   if (venta.estado !== 'anulada') throw new Error('La venta no está anulada');
+  if (venta.nc_cae) {
+    throw new Error(`Esta venta tiene la Nota de Crédito ${venta.nc_numero_comprobante} emitida en ARCA: la factura ya quedó sin efecto y no se puede volver atrás. Si hay que cobrarla de nuevo, cargala como una venta nueva.`);
+  }
 
   if (!venta.cobrado_en) {
     db.prepare("UPDATE ventas SET estado = 'pendiente', motivo_anulacion = NULL WHERE id = ?").run(id);
