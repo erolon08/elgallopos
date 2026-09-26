@@ -466,11 +466,48 @@ function exportarFilasGastos({ desde, hasta }) {
     .all(params);
 }
 
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+function textoPeriodo({ anio, mes, desde, hasta }) {
+  if (desde || hasta) {
+    if (desde && desde === hasta) return desde;
+    return `${desde || 'inicio'} a ${hasta || 'hoy'}`;
+  }
+  if (anio && mes) return `${MESES[Number(mes) - 1]} ${anio}`;
+  return anio ? `Año ${anio}` : 'Todo';
+}
+
+// Lo mismo que muestra la pantalla Ranking (consultaProducto / consultaFamilia),
+// en filas para el Excel.
+function exportarFilasConsulta({ producto_id, familia_id, anio, mes, desde, hasta }) {
+  const periodo = textoPeriodo({ anio, mes, desde, hasta });
+  const fila = (codigo, nombre, cantidad, importe, stock_actual, stock_minimo) => ({
+    'Período': periodo,
+    'Código': codigo,
+    Producto: nombre,
+    'Cantidad vendida': cantidad,
+    Importe: Math.round(importe),
+    'Stock actual': stock_actual,
+    'Stock mínimo': stock_minimo,
+  });
+  if (producto_id) {
+    const r = consultaProducto({ producto_id, anio, mes, desde, hasta });
+    if (!r.producto) throw new Error('Producto no encontrado');
+    return { nombre: r.producto.codigo, periodo, filas: [fila(r.producto.codigo, r.producto.descripcion, r.cantidad, r.importe, r.producto.stock_actual, r.producto.stock_minimo)] };
+  }
+  const familia = db.prepare('SELECT nombre FROM familias WHERE id = ?').get(familia_id);
+  if (!familia) throw new Error('Familia no encontrada');
+  const r = consultaFamilia({ familia_id, anio, mes, desde, hasta });
+  const filas = r.detalle.map((d) => fila(d.codigo, d.nombre, d.cantidad, d.importe, d.stock_actual, d.stock_minimo));
+  filas.push(fila('', 'TOTAL', r.total.cantidad, r.total.importe, '', ''));
+  return { nombre: familia.nombre, periodo, filas };
+}
+
 module.exports = {
   dashboard,
   aniosDisponibles,
   consultaProducto,
   consultaFamilia,
+  exportarFilasConsulta,
   resumenVentas,
   resumenGastos,
   exportarFilasGastos,

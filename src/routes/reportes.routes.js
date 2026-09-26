@@ -25,6 +25,31 @@ router.get('/consulta', (req, res) => {
   res.status(400).json({ error: 'Debés indicar un producto o una familia' });
 });
 
+router.get('/consulta/exportar', (req, res) => {
+  const { producto_id, familia_id, anio, mes, desde, hasta } = req.query;
+  if (!producto_id && !familia_id) return res.status(400).json({ error: 'Debés indicar un producto o una familia' });
+  try {
+    const { nombre, periodo, filas } = reportesService.exportarFilasConsulta({
+      producto_id: producto_id ? Number(producto_id) : null,
+      familia_id: familia_id ? Number(familia_id) : null,
+      anio,
+      mes,
+      desde,
+      hasta,
+    });
+    const hoja = XLSX.utils.json_to_sheet(filas);
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, 'Ranking');
+    const buffer = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+    const archivo = `ranking_${nombre}_${periodo}`.replace(/[^\w\-áéíóúñÁÉÍÓÚÑ]+/g, '_') + '.xlsx';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="ranking.xlsx"; filename*=UTF-8''${encodeURIComponent(archivo)}`);
+    res.send(buffer);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.get('/resumen-ventas', (req, res) => {
   const { desde, hasta } = req.query;
   res.json(reportesService.resumenVentas({ desde, hasta }));

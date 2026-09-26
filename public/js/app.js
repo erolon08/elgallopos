@@ -2780,6 +2780,10 @@ async function consultarRanking() {
 
   const r = await (await fetch('/api/reportes/consulta?' + params.toString())).json();
   const cont = document.getElementById('rkConsultaResultado');
+  // El Excel usa los filtros de esta consulta (lo que está en pantalla),
+  // aunque después se toquen los campos sin volver a consultar.
+  rkUltimosParams = params.toString();
+  const botonExcel = `<div style="margin-top:12px"><button class="btn outline" onclick="descargarExcelRanking()">📥 Descargar Excel</button></div>`;
 
   if (r.tipo === 'producto') {
     const p = r.producto;
@@ -2788,7 +2792,7 @@ async function consultarRanking() {
         <div class="card kpi kpi-green"><div class="label">Cantidad vendida</div><div class="value">${r.cantidad}</div><div class="hint">${p.codigo} — ${p.descripcion}</div></div>
         <div class="card kpi kpi-blue"><div class="label">Importe facturado</div><div class="value">${moneyDash(r.importe)}</div></div>
         <div class="card kpi"><div class="label">Stock actual</div><div class="value"><span class="status ${filaStockClase(p)}">${money.format(p.stock_actual)}</span></div><div class="hint">Mínimo: ${money.format(p.stock_minimo)}</div></div>
-      </div>`;
+      </div>${botonExcel}`;
   } else {
     const filas = r.detalle
       .map(
@@ -2800,8 +2804,14 @@ async function consultarRanking() {
         <thead><tr><th>Código</th><th>Producto</th><th>Cantidad vendida</th><th>Importe</th><th>Stock actual</th></tr></thead>
         <tbody>${filas || '<tr><td colspan="5" class="small">Esta familia no tiene productos activos.</td></tr>'}</tbody>
         <tfoot><tr><td colspan="2"><b>Total</b></td><td><b>${r.total.cantidad}</b></td><td><b>${moneyDash(r.total.importe)}</b></td><td></td></tr></tfoot>
-      </table>`;
+      </table>${botonExcel}`;
   }
+}
+
+let rkUltimosParams = null;
+function descargarExcelRanking() {
+  if (!rkUltimosParams) return;
+  window.open('/api/reportes/consulta/exportar?' + rkUltimosParams, '_blank');
 }
 
 // ============================================================
