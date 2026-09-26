@@ -200,8 +200,13 @@
           </div>
 
           <div class="botonera-tabs" id="rkFechaTabs" style="margin-bottom:10px">
+            <button data-modo="dia" onclick="cambiarModoFechaRanking('dia')">Un día</button>
             <button class="active" data-modo="mes" onclick="cambiarModoFechaRanking('mes')">Mes determinado</button>
             <button data-modo="rango" onclick="cambiarModoFechaRanking('rango')">Rango de fechas</button>
+          </div>
+
+          <div class="toolbar" id="rkFechaDiaFields" style="display:none;margin-bottom:14px">
+            <div class="field"><label>Fecha de venta</label><input id="rkConsultaDia" type="date"></div>
           </div>
 
           <div class="toolbar" id="rkFechaMesFields" style="margin-bottom:14px">

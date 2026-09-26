@@ -2662,6 +2662,13 @@ async function cargarRanking() {
 }
 
 
+// AAAA-MM-DD de hoy en hora local (toISOString usa UTC: en Argentina,
+// después de las 21 hs ya daría el día siguiente).
+function hoyISOLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 let rkObjetivoTipo = 'producto';
 let rkFechaModo = 'mes';
 let rkProductoSeleccionado = null;
@@ -2676,8 +2683,11 @@ function cambiarObjetivoRanking(tipo) {
 function cambiarModoFechaRanking(modo) {
   rkFechaModo = modo;
   document.querySelectorAll('#rkFechaTabs button').forEach((b) => b.classList.toggle('active', b.dataset.modo === modo));
+  document.getElementById('rkFechaDiaFields').style.display = modo === 'dia' ? 'flex' : 'none';
   document.getElementById('rkFechaMesFields').style.display = modo === 'mes' ? 'flex' : 'none';
   document.getElementById('rkFechaRangoFields').style.display = modo === 'rango' ? 'flex' : 'none';
+  const dia = document.getElementById('rkConsultaDia');
+  if (modo === 'dia' && !dia.value) dia.value = hoyISOLocal();
 }
 
 function elegirProductoRanking(p) {
@@ -2748,7 +2758,15 @@ async function consultarRanking() {
     }
     params.set('familia_id', familiaId);
   }
-  if (rkFechaModo === 'mes') {
+  if (rkFechaModo === 'dia') {
+    const dia = document.getElementById('rkConsultaDia').value;
+    if (!dia) {
+      alert('Elegí la fecha de venta.');
+      return;
+    }
+    params.set('desde', dia);
+    params.set('hasta', dia);
+  } else if (rkFechaModo === 'mes') {
     const anio = document.getElementById('rkConsultaAnio').value;
     const mes = document.getElementById('rkConsultaMes').value;
     if (anio) params.set('anio', anio);
