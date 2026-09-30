@@ -135,7 +135,7 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .grid{display:grid;gap:14px} .g2{grid-template-columns:repeat(2,minmax(0,1fr))} .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
 
 /* Dashboard financiero */
-.dash-kpis{grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.dash-kpis{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
 .kpi{padding:10px}
 .kpi .label{font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.2px}
 .kpi .value{font-size:17px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
@@ -152,9 +152,6 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .cierre-linea:last-child{border-bottom:0}
 .cierre-total{font-weight:800;font-size:14px}
 
-.lectura-badge{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;font-weight:700;font-size:13px}
-.lectura-badge.ok{background:#e5f6ed;color:#116b38}
-.lectura-badge.warn{background:#fde7e8;color:#a71117}
 
 .chart-legend{display:flex;gap:14px;margin-bottom:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}
 .chart-legend span{display:inline-flex;align-items:center;gap:4px}

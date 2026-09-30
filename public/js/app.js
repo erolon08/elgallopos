@@ -2520,7 +2520,6 @@ async function cargarDashboard() {
 
   renderDashboardKpis(r);
   renderControlCierre(r);
-  renderLecturaRapida(r);
   renderChartMensual(r.serieMensual);
   renderChartTipos(r.gastosPorTipo);
 }
@@ -2532,14 +2531,6 @@ function renderDashboardKpis(r) {
   document.getElementById('dkCheque').textContent = moneyDash(r.cheque);
   document.getElementById('dkGastos').textContent = moneyDash(r.gastos);
   document.getElementById('dkCajaFuerte').textContent = moneyDash(r.cajaFuerte);
-  const dif = document.getElementById('dkDiferencia');
-  dif.textContent = moneyDash(r.diferencia);
-  // Solo es un problema si FALTA plata (diferencia negativa); si sobra
-  // también hay que entender por qué, pero no es lo mismo que un faltante.
-  const faltante = r.diferencia < -1;
-  dif.style.color = faltante ? 'var(--red)' : 'var(--green)';
-  document.getElementById('dkDiferenciaHint').textContent =
-    Math.abs(r.diferencia) < 1 ? 'Cierre correcto' : faltante ? 'Falta plata: revisar' : 'Sobra plata: revisar';
 }
 
 function renderControlCierre(r) {
@@ -2558,20 +2549,6 @@ function renderControlCierre(r) {
   const ccDif = document.getElementById('ccDiferencia');
   ccDif.textContent = moneyDash(r.diferencia);
   ccDif.style.color = r.diferencia < -1 ? 'var(--red)' : 'var(--green)';
-}
-
-function renderLecturaRapida(r) {
-  const badge = document.getElementById('lecturaBadge');
-  if (Math.abs(r.diferencia) < 1) {
-    badge.className = 'lectura-badge ok';
-    badge.textContent = '✅ Cierre correcto: la diferencia da $0';
-  } else if (r.diferencia < 0) {
-    badge.className = 'lectura-badge warn';
-    badge.textContent = `⚠️ Revisar: falta ${moneyDash(-r.diferencia)}`;
-  } else {
-    badge.className = 'lectura-badge ok';
-    badge.textContent = `✅ Sobra ${moneyDash(r.diferencia)} (no es un faltante, pero conviene entender de dónde sale)`;
-  }
 }
 
 const MESES_LABEL_DASH = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
