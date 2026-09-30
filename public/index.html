@@ -127,7 +127,7 @@
           <div class="card kpi kpi-blue"><div class="label">Caja Fuerte</div><div class="value" id="dkCajaFuerte">—</div><div class="hint">Lo que queda guardado</div></div>
         </div>
 
-        <div style="margin-bottom:14px">
+        <div class="grid g2" style="margin-bottom:14px">
           <div class="card">
             <div class="section-title"><h3>Control de cierre</h3></div>
             <div class="cierre-linea"><span>Efectivo</span><b id="ccEfectivo">$ 0</b></div>
@@ -141,8 +141,12 @@
             <div class="cierre-linea"><span>(-) Cheque</span><b id="ccChequeResta">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Fondo que quedó en el cajón</span><b id="ccCambioFondo">$ 0</b></div>
             <div class="cierre-linea"><span>(-) Ventas anuladas de otro período</span><b id="ccReversasVenta">$ 0</b></div>
-            <div class="cierre-linea cierre-total"><span>Diferencia</span><b id="ccDiferencia">$ 0</b></div>
             <p class="small" style="margin-top:8px">La Cuenta Corriente pendiente de este período (<b id="ccCuentaCorriente">$ 0</b>) no forma parte de la Facturación — recién entra cuando se cobra, ya sumada arriba según cómo pagó el cliente (Efectivo, Pago Electrónico o Cheque).</p>
+          </div>
+          <div class="card">
+            <div class="section-title"><h3>Ventas por comprobante</h3></div>
+            <div id="dashChartComprobantes"></div>
+            <p class="small" style="margin-top:8px">Ventas cobradas del período (incluye las vendidas a cuenta corriente), sin lo pagado con Canje. Eventual = todo lo que no es Factura A ni B.</p>
           </div>
         </div>
 

@@ -102,6 +102,25 @@ function facturacion({ anio, mes, desde, hasta }) {
     .get(params).total;
 }
 
+// Lo vendido en el período separado por comprobante: Factura A, Factura B y
+// Eventual (todo lo no fiscal). Mismo criterio que facturacion(): ventas
+// cobradas, sin la parte pagada con Canje.
+function facturacionPorComprobante({ anio, mes, desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
+  const filas = db
+    .prepare(
+      `SELECT CASE WHEN v.tipo_comprobante IN ('Factura A', 'Factura B') THEN v.tipo_comprobante ELSE 'Eventual' END AS tipo,
+              COUNT(*) AS cantidad, SUM(v.total - ${SQL_CANJE_DE_VENTA}) AS total
+       FROM ventas v
+       WHERE v.estado = 'cobrada' AND v.total - ${SQL_CANJE_DE_VENTA} > 0 ${sql}
+       GROUP BY tipo`
+    )
+    .all(params);
+  return ['Factura A', 'Factura B', 'Eventual'].map(
+    (tipo) => filas.find((f) => f.tipo === tipo) || { tipo, cantidad: 0, total: 0 }
+  );
+}
+
 // Una venta cuenta como venta si tuvo algo pagado con plata real (no Canje).
 function cantidadVentas({ anio, mes, desde, hasta }) {
   const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
@@ -419,6 +438,7 @@ function dashboard({ anio, mes, desde, hasta, tipo_egreso, forma_pago }) {
     cambioFondo: fCambioFondo,
     reversasVentaAnulada: fReversasVentaAnulada,
     diferencia,
+    porComprobante: facturacionPorComprobante({ anio: anioUsado, mes, desde, hasta }),
     serieMensual: serieMensual({ anio: anioUsado }),
     gastosPorTipo: gastosPorTipo({ anio: anioUsado, mes, desde, hasta, forma_pago }),
     aniosDisponibles: aniosDisponibles(),

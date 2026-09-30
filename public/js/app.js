@@ -2520,6 +2520,7 @@ async function cargarDashboard() {
 
   renderDashboardKpis(r);
   renderControlCierre(r);
+  renderChartComprobantes(r.porComprobante);
   renderChartMensual(r.serieMensual);
   renderChartTipos(r.gastosPorTipo);
 }
@@ -2546,9 +2547,93 @@ function renderControlCierre(r) {
   document.getElementById('ccCambioFondo').textContent = moneyDash(r.cambioFondo);
   document.getElementById('ccReversasVenta').textContent = moneyDash(r.reversasVentaAnulada);
   document.getElementById('ccCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
-  const ccDif = document.getElementById('ccDiferencia');
-  ccDif.textContent = moneyDash(r.diferencia);
-  ccDif.style.color = r.diferencia < -1 ? 'var(--red)' : 'var(--green)';
+}
+
+// Torta 3D en SVG puro (sin librerías: el local no siempre tiene internet).
+// La torta se "acuesta" achatando el eje Y (ry < rx) y se le da espesor
+// dibujando la pared de cada porción solo en la mitad de adelante (ángulos
+// 0..π, que con Y hacia abajo son los que quedan hacia el que mira).
+const COLORES_COMPROBANTE = {
+  'Factura A': { top: '#2f86d6', lado: '#15548f' },
+  'Factura B': { top: '#8b5cf6', lado: '#5b2bb8' },
+  Eventual: { top: '#f0a72a', lado: '#b26f00' },
+};
+const pctComprobante = (n) => n.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+function renderChartComprobantes(datos) {
+  const cont = document.getElementById('dashChartComprobantes');
+  const total = datos.reduce((a, d) => a + d.total, 0);
+  if (!total) {
+    cont.innerHTML = '<p class="small" style="padding:30px 0;text-align:center">Sin ventas en el período.</p>';
+    return;
+  }
+  const W = 300, H = 210, cx = 150, cy = 88, rx = 130, ry = 70, alto = 26;
+  const pt = (a, dy = 0) => `${(cx + rx * Math.cos(a)).toFixed(2)} ${(cy + dy + ry * Math.sin(a)).toFixed(2)}`;
+  const porciones = [];
+  let desde = -Math.PI / 2;
+  datos.forEach((d) => {
+    if (!d.total) return;
+    const tramo = (d.total / total) * Math.PI * 2;
+    porciones.push({ ...d, a0: desde, a1: desde + tramo, pct: (d.total / total) * 100 });
+    desde += tramo;
+  });
+
+  let paredes = '';
+  let tapas = '';
+  porciones.forEach((p) => {
+    const c = COLORES_COMPROBANTE[p.tipo];
+    const titulo = `<title>${p.tipo}: ${moneyStr(p.total)} (${pctComprobante(p.pct)}) — ${p.cantidad} ventas</title>`;
+    const completa = p.a1 - p.a0 >= Math.PI * 2 - 1e-6;
+    // Pared: la parte de la porción que cae en la mitad de adelante [0, π]
+    // (o [2π, 3π], porque las porciones pueden pasar de la vuelta).
+    [[0, Math.PI], [Math.PI * 2, Math.PI * 3]].forEach(([f0, f1]) => {
+      const s = completa ? f0 : Math.max(p.a0, f0);
+      const e = completa ? f1 : Math.min(p.a1, f1);
+      if (e - s <= 1e-6) return;
+      paredes += `<path d="M ${pt(s)} A ${rx} ${ry} 0 0 1 ${pt(e)} L ${pt(e, alto)} A ${rx} ${ry} 0 0 0 ${pt(s, alto)} Z" fill="${c.lado}">${titulo}</path>`;
+    });
+    if (completa) {
+      tapas += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${c.top}">${titulo}</ellipse>`;
+    } else {
+      const grande = p.a1 - p.a0 > Math.PI ? 1 : 0;
+      tapas += `<path d="M ${cx} ${cy} L ${pt(p.a0)} A ${rx} ${ry} 0 ${grande} 1 ${pt(p.a1)} Z" fill="${c.top}" stroke="rgba(255,255,255,.55)" stroke-width="1">${titulo}</path>`;
+    }
+    // Porcentaje sobre la porción (solo si entra)
+    if (p.pct >= 7) {
+      const medio = (p.a0 + p.a1) / 2;
+      const lx = completa ? cx : cx + rx * 0.62 * Math.cos(medio);
+      const ly = completa ? cy : cy + ry * 0.62 * Math.sin(medio);
+      tapas += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff" style="paint-order:stroke" stroke="rgba(0,0,0,.35)" stroke-width="2">${Math.round(p.pct)}%</text>`;
+    }
+  });
+
+  const svg = `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:340px;display:block;margin:0 auto" role="img" aria-label="Ventas por comprobante">
+      <defs>
+        <radialGradient id="brilloTorta" cx="35%" cy="25%" r="75%">
+          <stop offset="0" stop-color="#fff" stop-opacity=".35"/>
+          <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="${cx}" cy="${cy + alto + 14}" rx="${rx * 0.95}" ry="${ry * 0.45}" fill="rgba(0,0,0,.14)"/>
+      ${paredes}
+      ${tapas}
+      <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#brilloTorta)" pointer-events="none"/>
+    </svg>`;
+
+  const leyenda = datos
+    .map((d) => {
+      const c = COLORES_COMPROBANTE[d.tipo];
+      const pct = total ? (d.total / total) * 100 : 0;
+      return `<div class="comp-fila">
+        <i style="background:linear-gradient(135deg, ${c.top}, ${c.lado})"></i>
+        <span class="comp-tipo">${d.tipo}</span>
+        <span class="comp-cant">${d.cantidad} ${d.cantidad === 1 ? 'venta' : 'ventas'}</span>
+        <b class="comp-monto">${moneyDash(d.total)}</b>
+        <span class="comp-pct">${pctComprobante(pct)}</span>
+      </div>`;
+    })
+    .join('');
+  cont.innerHTML = `${svg}<div class="comp-leyenda">${leyenda}<div class="comp-fila comp-total"><i></i><span class="comp-tipo">Total</span><span class="comp-cant"></span><b class="comp-monto">${moneyDash(total)}</b><span class="comp-pct"></span></div></div>`;
 }
 
 const MESES_LABEL_DASH = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];

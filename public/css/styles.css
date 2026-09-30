@@ -163,6 +163,14 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .chart-mensual-barras div{width:7px;border-radius:2px 2px 0 0;min-height:1px}
 .chart-mensual-label{font-size:10px;color:var(--muted);white-space:nowrap}
 
+.comp-leyenda{margin-top:10px}
+.comp-fila{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.comp-fila i{width:14px;height:14px;border-radius:4px;flex-shrink:0}
+.comp-tipo{flex:1;font-weight:600}
+.comp-cant{width:80px;color:var(--muted);font-size:12px;text-align:right}
+.comp-monto{width:120px;text-align:right}
+.comp-pct{width:52px;text-align:right;color:var(--muted);font-size:12px}
+.comp-total{border-bottom:0;border-top:2px solid var(--line)}
 .chart-tipos-fila{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px}
 .chart-tipos-label{width:110px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chart-tipos-barra-wrap{flex:1;background:var(--tint);border-radius:4px;overflow:hidden;height:16px}
