@@ -55,6 +55,11 @@ router.get('/resumen-ventas', (req, res) => {
   res.json(reportesService.resumenVentas({ desde, hasta }));
 });
 
+router.get('/productos-vs-servicios', (req, res) => {
+  const { desde, hasta } = req.query;
+  res.json(reportesService.productosVsServicios({ desde, hasta }));
+});
+
 router.get('/ventas-por-familia', (req, res) => {
   const { desde, hasta, familias } = req.query;
   res.json(reportesService.ventasPorFamilia({ desde, hasta, familia_ids: String(familias || '').split(',').filter(Boolean) }));

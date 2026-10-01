@@ -155,7 +155,7 @@ function ventasPorFamilia({ desde, hasta, familia_ids = [] }) {
       return {
         familia_id: f.id,
         nombre: f.nombre,
-        es_servicio: !!f.usa_mano_obra,
+        es_servicio: esFamiliaServicio(f),
         cantidad: v.cantidad || 0,
         ventas: v.ventas || 0,
         importe: Math.round(v.importe || 0),
@@ -167,6 +167,51 @@ function ventasPorFamilia({ desde, hasta, familia_ids = [] }) {
     total: familias.reduce((a, f) => a + f.importe, 0),
     totalPeriodo: facturacion({ desde, hasta }),
   };
+}
+
+// Para el gráfico Productos / Servicios del Resumen: cuentan como servicio
+// las familias de servicio (usa_mano_obra) y estas, por nombre, que el
+// dueño considera trabajo y no mercadería. El resto es "productos".
+const NOMBRES_FAMILIAS_SERVICIO = ['CODIFICADOS', 'SERVICIOS', 'DUPLICADOS'];
+const normalizarNombre = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
+function esFamiliaServicio(f) {
+  return !!f.usa_mano_obra || NOMBRES_FAMILIAS_SERVICIO.includes(normalizarNombre(f.nombre));
+}
+
+// Lo vendido en el período partido en Productos y Servicios (mismo cálculo
+// por línea que ventasPorFamilia, así productos + servicios = facturación).
+// Las líneas sin producto cargado (texto libre) van aparte en "sinFamilia".
+function productosVsServicios({ desde, hasta }) {
+  const { sql, params } = condicionRango('v.cobrado_en', { desde, hasta });
+  const porFamilia = db
+    .prepare(
+      `SELECT f.id, f.nombre, f.usa_mano_obra, SUM(vi.cantidad) AS cantidad,
+              SUM((vi.cantidad * vi.precio_unitario - COALESCE(vi.descuento, 0))
+                  * CASE WHEN v.subtotal > 0 THEN (v.total - ${SQL_CANJE_DE_VENTA}) / v.subtotal ELSE 0 END) AS importe
+       FROM venta_items vi
+       JOIN ventas v ON v.id = vi.venta_id
+       LEFT JOIN productos p ON p.id = vi.producto_id
+       LEFT JOIN familias f ON f.id = p.familia_id
+       WHERE v.estado = 'cobrada' ${sql}
+       GROUP BY f.id`
+    )
+    .all(params);
+  const grupo = () => ({ total: 0, cantidad: 0 });
+  const r = { productos: grupo(), servicios: grupo(), sinFamilia: grupo() };
+  porFamilia.forEach((f) => {
+    const destino = f.id == null ? r.sinFamilia : esFamiliaServicio(f) ? r.servicios : r.productos;
+    destino.total += f.importe || 0;
+    destino.cantidad += f.cantidad || 0;
+  });
+  Object.values(r).forEach((g) => {
+    g.total = Math.round(g.total);
+  });
+  const familiasServicio = db
+    .prepare('SELECT id, nombre, usa_mano_obra FROM familias WHERE activo = 1 ORDER BY nombre')
+    .all()
+    .filter(esFamiliaServicio)
+    .map((f) => ({ id: f.id, nombre: f.nombre }));
+  return { ...r, total: r.productos.total + r.servicios.total + r.sinFamilia.total, familiasServicio };
 }
 
 // Una venta cuenta como venta si tuvo algo pagado con plata real (no Canje).
@@ -577,6 +622,7 @@ module.exports = {
   consultaFamilia,
   exportarFilasConsulta,
   ventasPorFamilia,
+  productosVsServicios,
   resumenVentas,
   resumenGastos,
   exportarFilasGastos,

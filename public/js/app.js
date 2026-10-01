@@ -7452,6 +7452,50 @@ async function convertirPresupuestoEnVenta(id) {
 // ============================================================
 // RESUMEN (Ventas / Rendiciones / Gastos, por rango de fechas)
 // ============================================================
+// ---- Resumen: Productos / Servicios ----
+// Ids de las familias que el servidor agrupa como "servicios" (ver
+// productosVsServicios en reportes.service.js); los usan también los
+// atajos "Solo productos / Solo servicios" de Por familias.
+let resFamIdsServicio = null;
+const COLORES_PRODSERV = {
+  productos: { top: '#2f86d6', lado: '#15548f' },
+  servicios: { top: '#f0a72a', lado: '#b26f00' },
+  sinFamilia: { top: '#a3a3a3', lado: '#6b6b6b' },
+};
+async function cargarProductosVsServicios(params) {
+  const cont = document.getElementById('resProdServ');
+  const r = await (await fetch('/api/reportes/productos-vs-servicios?' + params.toString())).json();
+  resFamIdsServicio = new Set(r.familiasServicio.map((f) => f.id));
+  renderResFamLista();
+  const grupos = [
+    { clave: 'productos', nombre: 'Productos' },
+    { clave: 'servicios', nombre: 'Servicios' },
+    ...(r.sinFamilia.total ? [{ clave: 'sinFamilia', nombre: 'Sin familia' }] : []),
+  ].map((g) => ({ ...g, ...r[g.clave], ...COLORES_PRODSERV[g.clave] }));
+  const grafico = r.total
+    ? svgTorta3D(
+        grupos.map((g) => ({ nombre: g.nombre, total: g.total, top: g.top, lado: g.lado, detalle: `${money.format(g.cantidad)} unidades` })),
+        { titulo: 'Productos y servicios' }
+      )
+    : '<p class="small" style="padding:30px 0;text-align:center">Sin ventas en el período.</p>';
+  const filas = grupos
+    .map(
+      (g) => `<div class="comp-fila">
+        <i style="background:linear-gradient(135deg, ${g.top}, ${g.lado})"></i>
+        <span class="comp-tipo">${g.nombre}</span>
+        <b class="comp-monto">$ ${money.format(g.total)}</b>
+        <span class="comp-pct">${r.total ? pctComprobante((g.total / r.total) * 100) : '—'}</span>
+      </div>`
+    )
+    .join('');
+  const nombresServicio = r.familiasServicio.map((f) => escapeHtml(f.nombre)).join(', ') || '—';
+  cont.innerHTML = `${grafico}
+    <div class="comp-leyenda">${filas}
+      <div class="comp-fila comp-total"><i></i><span class="comp-tipo">Total</span><b class="comp-monto">$ ${money.format(r.total)}</b><span class="comp-pct"></span></div>
+    </div>
+    <p class="small" style="margin:8px 0 0">Servicios: ${nombresServicio}. Productos: todas las demás familias.</p>`;
+}
+
 // ---- Resumen de ventas por familias ----
 let resFamSeleccion = new Set();
 const COLORES_FAMILIAS = [
@@ -7477,7 +7521,7 @@ function renderResFamLista() {
     .map(
       (f) => `<label class="res-fam-chip ${resFamSeleccion.has(f.id) ? 'on' : ''}">
         <input type="checkbox" ${resFamSeleccion.has(f.id) ? 'checked' : ''} onchange="resFamCambiar(${f.id}, this)">
-        ${escapeHtml(f.nombre)}${f.usa_mano_obra ? ' <span class="tag">servicio</span>' : ''}
+        ${escapeHtml(f.nombre)}${(resFamIdsServicio ? resFamIdsServicio.has(f.id) : f.usa_mano_obra) ? ' <span class="tag">servicio</span>' : ''}
       </label>`
     )
     .join('');
@@ -7488,9 +7532,10 @@ function resFamCambiar(id, input) {
   input.closest('.res-fam-chip').classList.toggle('on', input.checked);
 }
 function resFamTildar(modo) {
+  const esServicio = (f) => (resFamIdsServicio ? resFamIdsServicio.has(f.id) : !!f.usa_mano_obra);
   const filtro = {
-    productos: (f) => !f.usa_mano_obra,
-    servicios: (f) => !!f.usa_mano_obra,
+    productos: (f) => !esServicio(f),
+    servicios: esServicio,
     todas: () => true,
     ninguna: () => false,
   }[modo];
@@ -7602,6 +7647,7 @@ async function cargarResumenVentas() {
   const params = new URLSearchParams();
   if (desde) params.set('desde', desde);
   if (hasta) params.set('hasta', hasta);
+  cargarProductosVsServicios(params);
   const r = await (await fetch('/api/reportes/resumen-ventas?' + params.toString())).json();
   ultimoResumenVentas = r;
   const filas = r.porFormaPago.map((f) => `<tr><td>${f.forma_pago}</td><td class="a4-num">$ ${money.format(f.total)}</td></tr>`).join('');
