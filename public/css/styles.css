@@ -163,6 +163,15 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .chart-mensual-barras div{width:7px;border-radius:2px 2px 0 0;min-height:1px}
 .chart-mensual-label{font-size:10px;color:var(--muted);white-space:nowrap}
 
+.res-fam{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.res-fam-lista{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow-y:auto;padding:2px}
+.res-fam-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:13px;cursor:pointer;user-select:none}
+.res-fam-chip input{margin:0}
+.res-fam-chip.on{border-color:var(--red);background:color-mix(in srgb, var(--red) 12%, var(--card));font-weight:600}
+.res-fam-chip .tag{font-size:10px;color:var(--muted)}
+.res-fam-grid{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:18px;align-items:start}
+.res-fam-grid table{min-width:0}
+@media(max-width:900px){.res-fam-grid{grid-template-columns:1fr}}
 .comp-leyenda{margin-top:10px}
 .comp-fila{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
 .comp-fila i{width:14px;height:14px;border-radius:4px;flex-shrink:0}

@@ -241,6 +241,20 @@
             <button class="btn outline" onclick="verResumenVentasA4()">Ver en A4 / Imprimir / Copiar</button>
           </div>
           <div id="resVentasResultado" style="margin-top:14px"></div>
+
+          <div class="res-fam">
+            <h4 style="margin:0 0 4px">Por familias</h4>
+            <p class="small" style="margin:0 0 8px">Tildá las familias que querés sumar (mismas fechas de arriba).</p>
+            <div class="toolbar" style="margin-bottom:8px">
+              <button class="btn light" onclick="resFamTildar('productos')">📦 Solo productos</button>
+              <button class="btn light" onclick="resFamTildar('servicios')">🔧 Solo servicios</button>
+              <button class="btn light" onclick="resFamTildar('todas')">Todas</button>
+              <button class="btn light" onclick="resFamTildar('ninguna')">Ninguna</button>
+            </div>
+            <div class="res-fam-lista" id="resFamLista"></div>
+            <button class="btn primary" style="margin-top:10px" onclick="cargarVentasPorFamilia()">Ver lo vendido de estas familias</button>
+            <div id="resFamResultado" style="margin-top:14px"></div>
+          </div>
         </div>
 
         <div class="card" style="margin-bottom:14px">

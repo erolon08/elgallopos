@@ -121,6 +121,54 @@ function facturacionPorComprobante({ anio, mes, desde, hasta }) {
   );
 }
 
+// Lo vendido de cada familia elegida en el período. Cada línea se lleva su
+// parte proporcional del descuento general y de lo pagado con Canje
+// ((total − canje) / subtotal de su venta), así la suma de todas las
+// familias da exactamente lo mismo que facturacion().
+function ventasPorFamilia({ desde, hasta, familia_ids = [] }) {
+  const ids = familia_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  if (!ids.length) return { familias: [], total: 0, totalPeriodo: facturacion({ desde, hasta }) };
+  const { sql, params } = condicionRango('v.cobrado_en', { desde, hasta });
+  ids.forEach((id, i) => {
+    params[`fam${i}`] = id;
+  });
+  const enLista = ids.map((_, i) => `@fam${i}`).join(',');
+  const vendidas = db
+    .prepare(
+      `SELECT p.familia_id,
+              SUM(vi.cantidad) AS cantidad,
+              COUNT(DISTINCT v.id) AS ventas,
+              SUM((vi.cantidad * vi.precio_unitario - COALESCE(vi.descuento, 0))
+                  * CASE WHEN v.subtotal > 0 THEN (v.total - ${SQL_CANJE_DE_VENTA}) / v.subtotal ELSE 0 END) AS importe
+       FROM venta_items vi
+       JOIN ventas v ON v.id = vi.venta_id
+       JOIN productos p ON p.id = vi.producto_id
+       WHERE v.estado = 'cobrada' AND p.familia_id IN (${enLista}) ${sql}
+       GROUP BY p.familia_id`
+    )
+    .all(params);
+  const familias = db
+    .prepare(`SELECT id, nombre, usa_mano_obra FROM familias WHERE id IN (${enLista})`)
+    .all(params)
+    .map((f) => {
+      const v = vendidas.find((x) => x.familia_id === f.id) || {};
+      return {
+        familia_id: f.id,
+        nombre: f.nombre,
+        es_servicio: !!f.usa_mano_obra,
+        cantidad: v.cantidad || 0,
+        ventas: v.ventas || 0,
+        importe: Math.round(v.importe || 0),
+      };
+    })
+    .sort((a, b) => b.importe - a.importe || a.nombre.localeCompare(b.nombre));
+  return {
+    familias,
+    total: familias.reduce((a, f) => a + f.importe, 0),
+    totalPeriodo: facturacion({ desde, hasta }),
+  };
+}
+
 // Una venta cuenta como venta si tuvo algo pagado con plata real (no Canje).
 function cantidadVentas({ anio, mes, desde, hasta }) {
   const { sql, params } = condicionRango('v.cobrado_en', { anio, mes, desde, hasta });
@@ -528,6 +576,7 @@ module.exports = {
   consultaProducto,
   consultaFamilia,
   exportarFilasConsulta,
+  ventasPorFamilia,
   resumenVentas,
   resumenGastos,
   exportarFilasGastos,

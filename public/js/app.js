@@ -114,6 +114,7 @@ async function cargarFamiliasGlobal() {
   populateSelect(document.getElementById('prodFamiliaSel'), familiasCache);
   populateSelect(document.getElementById('rkFamiliaId'), familiasCache, { placeholder: 'Elegir familia' });
   populateSelect(document.getElementById('masPrecFamilia'), familiasCache, { placeholder: 'Todas' });
+  renderResFamLista();
 }
 
 async function cargarProveedoresGlobal() {
@@ -2553,6 +2554,66 @@ function renderControlCierre(r) {
 // La torta se "acuesta" achatando el eje Y (ry < rx) y se le da espesor
 // dibujando la pared de cada porción solo en la mitad de adelante (ángulos
 // 0..π, que con Y hacia abajo son los que quedan hacia el que mira).
+// items: [{ nombre, total, top, lado, detalle }] (top/lado: color de la
+// cara de arriba y de la pared; detalle: texto extra del tooltip).
+let tortaSvgId = 0;
+function svgTorta3D(items, { titulo = 'Gráfico' } = {}) {
+  const total = items.reduce((a, d) => a + d.total, 0);
+  const W = 300, H = 200, cx = 150, cy = 88, rx = 130, ry = 70, alto = 26;
+  const gradId = `brilloTorta${++tortaSvgId}`;
+  const pt = (a, dy = 0) => `${(cx + rx * Math.cos(a)).toFixed(2)} ${(cy + dy + ry * Math.sin(a)).toFixed(2)}`;
+  const porciones = [];
+  let desde = -Math.PI / 2;
+  items.forEach((d) => {
+    if (!(d.total > 0)) return;
+    const tramo = (d.total / total) * Math.PI * 2;
+    porciones.push({ ...d, a0: desde, a1: desde + tramo, pct: (d.total / total) * 100 });
+    desde += tramo;
+  });
+
+  let paredes = '';
+  let tapas = '';
+  porciones.forEach((p) => {
+    const tooltip = `<title>${escapeHtml(p.nombre)}: ${moneyStr(p.total)} (${pctComprobante(p.pct)})${p.detalle ? ' — ' + escapeHtml(p.detalle) : ''}</title>`;
+    const completa = p.a1 - p.a0 >= Math.PI * 2 - 1e-6;
+    // Pared: la parte de la porción que cae en la mitad de adelante [0, π]
+    // (o [2π, 3π], porque las porciones pueden pasar de la vuelta).
+    [[0, Math.PI], [Math.PI * 2, Math.PI * 3]].forEach(([f0, f1]) => {
+      const s = completa ? f0 : Math.max(p.a0, f0);
+      const e = completa ? f1 : Math.min(p.a1, f1);
+      if (e - s <= 1e-6) return;
+      paredes += `<path d="M ${pt(s)} A ${rx} ${ry} 0 0 1 ${pt(e)} L ${pt(e, alto)} A ${rx} ${ry} 0 0 0 ${pt(s, alto)} Z" fill="${p.lado}">${tooltip}</path>`;
+    });
+    if (completa) {
+      tapas += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${p.top}">${tooltip}</ellipse>`;
+    } else {
+      const grande = p.a1 - p.a0 > Math.PI ? 1 : 0;
+      tapas += `<path d="M ${cx} ${cy} L ${pt(p.a0)} A ${rx} ${ry} 0 ${grande} 1 ${pt(p.a1)} Z" fill="${p.top}" stroke="rgba(255,255,255,.55)" stroke-width="1">${tooltip}</path>`;
+    }
+    // Porcentaje sobre la porción (solo si entra)
+    if (p.pct >= 7) {
+      const medio = (p.a0 + p.a1) / 2;
+      const lx = completa ? cx : cx + rx * 0.62 * Math.cos(medio);
+      const ly = completa ? cy : cy + ry * 0.62 * Math.sin(medio);
+      tapas += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff" style="paint-order:stroke" stroke="rgba(0,0,0,.35)" stroke-width="2" pointer-events="none">${Math.round(p.pct)}%</text>`;
+    }
+  });
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:340px;display:block;margin:0 auto" role="img" aria-label="${escapeHtml(titulo)}">
+      <defs>
+        <radialGradient id="${gradId}" cx="35%" cy="25%" r="75%">
+          <stop offset="0" stop-color="#fff" stop-opacity=".35"/>
+          <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="${cx}" cy="${cy + alto + 14}" rx="${rx * 0.95}" ry="${ry * 0.45}" fill="rgba(0,0,0,.14)"/>
+      ${paredes}
+      ${tapas}
+      <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#${gradId})" pointer-events="none"/>
+    </svg>`;
+}
+
 const COLORES_COMPROBANTE = {
   'Factura A': { top: '#2f86d6', lado: '#15548f' },
   'Factura B': { top: '#8b5cf6', lado: '#5b2bb8' },
@@ -2566,60 +2627,10 @@ function renderChartComprobantes(datos) {
     cont.innerHTML = '<p class="small" style="padding:30px 0;text-align:center">Sin ventas en el período.</p>';
     return;
   }
-  const W = 300, H = 210, cx = 150, cy = 88, rx = 130, ry = 70, alto = 26;
-  const pt = (a, dy = 0) => `${(cx + rx * Math.cos(a)).toFixed(2)} ${(cy + dy + ry * Math.sin(a)).toFixed(2)}`;
-  const porciones = [];
-  let desde = -Math.PI / 2;
-  datos.forEach((d) => {
-    if (!d.total) return;
-    const tramo = (d.total / total) * Math.PI * 2;
-    porciones.push({ ...d, a0: desde, a1: desde + tramo, pct: (d.total / total) * 100 });
-    desde += tramo;
-  });
-
-  let paredes = '';
-  let tapas = '';
-  porciones.forEach((p) => {
-    const c = COLORES_COMPROBANTE[p.tipo];
-    const titulo = `<title>${p.tipo}: ${moneyStr(p.total)} (${pctComprobante(p.pct)}) — ${p.cantidad} ventas</title>`;
-    const completa = p.a1 - p.a0 >= Math.PI * 2 - 1e-6;
-    // Pared: la parte de la porción que cae en la mitad de adelante [0, π]
-    // (o [2π, 3π], porque las porciones pueden pasar de la vuelta).
-    [[0, Math.PI], [Math.PI * 2, Math.PI * 3]].forEach(([f0, f1]) => {
-      const s = completa ? f0 : Math.max(p.a0, f0);
-      const e = completa ? f1 : Math.min(p.a1, f1);
-      if (e - s <= 1e-6) return;
-      paredes += `<path d="M ${pt(s)} A ${rx} ${ry} 0 0 1 ${pt(e)} L ${pt(e, alto)} A ${rx} ${ry} 0 0 0 ${pt(s, alto)} Z" fill="${c.lado}">${titulo}</path>`;
-    });
-    if (completa) {
-      tapas += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${c.top}">${titulo}</ellipse>`;
-    } else {
-      const grande = p.a1 - p.a0 > Math.PI ? 1 : 0;
-      tapas += `<path d="M ${cx} ${cy} L ${pt(p.a0)} A ${rx} ${ry} 0 ${grande} 1 ${pt(p.a1)} Z" fill="${c.top}" stroke="rgba(255,255,255,.55)" stroke-width="1">${titulo}</path>`;
-    }
-    // Porcentaje sobre la porción (solo si entra)
-    if (p.pct >= 7) {
-      const medio = (p.a0 + p.a1) / 2;
-      const lx = completa ? cx : cx + rx * 0.62 * Math.cos(medio);
-      const ly = completa ? cy : cy + ry * 0.62 * Math.sin(medio);
-      tapas += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="800" fill="#fff" style="paint-order:stroke" stroke="rgba(0,0,0,.35)" stroke-width="2">${Math.round(p.pct)}%</text>`;
-    }
-  });
-
-  const svg = `
-    <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:340px;display:block;margin:0 auto" role="img" aria-label="Ventas por comprobante">
-      <defs>
-        <radialGradient id="brilloTorta" cx="35%" cy="25%" r="75%">
-          <stop offset="0" stop-color="#fff" stop-opacity=".35"/>
-          <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-        </radialGradient>
-      </defs>
-      <ellipse cx="${cx}" cy="${cy + alto + 14}" rx="${rx * 0.95}" ry="${ry * 0.45}" fill="rgba(0,0,0,.14)"/>
-      ${paredes}
-      ${tapas}
-      <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#brilloTorta)" pointer-events="none"/>
-    </svg>`;
-
+  const svg = svgTorta3D(
+    datos.map((d) => ({ nombre: d.tipo, total: d.total, ...COLORES_COMPROBANTE[d.tipo], detalle: `${d.cantidad} ventas` })),
+    { titulo: 'Ventas por comprobante' }
+  );
   const leyenda = datos
     .map((d) => {
       const c = COLORES_COMPROBANTE[d.tipo];
@@ -7441,7 +7452,115 @@ async function convertirPresupuestoEnVenta(id) {
 // ============================================================
 // RESUMEN (Ventas / Rendiciones / Gastos, por rango de fechas)
 // ============================================================
+// ---- Resumen de ventas por familias ----
+let resFamSeleccion = new Set();
+const COLORES_FAMILIAS = [
+  { top: '#2f86d6', lado: '#15548f' },
+  { top: '#f0a72a', lado: '#b26f00' },
+  { top: '#8b5cf6', lado: '#5b2bb8' },
+  { top: '#22b07d', lado: '#11714d' },
+  { top: '#ef5466', lado: '#a8202f' },
+  { top: '#14b8c4', lado: '#0b7b84' },
+  { top: '#e46fc0', lado: '#a03583' },
+  { top: '#9bc23a', lado: '#5f7d1a' },
+];
+const COLOR_OTRAS = { top: '#a3a3a3', lado: '#6b6b6b' };
+const MAX_PORCIONES_FAMILIAS = COLORES_FAMILIAS.length;
+
+function renderResFamLista() {
+  const cont = document.getElementById('resFamLista');
+  if (!familiasCache.length) {
+    cont.innerHTML = '<span class="small">Cargando familias...</span>';
+    return;
+  }
+  cont.innerHTML = familiasCache
+    .map(
+      (f) => `<label class="res-fam-chip ${resFamSeleccion.has(f.id) ? 'on' : ''}">
+        <input type="checkbox" ${resFamSeleccion.has(f.id) ? 'checked' : ''} onchange="resFamCambiar(${f.id}, this)">
+        ${escapeHtml(f.nombre)}${f.usa_mano_obra ? ' <span class="tag">servicio</span>' : ''}
+      </label>`
+    )
+    .join('');
+}
+function resFamCambiar(id, input) {
+  if (input.checked) resFamSeleccion.add(id);
+  else resFamSeleccion.delete(id);
+  input.closest('.res-fam-chip').classList.toggle('on', input.checked);
+}
+function resFamTildar(modo) {
+  const filtro = {
+    productos: (f) => !f.usa_mano_obra,
+    servicios: (f) => !!f.usa_mano_obra,
+    todas: () => true,
+    ninguna: () => false,
+  }[modo];
+  resFamSeleccion = new Set(familiasCache.filter(filtro).map((f) => f.id));
+  renderResFamLista();
+}
+
+async function cargarVentasPorFamilia() {
+  const cont = document.getElementById('resFamResultado');
+  if (!resFamSeleccion.size) {
+    cont.innerHTML = '<p class="small">Tildá al menos una familia.</p>';
+    return;
+  }
+  const params = new URLSearchParams();
+  const desde = document.getElementById('resVentasDesde').value;
+  const hasta = document.getElementById('resVentasHasta').value;
+  if (desde) params.set('desde', desde);
+  if (hasta) params.set('hasta', hasta);
+  params.set('familias', [...resFamSeleccion].join(','));
+  const r = await (await fetch('/api/reportes/ventas-por-familia?' + params.toString())).json();
+
+  // Las que vendieron algo, de mayor a menor (ya vienen ordenadas): las
+  // primeras llevan su color; si son muchas, el resto va junto en "Otras"
+  // para que la torta se siga pudiendo leer.
+  const conVentas = r.familias.filter((f) => f.importe > 0);
+  const colorDe = new Map();
+  const items = [];
+  conVentas.forEach((f, i) => {
+    if (conVentas.length <= MAX_PORCIONES_FAMILIAS || i < MAX_PORCIONES_FAMILIAS - 1) {
+      colorDe.set(f.familia_id, COLORES_FAMILIAS[i]);
+      items.push({ nombre: f.nombre, total: f.importe, ...COLORES_FAMILIAS[i], detalle: `${f.cantidad} unidades` });
+    } else {
+      colorDe.set(f.familia_id, COLOR_OTRAS);
+    }
+  });
+  const otras = conVentas.filter((f) => colorDe.get(f.familia_id) === COLOR_OTRAS);
+  if (otras.length) {
+    items.push({ nombre: `Otras (${otras.length})`, total: otras.reduce((a, f) => a + f.importe, 0), ...COLOR_OTRAS });
+  }
+
+  const pctSel = (n) => (r.total ? pctComprobante((n / r.total) * 100) : '—');
+  const filas = r.familias
+    .map((f) => {
+      const c = colorDe.get(f.familia_id);
+      return `<tr>
+        <td><i style="display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:${c ? `linear-gradient(135deg, ${c.top}, ${c.lado})` : 'transparent'};border:${c ? '0' : '1px solid var(--line)'}"></i>${escapeHtml(f.nombre)}${f.es_servicio ? ' <span class="small">(servicio)</span>' : ''}</td>
+        <td class="a4-num">${f.ventas}</td>
+        <td class="a4-num">${money.format(f.cantidad)}</td>
+        <td class="a4-num"><b>$ ${money.format(f.importe)}</b></td>
+        <td class="a4-num">${pctSel(f.importe)}</td>
+      </tr>`;
+    })
+    .join('');
+  const pctDelTotal = r.totalPeriodo ? pctComprobante((r.total / r.totalPeriodo) * 100) : '—';
+  cont.innerHTML = `
+    <p>Vendido en las <b>${r.familias.length}</b> familia(s) elegida(s): <b>$ ${money.format(r.total)}</b>
+      <span class="small">— ${pctDelTotal} del total facturado del período ($ ${money.format(r.totalPeriodo)})</span></p>
+    <div class="res-fam-grid">
+      <div>${r.total ? svgTorta3D(items, { titulo: 'Ventas por familia' }) : '<p class="small" style="padding:30px 0;text-align:center">Sin ventas de estas familias en el período.</p>'}</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Familia</th><th>Ventas</th><th>Unidades</th><th>Importe</th><th>%</th></tr></thead>
+        <tbody>${filas}</tbody>
+        <tfoot><tr><td><b>Total</b></td><td></td><td></td><td class="a4-num"><b>$ ${money.format(r.total)}</b></td><td></td></tr></tfoot>
+      </table></div>
+    </div>
+    <p class="small" style="margin-top:8px">Ventas cobradas, sin lo pagado con Canje. A cada producto se le descuenta su parte del descuento general de la venta, así la suma de todas las familias da igual al total facturado.</p>`;
+}
+
 function inicializarResumen() {
+  renderResFamLista();
   if (document.getElementById('resVentasDesde').value) return; // ya se inicializó antes, no pisar lo que eligió el usuario
   const hoy = new Date();
   const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10);
