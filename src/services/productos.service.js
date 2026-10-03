@@ -16,7 +16,7 @@ function enriquecer(p) {
   return { ...p, estado_stock: estadoStock(p), incompleto: esIncompleto(p) ? 1 : 0 };
 }
 
-function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito, es_pila } = {}) {
+function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito, es_pila, sin_limite } = {}) {
   let sql = `
     SELECT p.*, f.nombre AS familia, f.usa_mano_obra, f.usa_precio_rendicion, f.descuento_debito, f.descuento_efectivo, f.pregunta_pila, pr.nombre AS proveedor
     FROM productos p
@@ -78,8 +78,37 @@ function listar({ q, familia_id, proveedor_id, stock, incompletos, favorito, es_
   let rows = db.prepare(sql).all(params).map(enriquecer);
   if (stock === 'bajo_minimo') rows = rows.filter((r) => r.estado_stock !== 'correcto');
   if (incompletos === 'true') rows = rows.filter((r) => r.incompleto === 1);
-  if (q) rows = rows.slice(0, 20);
+  if (q && !sin_limite) rows = rows.slice(0, 20);
   return rows;
+}
+
+const ESTADO_STOCK_LABEL = { sin_stock: 'Sin stock', reponer: 'Reponer', correcto: 'Correcto' };
+
+// Un renglón por producto con los mismos filtros que la pantalla Productos
+// (familia, proveedor, búsqueda, stock, incompletos), para bajar a Excel.
+// Sin el tope de 20 resultados que tiene la búsqueda por texto en pantalla.
+function exportarFilas(filtros) {
+  return listar({ ...filtros, sin_limite: true }).map((p) => ({
+    'Código': p.codigo,
+    'Descripción': p.descripcion,
+    Familia: p.familia,
+    Proveedor: p.proveedor || '',
+    Costo: p.costo,
+    'Precio final': p.precio_final,
+    'Débito/Transf.': p.precio_debito,
+    Efectivo: p.precio_efectivo,
+    'Precio rendición': p.precio_rendicion ?? '',
+    'Recargos mano de obra': p.recargos_mano_obra || '',
+    'Regla automática': p.usar_regla_automatica ? 'Sí' : 'No',
+    'IVA %': p.iva,
+    'Stock actual': p.stock_actual,
+    'Stock mínimo': p.stock_minimo,
+    'Estado stock': ESTADO_STOCK_LABEL[p.estado_stock] || p.estado_stock,
+    Favorito: p.favorito ? 'Sí' : 'No',
+    Pila: p.es_pila ? 'Sí' : 'No',
+    'Datos incompletos': p.incompleto ? 'Sí' : 'No',
+    'Última modificación': p.actualizado_en,
+  }));
 }
 
 function obtener(id) {
@@ -316,6 +345,7 @@ const guardarOrdenBotonera = db.transaction((idsEnOrden) => {
 });
 
 module.exports = {
+  exportarFilas,
   listar,
   obtener,
   crear,
