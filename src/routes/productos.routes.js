@@ -23,6 +23,36 @@ router.get('/', (req, res) => {
   );
 });
 
+// Mismos filtros que GET / (los de la pantalla Productos), en Excel.
+router.get('/exportar', (req, res) => {
+  const { q, familia_id, proveedor_id, stock, incompletos } = req.query;
+  const filas = productosService.exportarFilas({
+    q,
+    familia_id: familia_id ? Number(familia_id) : undefined,
+    proveedor_id: proveedor_id ? Number(proveedor_id) : undefined,
+    stock,
+    incompletos,
+  });
+  const hoja = XLSX.utils.json_to_sheet(filas.length ? filas : [{ 'Código': 'Sin productos para los filtros elegidos' }]);
+  hoja['!cols'] = Object.keys(filas[0] || { a: 1 }).map((k) => ({ wch: k === 'Descripción' ? 45 : Math.max(10, k.length + 2) }));
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, 'Productos');
+  const buffer = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  let nombre = 'productos';
+  if (familia_id) {
+    const f = db.prepare('SELECT nombre FROM familias WHERE id = ?').get(Number(familia_id));
+    if (f) nombre += '_' + f.nombre;
+  }
+  if (proveedor_id) {
+    const pr = db.prepare('SELECT nombre FROM proveedores WHERE id = ?').get(Number(proveedor_id));
+    if (pr) nombre += '_' + pr.nombre;
+  }
+  const archivo = nombre.replace(/[^\w\-áéíóúñÁÉÍÓÚÑ]+/g, '_') + '.xlsx';
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="productos.xlsx"; filename*=UTF-8''${encodeURIComponent(archivo)}`);
+  res.send(buffer);
+});
+
 router.get('/:id', (req, res) => {
   const producto = productosService.obtener(Number(req.params.id));
   if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });

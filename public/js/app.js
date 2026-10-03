@@ -345,6 +345,22 @@ async function cargarProductos() {
   rows.forEach((p) => tbody.appendChild(filaProducto(p)));
 }
 
+// Baja a Excel lo mismo que se está filtrando en pantalla (ej. elegir la
+// familia Duplicados y bajar todos sus productos con todos los datos).
+function descargarExcelProductos() {
+  const params = new URLSearchParams();
+  const q = document.getElementById('prodSearch').value.trim();
+  const familia_id = document.getElementById('prodFamilia').value;
+  const proveedor_id = document.getElementById('prodProveedor').value;
+  const stock = document.getElementById('prodStock').value;
+  if (q) params.set('q', q);
+  if (familia_id) params.set('familia_id', familia_id);
+  if (proveedor_id) params.set('proveedor_id', proveedor_id);
+  if (stock) params.set('stock', stock);
+  if (document.getElementById('prodIncompletos').checked) params.set('incompletos', 'true');
+  window.open('/api/productos/exportar?' + params.toString(), '_blank');
+}
+
 async function importarExcel(event) {
   const input = event.target;
   const archivo = input.files[0];
