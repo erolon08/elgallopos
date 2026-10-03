@@ -225,6 +225,12 @@ CREATE TABLE IF NOT EXISTS cerrajeros (
   porcentaje_urgencia REAL NOT NULL DEFAULT 0,
   aporte_fijo REAL NOT NULL DEFAULT 0,
   estacionamiento_fijo REAL NOT NULL DEFAULT 0,
+  -- Cable: descuento por día hábil (lunes a viernes) que se cobra solo
+  -- durante una tanda de cable_dias días a partir de cable_desde, y después
+  -- se corta solo hasta que se cargue una fecha de arranque nueva.
+  cable_fijo REAL NOT NULL DEFAULT 0,
+  cable_desde TEXT,
+  cable_dias INTEGER NOT NULL DEFAULT 20,
   descuento_tarjeta_credito REAL NOT NULL DEFAULT 0,
   -- Cerrajeros con este flag no se rinden por % de venta: "Generar
   -- rendición" les muestra un simple campo de monto para cargar
@@ -523,12 +529,15 @@ INSERT OR IGNORE INTO trabajos_codificados (nombre, precio) VALUES
 
 -- tipo: 'aporte' (recurrente, precargado desde cerrajeros.aporte_fijo) |
 -- 'repuesto' | 'otro' | 'adelanto' (eventuales, cargados al generar la rendición)
+-- 'cable': una fila por día hábil cobrado, con ese día en "fecha" (así se
+-- sabe qué días ya se le descontaron y cuántos le quedan de la tanda).
 CREATE TABLE IF NOT EXISTS rendicion_descuentos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
-  tipo TEXT NOT NULL CHECK (tipo IN ('aporte','estacionamiento','repuesto','otro','adelanto')),
+  tipo TEXT NOT NULL CHECK (tipo IN ('aporte','estacionamiento','cable','repuesto','otro','adelanto')),
   descripcion TEXT,
-  monto REAL NOT NULL
+  monto REAL NOT NULL,
+  fecha TEXT
 );
 
 -- ============================================================

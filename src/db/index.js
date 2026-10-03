@@ -85,6 +85,9 @@ ensureColumn('caja_movimientos', 'cc_movimiento_id', 'INTEGER');
 ensureColumn('configuracion', 'mostrar_anuladas_ventas', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('cerrajeros', 'estacionamiento_fijo', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('cerrajeros', 'pago_manual', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('cerrajeros', 'cable_fijo', 'REAL NOT NULL DEFAULT 0');
+ensureColumn('cerrajeros', 'cable_desde', 'TEXT');
+ensureColumn('cerrajeros', 'cable_dias', 'INTEGER NOT NULL DEFAULT 20');
 ensureColumn('agenda_trabajos', 'hora', 'INTEGER');
 // Va acá (no en schema.sql) porque necesita que la columna de arriba ya
 // exista: en una base migrada, schema.sql corre ANTES que estos
@@ -221,6 +224,30 @@ if (rendicionDescuentosDef && !rendicionDescuentosDef.sql.includes('estacionamie
   `);
   db.pragma('foreign_keys = ON');
 }
+
+// Lo mismo para sumar 'cable' (descuento por día hábil durante una tanda de
+// días, ver cerrajeros.cable_*). De paso la tabla nueva ya trae la columna
+// "fecha" (el día hábil que cubre cada fila de cable).
+const rendicionDescuentosDefCable = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='rendicion_descuentos'").get();
+if (rendicionDescuentosDefCable && !rendicionDescuentosDefCable.sql.includes("'cable'")) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE rendicion_descuentos_nuevo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
+      tipo TEXT NOT NULL CHECK (tipo IN ('aporte','estacionamiento','cable','repuesto','otro','adelanto')),
+      descripcion TEXT,
+      monto REAL NOT NULL,
+      fecha TEXT
+    );
+    INSERT INTO rendicion_descuentos_nuevo (id, rendicion_id, tipo, descripcion, monto)
+      SELECT id, rendicion_id, tipo, descripcion, monto FROM rendicion_descuentos;
+    DROP TABLE rendicion_descuentos;
+    ALTER TABLE rendicion_descuentos_nuevo RENAME TO rendicion_descuentos;
+  `);
+  db.pragma('foreign_keys = ON');
+}
+ensureColumn('rendicion_descuentos', 'fecha', 'TEXT');
 
 const yaHayCategoriasMovimiento = db.prepare('SELECT 1 FROM categorias_movimiento').get();
 if (!yaHayCategoriasMovimiento) {
