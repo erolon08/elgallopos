@@ -122,6 +122,50 @@ function calcularDetalle(rows, cerrajero) {
   });
 }
 
+// Cable: un descuento por día hábil (lunes a viernes) que corre solo durante
+// una tanda de cable_dias días contados desde cable_desde, y después se
+// corta solo — así no hay que acordarse de ponerlo ni de sacarlo todos los
+// días. Se cobra cada día hábil que cubren los rangos de la rendición (desde
+// cable_desde en adelante) que todavía no se le haya cobrado en otra
+// rendición, hasta completar la tanda. Cada día cobrado queda como una fila
+// propia en rendicion_descuentos con su fecha: si se anula/borra la
+// rendición o se quita esa fila, ese día vuelve a quedar pendiente.
+// Para la tanda siguiente (meses después) alcanza con cargar en el
+// cerrajero una fecha de arranque nueva.
+function isoDia(d) {
+  return d.toISOString().slice(0, 10);
+}
+function diasCable(cerrajero, filtros) {
+  const total_dias = Number(cerrajero.cable_dias) || 0;
+  const monto_dia = Number(cerrajero.cable_fijo) || 0;
+  const vacio = { monto_dia, desde: cerrajero.cable_desde || null, total_dias, ya_cobrados: 0, dias: [] };
+  if (monto_dia <= 0 || !cerrajero.cable_desde || total_dias <= 0) return vacio;
+
+  const cobrados = new Set(
+    db
+      .prepare(
+        `SELECT d.fecha FROM rendicion_descuentos d JOIN rendiciones r ON r.id = d.rendicion_id
+         WHERE r.cerrajero_id = ? AND d.tipo = 'cable' AND d.fecha >= ?`
+      )
+      .all(cerrajero.id, cerrajero.cable_desde)
+      .map((r) => r.fecha)
+  );
+  const restantes = Math.max(0, total_dias - cobrados.size);
+
+  const candidatos = new Set();
+  for (const f of filtros) {
+    const desde = f.fecha_desde > cerrajero.cable_desde ? f.fecha_desde : cerrajero.cable_desde;
+    // En UTC para que el cambio de horario no corra los días.
+    for (let d = new Date(desde + 'T00:00:00Z'); isoDia(d) <= f.fecha_hasta; d.setUTCDate(d.getUTCDate() + 1)) {
+      const dow = d.getUTCDay();
+      const dia = isoDia(d);
+      if (dow >= 1 && dow <= 5 && !cobrados.has(dia)) candidatos.add(dia);
+    }
+  }
+  const dias = [...candidatos].sort().slice(0, restantes);
+  return { ...vacio, ya_cobrados: cobrados.size, dias };
+}
+
 // filtros: [{ fecha_desde, fecha_hasta, tipo }, ...] — uno o más rangos/tipos
 // combinados en un mismo cálculo (ver elegiblesMultiple).
 function previsualizar({ cerrajero_id, filtros }) {
@@ -131,7 +175,8 @@ function previsualizar({ cerrajero_id, filtros }) {
   const rows = elegiblesMultiple(cerrajero_id, filtros);
   const detalle = calcularDetalle(rows, cerrajero);
   const total_bruto = detalle.reduce((s, d) => s + d.monto_rendido, 0);
-  return { cerrajero, detalle, total_bruto };
+  const cable = diasCable(cerrajero, filtros);
+  return { cerrajero, detalle, total_bruto, cable };
 }
 
 const TIPOS_DESCUENTO_EXTRA = ['repuesto', 'otro', 'adelanto'];
@@ -139,7 +184,7 @@ const TIPOS_DESCUENTO_EXTRA = ['repuesto', 'otro', 'adelanto'];
 // El aporte fijo y el adelanto se descuentan a valor completo: el aporte
 // ya es la parte del cerrajero (se le resta directo) y el adelanto es
 // plata que ya se le entregó en mano, así que hay que restarle eso exacto,
-// no una fracción. El estacionamiento fijo, en cambio, se descuenta igual
+// no una fracción. El estacionamiento fijo (y el cable), en cambio, se descuenta igual
 // que un repuesto/otro: reduce la base ANTES de aplicar el % de rendición
 // — como monto_rendido ya viene multiplicado por ese %, restar el gasto
 // "escalado" al mismo % (en vez de a valor completo) es matemáticamente lo
@@ -172,16 +217,25 @@ function generar({ cerrajero_id, filtros, descuentos_extra = [] }) {
 
   const descuentos = [];
   if (cerrajero.aporte_fijo > 0) {
-    descuentos.push({ tipo: 'aporte', descripcion: 'Aporte fijo', monto: cerrajero.aporte_fijo });
+    descuentos.push({ tipo: 'aporte', descripcion: 'Aporte fijo', monto: cerrajero.aporte_fijo, fecha: null });
   }
   if (cerrajero.estacionamiento_fijo > 0) {
-    descuentos.push({ tipo: 'estacionamiento', descripcion: 'Estacionamiento fijo', monto: cerrajero.estacionamiento_fijo });
+    descuentos.push({ tipo: 'estacionamiento', descripcion: 'Estacionamiento fijo', monto: cerrajero.estacionamiento_fijo, fecha: null });
   }
+  const cable = diasCable(cerrajero, filtros);
+  cable.dias.forEach((fecha, i) => {
+    descuentos.push({
+      tipo: 'cable',
+      descripcion: `Cable ${formatPeriodoCorto(fecha, fecha)} (día ${cable.ya_cobrados + i + 1} de ${cable.total_dias})`,
+      monto: cable.monto_dia,
+      fecha,
+    });
+  });
   for (const d of descuentos_extra) {
     if (!TIPOS_DESCUENTO_EXTRA.includes(d.tipo)) throw new Error('Tipo de descuento inválido');
     const monto = Number(d.monto) || 0;
     if (monto <= 0) continue;
-    descuentos.push({ tipo: d.tipo, descripcion: d.descripcion || '', monto });
+    descuentos.push({ tipo: d.tipo, descripcion: d.descripcion || '', monto, fecha: null });
   }
   const total_descuentos = calcularTotalDescuentos(descuentos, cerrajero.porcentaje_rendicion);
   const total_pagar = roundUpTo100(total_bruto - total_descuentos);
@@ -202,7 +256,7 @@ function generar({ cerrajero_id, filtros, descuentos_extra = [] }) {
     for (const d of detalle) insDet.run({ rendicion_id, ...d });
 
     const insDesc = db.prepare(
-      `INSERT INTO rendicion_descuentos (rendicion_id, tipo, descripcion, monto) VALUES (@rendicion_id, @tipo, @descripcion, @monto)`
+      `INSERT INTO rendicion_descuentos (rendicion_id, tipo, descripcion, monto, fecha) VALUES (@rendicion_id, @tipo, @descripcion, @monto, @fecha)`
     );
     for (const d of descuentos) insDesc.run({ rendicion_id, ...d });
 
