@@ -10,14 +10,14 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, descuento_tarjeta_credito, pago_manual } = req.body;
+  const { nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, cable_fijo, cable_desde, cable_dias, descuento_tarjeta_credito, pago_manual } = req.body;
   if (!nombre || !nombre.trim()) {
     return res.status(400).json({ error: 'El nombre es obligatorio' });
   }
   const info = db
     .prepare(
-      `INSERT INTO cerrajeros (nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, descuento_tarjeta_credito, pago_manual)
-       VALUES (@nombre, @porcentaje_rendicion, @porcentaje_urgencia, @aporte_fijo, @estacionamiento_fijo, @descuento_tarjeta_credito, @pago_manual)`
+      `INSERT INTO cerrajeros (nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, cable_fijo, cable_desde, cable_dias, descuento_tarjeta_credito, pago_manual)
+       VALUES (@nombre, @porcentaje_rendicion, @porcentaje_urgencia, @aporte_fijo, @estacionamiento_fijo, @cable_fijo, @cable_desde, @cable_dias, @descuento_tarjeta_credito, @pago_manual)`
     )
     .run({
       nombre: nombre.trim(),
@@ -25,6 +25,9 @@ router.post('/', (req, res) => {
       porcentaje_urgencia: Number(porcentaje_urgencia) || 0,
       aporte_fijo: Number(aporte_fijo) || 0,
       estacionamiento_fijo: Number(estacionamiento_fijo) || 0,
+      cable_fijo: Number(cable_fijo) || 0,
+      cable_desde: cable_desde || null,
+      cable_dias: cable_dias != null ? Number(cable_dias) || 0 : 20,
       descuento_tarjeta_credito: Number(descuento_tarjeta_credito) || 0,
       pago_manual: pago_manual ? 1 : 0,
     });
@@ -36,11 +39,12 @@ router.put('/:id', (req, res) => {
   const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(id);
   if (!cerrajero) return res.status(404).json({ error: 'Cerrajero no encontrado' });
 
-  const { nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, descuento_tarjeta_credito, pago_manual, activo } = req.body;
+  const { nombre, porcentaje_rendicion, porcentaje_urgencia, aporte_fijo, estacionamiento_fijo, cable_fijo, cable_desde, cable_dias, descuento_tarjeta_credito, pago_manual, activo } = req.body;
   db.prepare(
     `UPDATE cerrajeros SET
        nombre = @nombre, porcentaje_rendicion = @porcentaje_rendicion, porcentaje_urgencia = @porcentaje_urgencia,
        aporte_fijo = @aporte_fijo, estacionamiento_fijo = @estacionamiento_fijo,
+       cable_fijo = @cable_fijo, cable_desde = @cable_desde, cable_dias = @cable_dias,
        descuento_tarjeta_credito = @descuento_tarjeta_credito, pago_manual = @pago_manual, activo = @activo
      WHERE id = @id`
   ).run({
@@ -50,6 +54,9 @@ router.put('/:id', (req, res) => {
     porcentaje_urgencia: porcentaje_urgencia != null ? Number(porcentaje_urgencia) : cerrajero.porcentaje_urgencia,
     aporte_fijo: aporte_fijo != null ? Number(aporte_fijo) : cerrajero.aporte_fijo,
     estacionamiento_fijo: estacionamiento_fijo != null ? Number(estacionamiento_fijo) : cerrajero.estacionamiento_fijo,
+    cable_fijo: cable_fijo != null ? Number(cable_fijo) : cerrajero.cable_fijo,
+    cable_desde: cable_desde !== undefined ? cable_desde || null : cerrajero.cable_desde,
+    cable_dias: cable_dias != null ? Number(cable_dias) || 0 : cerrajero.cable_dias,
     descuento_tarjeta_credito:
       descuento_tarjeta_credito != null ? Number(descuento_tarjeta_credito) : cerrajero.descuento_tarjeta_credito,
     pago_manual: pago_manual != null ? (pago_manual ? 1 : 0) : cerrajero.pago_manual,

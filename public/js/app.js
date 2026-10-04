@@ -345,6 +345,22 @@ async function cargarProductos() {
   rows.forEach((p) => tbody.appendChild(filaProducto(p)));
 }
 
+// Baja a Excel lo mismo que se está filtrando en pantalla (ej. elegir la
+// familia Duplicados y bajar todos sus productos con todos los datos).
+function descargarExcelProductos() {
+  const params = new URLSearchParams();
+  const q = document.getElementById('prodSearch').value.trim();
+  const familia_id = document.getElementById('prodFamilia').value;
+  const proveedor_id = document.getElementById('prodProveedor').value;
+  const stock = document.getElementById('prodStock').value;
+  if (q) params.set('q', q);
+  if (familia_id) params.set('familia_id', familia_id);
+  if (proveedor_id) params.set('proveedor_id', proveedor_id);
+  if (stock) params.set('stock', stock);
+  if (document.getElementById('prodIncompletos').checked) params.set('incompletos', 'true');
+  window.open('/api/productos/exportar?' + params.toString(), '_blank');
+}
+
 async function importarExcel(event) {
   const input = event.target;
   const archivo = input.files[0];
@@ -3664,6 +3680,7 @@ function filaCerrajero(c) {
     <td>${c.porcentaje_urgencia > 0 ? c.porcentaje_urgencia + '%' : '—'}</td>
     <td>$ ${money.format(c.aporte_fijo)}</td>
     <td>$ ${money.format(c.estacionamiento_fijo)}</td>
+    <td>${c.cable_fijo > 0 && c.cable_desde ? `$ ${money.format(c.cable_fijo)}/día · ${c.cable_dias} días desde ${c.cable_desde.split('-').reverse().join('/')}` : '—'}</td>
     <td>${c.descuento_tarjeta_credito}%</td>
     <td>${estado}</td>
     <td>
@@ -3686,6 +3703,9 @@ async function openCerrajero(id) {
     document.getElementById('cerPorcentajeUrgencia').value = c.porcentaje_urgencia;
     document.getElementById('cerAporte').value = c.aporte_fijo;
     document.getElementById('cerEstacionamiento').value = c.estacionamiento_fijo;
+    document.getElementById('cerCable').value = c.cable_fijo || 0;
+    document.getElementById('cerCableDesde').value = c.cable_desde || '';
+    document.getElementById('cerCableDias').value = c.cable_dias || 20;
     document.getElementById('cerDescuentoTarjeta').value = c.descuento_tarjeta_credito;
     document.getElementById('cerPagoManual').checked = !!c.pago_manual;
     document.getElementById('cerActivo').checked = !!c.activo;
@@ -3695,6 +3715,9 @@ async function openCerrajero(id) {
     document.getElementById('cerPorcentajeUrgencia').value = 0;
     document.getElementById('cerAporte').value = 0;
     document.getElementById('cerEstacionamiento').value = 0;
+    document.getElementById('cerCable').value = 0;
+    document.getElementById('cerCableDesde').value = '';
+    document.getElementById('cerCableDias').value = 20;
     document.getElementById('cerDescuentoTarjeta').value = 0;
     document.getElementById('cerPagoManual').checked = false;
     document.getElementById('cerActivo').checked = true;
@@ -3714,12 +3737,19 @@ async function guardarCerrajero() {
     porcentaje_urgencia: Number(document.getElementById('cerPorcentajeUrgencia').value) || 0,
     aporte_fijo: Number(document.getElementById('cerAporte').value) || 0,
     estacionamiento_fijo: Number(document.getElementById('cerEstacionamiento').value) || 0,
+    cable_fijo: Number(document.getElementById('cerCable').value) || 0,
+    cable_desde: document.getElementById('cerCableDesde').value || null,
+    cable_dias: Number(document.getElementById('cerCableDias').value) || 0,
     descuento_tarjeta_credito: Number(document.getElementById('cerDescuentoTarjeta').value) || 0,
     pago_manual: document.getElementById('cerPagoManual').checked,
     activo: document.getElementById('cerActivo').checked,
   };
   if (!payload.nombre) {
     alert('El nombre es obligatorio.');
+    return;
+  }
+  if (payload.cable_fijo > 0 && (!payload.cable_desde || payload.cable_dias <= 0)) {
+    alert('Para el cable cargá la fecha de arranque y la cantidad de días hábiles.');
     return;
   }
   const url = cerrajeroEditId ? `/api/cerrajeros/${cerrajeroEditId}` : '/api/cerrajeros';
@@ -3753,7 +3783,7 @@ let rendicionDescuentosExtra = [];
 let rendicionFiltrosAcumulados = []; // [{ fecha_desde, fecha_hasta, tipo }, ...] — se van sumando con "+ Sumar al cálculo"
 
 const TIPO_MOVIMIENTO_LABEL = { servicio: 'Servicio', duplicado: 'Duplicado', codificado: 'Codificado' };
-const TIPO_DESCUENTO_LABEL = { aporte: 'Aporte fijo', estacionamiento: 'Estacionamiento fijo', repuesto: 'Repuesto', otro: 'Otro', adelanto: 'Adelanto' };
+const TIPO_DESCUENTO_LABEL = { aporte: 'Aporte fijo', estacionamiento: 'Estacionamiento fijo', cable: 'Cable', repuesto: 'Repuesto', otro: 'Otro', adelanto: 'Adelanto' };
 
 // Para cerrajeros con pago_manual (ej. uno que cobra un fijo por mes, no un
 // % de lo que vende): en vez del cálculo automático por ventas, muestra un
@@ -3909,6 +3939,24 @@ function renderRendicionDescuentos() {
     div.textContent = `Estacionamiento fijo: $ ${money.format(estacionamiento)}`;
     cont.appendChild(div);
   }
+  // El cable lo calcula el server (días hábiles de los rangos elegidos que
+  // todavía no se cobraron, hasta completar la tanda): acá solo se muestra.
+  const cable = rendicionPreviewActual.cable;
+  if (cable && cable.monto_dia > 0 && cable.desde) {
+    const div = document.createElement('div');
+    div.className = 'small';
+    div.style.marginBottom = '4px';
+    const quedan = cable.total_dias - cable.ya_cobrados - cable.dias.length;
+    if (cable.dias.length) {
+      const fechas = cable.dias.map((f) => f.split('-').reverse().slice(0, 2).join('/')).join(', ');
+      div.textContent = `Cable: $ ${money.format(cable.monto_dia)} × ${cable.dias.length} día(s) hábil(es) (${fechas}) = $ ${money.format(cable.monto_dia * cable.dias.length)} — quedan ${quedan} de ${cable.total_dias}`;
+    } else if (cable.ya_cobrados >= cable.total_dias) {
+      div.textContent = `Cable: tanda terminada (${cable.total_dias} de ${cable.total_dias} días cobrados), no se descuenta.`;
+    } else {
+      div.textContent = `Cable: no hay días hábiles para cobrar en este período (van ${cable.ya_cobrados} de ${cable.total_dias}).`;
+    }
+    cont.appendChild(div);
+  }
   if (!rendicionDescuentosExtra.length) {
     const div = document.createElement('div');
     div.className = 'small';
@@ -3945,7 +3993,7 @@ function guardarGastoExtraRendicion() {
 
 // El aporte y el adelanto se descuentan a valor completo (el adelanto ya
 // es plata entregada en mano al cerrajero, no una fracción). El
-// estacionamiento fijo, el repuesto y el otro en cambio reducen la base
+// estacionamiento fijo, el cable, el repuesto y el otro en cambio reducen la base
 // ANTES de aplicar el % de rendición del cerrajero, así que se restan del
 // bruto ya escalados a ese mismo % (ver nota en rendiciones.service.js
 // calcularTotalDescuentos, misma cuenta en el server).
@@ -3954,13 +4002,14 @@ function actualizarTotalesRendicionPreview() {
   const pct = rendicionPreviewActual.cerrajero.porcentaje_rendicion;
   const aporte = rendicionPreviewActual.cerrajero.aporte_fijo || 0;
   const estacionamiento = rendicionPreviewActual.cerrajero.estacionamiento_fijo || 0;
+  const cable = rendicionPreviewActual.cable ? rendicionPreviewActual.cable.monto_dia * rendicionPreviewActual.cable.dias.length : 0;
   const adelantos = rendicionDescuentosExtra
     .filter((d) => d.tipo === 'adelanto')
     .reduce((s, d) => s + (Number(d.monto) || 0), 0);
   const gastos = rendicionDescuentosExtra
     .filter((d) => d.tipo !== 'adelanto')
     .reduce((s, d) => s + (Number(d.monto) || 0), 0);
-  const total_descuentos = aporte + adelantos + (estacionamiento + gastos) * (pct / 100);
+  const total_descuentos = aporte + adelantos + (estacionamiento + cable + gastos) * (pct / 100);
   const total_pagar = roundUpTo100(total_bruto - total_descuentos);
   document.getElementById('rendTotalBruto').textContent = '$ ' + money.format(total_bruto);
   document.getElementById('rendTotalDescuentos').textContent = '$ ' + money.format(total_descuentos);
