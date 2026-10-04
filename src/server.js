@@ -26,7 +26,7 @@ const mercadopagoRoutes = require('./routes/mercadopago.routes');
 const sistemaRoutes = require('./routes/sistema.routes');
 const direccionesRoutes = require('./routes/direcciones.routes');
 const mensajesRoutes = require('./routes/mensajes.routes');
-const whatsappRoutes = require('./routes/whatsapp.routes');
+const { router: whatsappRoutes, webhookRouter: whatsappWebhookRouter } = require('./routes/whatsapp.routes');
 const trabajosCodificadosRoutes = require('./routes/trabajos-codificados.routes');
 const agendaRoutes = require('./routes/agenda.routes');
 
@@ -73,6 +73,25 @@ sockets.init(server);
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`EL GALLO POS escuchando en http://0.0.0.0:${PORT}`);
+});
+
+// Webhook del bot de WhatsApp en un servidor aparte, que solo escucha dentro
+// de esta PC (127.0.0.1) y solo atiende /webhook. Es lo único que se publica
+// a internet (con Tailscale Funnel): la API del sistema no tiene clave, así
+// que nunca hay que exponer el puerto 3000.
+const webhookApp = express();
+webhookApp.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf; // para verificar la firma de Meta byte a byte
+    },
+  })
+);
+webhookApp.use('/', whatsappWebhookRouter);
+webhookApp.use((req, res) => res.sendStatus(404));
+const WEBHOOK_PORT = process.env.WEBHOOK_PORT || 3100;
+http.createServer(webhookApp).listen(WEBHOOK_PORT, '127.0.0.1', () => {
+  console.log(`Webhook de WhatsApp escuchando en http://127.0.0.1:${WEBHOOK_PORT}/webhook (solo esta PC)`);
 });
 
 // Servidor HTTPS en paralelo (certificado autofirmado, generado solo, sin

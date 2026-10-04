@@ -18,7 +18,7 @@ function actualizar(datos) {
        arca_punto_venta = @arca_punto_venta, arca_facturacion_activa = @arca_facturacion_activa,
        mp_access_token = @mp_access_token, mp_activo = @mp_activo,
        whatsapp_token = @whatsapp_token, whatsapp_phone_number_id = @whatsapp_phone_number_id,
-       whatsapp_verify_token = @whatsapp_verify_token, whatsapp_activo = @whatsapp_activo,
+       whatsapp_verify_token = @whatsapp_verify_token, whatsapp_app_secret = @whatsapp_app_secret, whatsapp_activo = @whatsapp_activo,
        whatsapp_instrucciones = @whatsapp_instrucciones, anthropic_api_key = @anthropic_api_key,
        mostrar_anuladas_ventas = @mostrar_anuladas_ventas,
        actualizado_en = datetime('now','localtime')
@@ -48,6 +48,8 @@ function actualizar(datos) {
       datos.whatsapp_phone_number_id !== undefined ? datos.whatsapp_phone_number_id : actual.whatsapp_phone_number_id,
     whatsapp_verify_token:
       datos.whatsapp_verify_token !== undefined ? datos.whatsapp_verify_token : actual.whatsapp_verify_token,
+    whatsapp_app_secret:
+      datos.whatsapp_app_secret !== undefined ? datos.whatsapp_app_secret : actual.whatsapp_app_secret,
     whatsapp_activo: datos.whatsapp_activo !== undefined ? (datos.whatsapp_activo ? 1 : 0) : actual.whatsapp_activo,
     whatsapp_instrucciones:
       datos.whatsapp_instrucciones !== undefined ? datos.whatsapp_instrucciones : actual.whatsapp_instrucciones,

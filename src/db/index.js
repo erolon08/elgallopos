@@ -73,6 +73,7 @@ ensureColumn('direcciones', 'venta_id', 'INTEGER REFERENCES ventas(id)');
 ensureColumn('configuracion', 'whatsapp_token', 'TEXT');
 ensureColumn('configuracion', 'whatsapp_phone_number_id', 'TEXT');
 ensureColumn('configuracion', 'whatsapp_verify_token', 'TEXT');
+ensureColumn('configuracion', 'whatsapp_app_secret', 'TEXT');
 ensureColumn('configuracion', 'whatsapp_activo', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('configuracion', 'whatsapp_instrucciones', 'TEXT');
 ensureColumn('configuracion', 'anthropic_api_key', 'TEXT');

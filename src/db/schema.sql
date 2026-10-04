@@ -631,6 +631,7 @@ CREATE TABLE IF NOT EXISTS configuracion (
   whatsapp_token TEXT,
   whatsapp_phone_number_id TEXT,
   whatsapp_verify_token TEXT,
+  whatsapp_app_secret TEXT, -- App Secret de la app de Meta: verifica que el webhook venga de Meta
   whatsapp_activo INTEGER NOT NULL DEFAULT 0,
   whatsapp_instrucciones TEXT,
   anthropic_api_key TEXT,

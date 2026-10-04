@@ -2961,14 +2961,23 @@ async function cargarConfiguracion() {
   document.getElementById('cfgWaToken').value = configCache.whatsapp_token || '';
   document.getElementById('cfgWaPhoneId').value = configCache.whatsapp_phone_number_id || '';
   document.getElementById('cfgWaVerifyToken').value = configCache.whatsapp_verify_token || '';
+  document.getElementById('cfgWaAppSecret').value = configCache.whatsapp_app_secret || '';
   document.getElementById('cfgAnthropicKey').value = configCache.anthropic_api_key || '';
   document.getElementById('cfgWaInstrucciones').value = configCache.whatsapp_instrucciones || '';
   document.getElementById('cfgWaActivo').checked = !!configCache.whatsapp_activo;
   document.getElementById('cfgMostrarAnuladasVentas').checked = !!configCache.mostrar_anuladas_ventas;
-  // No se puede armar la URL pública real acá (esta pantalla se ve por la
-  // dirección local/Tailscale, no por el túnel de Cloudflare) — se muestra
-  // el path fijo como referencia, para pegar después de tu dominio del túnel.
-  document.getElementById('cfgWaWebhookUrl').value = 'https://TU-DOMINIO-DE-CLOUDFLARE/api/whatsapp/webhook';
+  // La dirección pública la sabe Tailscale (en la PC del servidor): se le
+  // pregunta, así se pega en Meta tal cual sin tener que armarla a mano.
+  const urlWebhook = document.getElementById('cfgWaWebhookUrl');
+  urlWebhook.value = 'Buscando la dirección de Tailscale...';
+  fetch('/api/whatsapp/webhook-url')
+    .then((r) => r.json())
+    .then(({ url }) => {
+      urlWebhook.value = url || 'https://NOMBRE-DE-LA-PC.TU-RED.ts.net/webhook (Tailscale no respondió: copiá el nombre desde el ícono de Tailscale)';
+    })
+    .catch(() => {
+      urlWebhook.value = 'https://NOMBRE-DE-LA-PC.TU-RED.ts.net/webhook';
+    });
 }
 
 function mostrarEstadoQrFijoMp() {
@@ -3041,6 +3050,7 @@ async function guardarWaConfig() {
     whatsapp_token: document.getElementById('cfgWaToken').value.trim(),
     whatsapp_phone_number_id: document.getElementById('cfgWaPhoneId').value.trim(),
     whatsapp_verify_token: document.getElementById('cfgWaVerifyToken').value.trim(),
+    whatsapp_app_secret: document.getElementById('cfgWaAppSecret').value.trim(),
     anthropic_api_key: document.getElementById('cfgAnthropicKey').value.trim(),
     whatsapp_instrucciones: document.getElementById('cfgWaInstrucciones').value.trim(),
     whatsapp_activo: document.getElementById('cfgWaActivo').checked,

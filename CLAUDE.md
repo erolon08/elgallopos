@@ -17,7 +17,7 @@ npm run reset-ventas      # borra ventas/presupuestos/rendiciones; NO toca produ
 npm run limpiar-demo      # borra productos y clientes de prueba (previo a importar los Excel reales)
 ```
 
-Variables de entorno útiles: `GALLO_DB_PATH` (ruta de la base; **usarla siempre para probar contra una base de scratch, nunca contra `data/gallopos.db`**), `PORT`, `HTTPS_PORT`, `GDRIVE_REMOTE`, `GDRIVE_BACKUP_FOLDER`.
+Variables de entorno útiles: `GALLO_DB_PATH` (ruta de la base; **usarla siempre para probar contra una base de scratch, nunca contra `data/gallopos.db`**), `PORT`, `HTTPS_PORT`, `WEBHOOK_PORT` (webhook de WhatsApp, 3100), `GDRIVE_REMOTE`, `GDRIVE_BACKUP_FOLDER`.
 
 Scripts ARCA (`npm run generar-csr-arca`, `test-arca-conexion`, `test-arca-emitir-factura`): el último **emite una factura fiscal real e irreversible** — no correrlo sin que el dueño lo pida explícitamente.
 
@@ -67,7 +67,7 @@ Todo precio que ve el cliente se **redondea hacia arriba a múltiplos de $100** 
 - `configuracion` es una tabla de **una sola fila (`id = 1`)** con toda la configuración del negocio, incluidos tokens (ARCA, Mercado Pago, WhatsApp, Anthropic). Se lee con `configuracionService.obtener()`.
 - Carpetas ignoradas por git: `data/` (base, `backups/`, `certs/`, `gdrive-carpeta-id.txt`), `arca/` (certificado y clave privada de facturación), `node_modules/`.
 - ARCA (`arca-wsaa` → token 12 h cacheado; `arca-wsfe`/`arca-facturacion` → CAE real; `arca-padron` → consulta de CUIT). Si falla al cobrar, la venta queda como "Eventual" y sigue.
-- Mercado Pago es por **polling** desde el server (la PC no tiene URL pública). El bot de WhatsApp usa la API de Meta + Anthropic SDK.
+- Mercado Pago es por **polling** desde el server (la PC no tiene URL pública). El bot de WhatsApp usa la API de Meta + Anthropic SDK: su webhook corre en un servidor Express **aparte** (`WEBHOOK_PORT`, 3100, solo `127.0.0.1`, solo `/webhook`, firma `X-Hub-Signature-256` verificada con `whatsapp_app_secret`) que se publica con Tailscale Funnel. Nunca exponer el puerto 3000 a internet: la API no tiene autenticación.
 - HTTPS 3443 con certificado autofirmado generado en `data/certs/` — existe solo para habilitar el portapapeles de imágenes en la LAN.
 - Backup: diario local (`data/backups/`) + semanal a Google Drive vía `rclone` externo. En Windows Node no completa `.exe` al spawnear: usar `rclone.exe` (ya resuelto en `RCLONE_BIN`).
 

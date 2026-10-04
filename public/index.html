@@ -1063,13 +1063,14 @@
           <div class="notice" style="margin-bottom:12px">
             Contesta mensajes de WhatsApp automáticamente (preguntas frecuentes, precio/stock de productos, y puede cargar
             un pedido de cerrajero a domicilio en Direcciones). Usa la API oficial de WhatsApp de Meta + Claude (Anthropic).
-            Necesita que esta PC sea accesible desde internet por un túnel (ej: Cloudflare Tunnel) para que Meta le pueda
-            mandar los mensajes entrantes.
+            Meta le manda los mensajes a esta PC por internet con Tailscale Funnel, que publica <b>solo</b> la entrada del
+            bot (puerto 3100) — el resto del sistema sigue cerrado a la red del local.
           </div>
           <div class="two-col-form">
             <div class="field"><label>Access Token de WhatsApp (Meta)</label><input id="cfgWaToken" type="password" placeholder="EAAG..."></div>
             <div class="field"><label>Phone Number ID</label><input id="cfgWaPhoneId" placeholder="Ej: 123456789012345"></div>
             <div class="field"><label>Verify Token (lo elegís vos)</label><input id="cfgWaVerifyToken" placeholder="Ej: gallopos-verify-2026"></div>
+            <div class="field"><label>App Secret (Meta → Configuración de la app → Básica)</label><input id="cfgWaAppSecret" type="password" placeholder="32 letras y números"></div>
             <div class="field"><label>Clave de API de Anthropic (Claude)</label><input id="cfgAnthropicKey" type="password" placeholder="sk-ant-..."></div>
           </div>
           <div class="field" style="margin-top:10px">
