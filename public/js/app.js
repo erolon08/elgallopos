@@ -73,8 +73,9 @@ function formatFechaAfip(aaaammdd) {
   if (s.length !== 8) return s;
   return `${s.slice(6, 8)}/${s.slice(4, 6)}/${s.slice(0, 4)}`;
 }
+// Primero a centavos (ver roundUpTo100 en pricing.service.js).
 function roundUpTo100(v) {
-  return Math.ceil(v / 100) * 100;
+  return Math.ceil(Math.round(v * 100) / 10000) * 100;
 }
 
 const ESTADO_LABEL = {
@@ -699,33 +700,72 @@ document.getElementById('prodSearch').addEventListener('input', cargarProductos)
 // el usuario vea exactamente qué códigos y montos van a cambiar antes de
 // aplicar de verdad.
 let masPrecPreviewFilas = [];
+let masPrecModo = 'costo';
+
+function cambiarModoMasPrec(modo) {
+  masPrecModo = modo;
+  document.querySelectorAll('#masPrecModoTabs button').forEach((b) => b.classList.toggle('active', b.dataset.modo === modo));
+  document.getElementById('masPrecCamposCosto').style.display = modo === 'costo' ? 'block' : 'none';
+  document.getElementById('masPrecCamposFinal').style.display = modo === 'final' ? 'block' : 'none';
+  // Cambiar de modo invalida la vista previa que estaba armada.
+  masPrecPreviewFilas = [];
+  document.getElementById('masPrecPreviewWrap').style.display = 'none';
+}
 
 function abrirActualizarPrecios() {
   document.getElementById('masPrecProveedor').value = '';
   document.getElementById('masPrecFamilia').value = '';
-  document.getElementById('masPrecAumentoCosto').value = '';
-  document.getElementById('masPrecMargen').value = '';
-  document.getElementById('masPrecFiltro').value = '';
-  masPrecPreviewFilas = [];
-  document.getElementById('masPrecPreviewWrap').style.display = 'none';
+  ['masPrecAumentoCosto', 'masPrecMargen', 'masPrecAumentoFinal', 'masPrecMargenFinal', 'masPrecFiltro'].forEach((id) => {
+    document.getElementById(id).value = '';
+  });
+  cambiarModoMasPrec('costo');
   document.getElementById('actualizarPreciosModal').classList.add('open');
 }
 function closeActualizarPrecios() {
   document.getElementById('actualizarPreciosModal').classList.remove('open');
 }
-async function previsualizarActualizarPrecios() {
+
+// Junta y valida lo cargado en la ventana según el modo; devuelve null (y
+// avisa) si falta algo.
+function parametrosMasPrec() {
   const proveedor_id = document.getElementById('masPrecProveedor').value;
   const familia_id = document.getElementById('masPrecFamilia').value;
+  if (!proveedor_id && !familia_id) {
+    alert('Elegí un proveedor y/o una familia.');
+    return null;
+  }
+  const esNumero = (v) => v !== '' && Number.isFinite(Number(v));
+  const p = { proveedor_id: proveedor_id || '', familia_id: familia_id || '', modo: masPrecModo };
+  if (masPrecModo === 'final') {
+    const aumento_final = document.getElementById('masPrecAumentoFinal').value;
+    const margen = document.getElementById('masPrecMargenFinal').value.trim();
+    if (!esNumero(aumento_final)) {
+      alert('Ingresá el % de aumento del precio final.');
+      return null;
+    }
+    if (margen !== '' && !esNumero(margen)) {
+      alert('El margen tiene que ser un número (o dejalo vacío para no tocar el costo).');
+      return null;
+    }
+    return { ...p, aumento_final, margen };
+  }
   const aumento_costo = document.getElementById('masPrecAumentoCosto').value;
   const margen = document.getElementById('masPrecMargen').value;
-  if (!proveedor_id && !familia_id) return alert('Elegí un proveedor y/o una familia.');
-  if (aumento_costo === '' || !Number.isFinite(Number(aumento_costo))) return alert('Ingresá el % de aumento del costo (puede ser 0).');
-  if (margen === '' || !Number.isFinite(Number(margen))) return alert('Ingresá el margen sobre el costo.');
+  if (!esNumero(aumento_costo)) {
+    alert('Ingresá el % de aumento del costo (puede ser 0).');
+    return null;
+  }
+  if (!esNumero(margen)) {
+    alert('Ingresá el margen sobre el costo.');
+    return null;
+  }
+  return { ...p, aumento_costo, margen };
+}
 
-  const params = new URLSearchParams({ aumento_costo, margen });
-  if (proveedor_id) params.set('proveedor_id', proveedor_id);
-  if (familia_id) params.set('familia_id', familia_id);
-  const res = await fetch('/api/productos/actualizar-precios/preview?' + params.toString());
+async function previsualizarActualizarPrecios() {
+  const parametros = parametrosMasPrec();
+  if (!parametros) return;
+  const res = await fetch('/api/productos/actualizar-precios/preview?' + new URLSearchParams(parametros).toString());
   const filas = await res.json();
   if (!res.ok) return alert('Error: ' + filas.error);
 
@@ -757,21 +797,14 @@ function renderMasPrecPreview() {
     : `${masPrecPreviewFilas.length} producto(s) van a actualizarse.`;
 }
 async function confirmarActualizarPrecios() {
-  const proveedor_id = document.getElementById('masPrecProveedor').value;
-  const familia_id = document.getElementById('masPrecFamilia').value;
-  const aumento_costo = document.getElementById('masPrecAumentoCosto').value;
-  const margen = document.getElementById('masPrecMargen').value;
+  const parametros = parametrosMasPrec();
+  if (!parametros) return;
   if (!confirm('¿Confirmás aplicar este cambio de precios? No se puede deshacer con un clic.')) return;
 
   const res = await fetch('/api/productos/actualizar-precios', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      proveedor_id: proveedor_id || null,
-      familia_id: familia_id || null,
-      aumento_costo,
-      margen,
-    }),
+    body: JSON.stringify(parametros),
   });
   const data = await res.json();
   if (!res.ok) return alert('Error: ' + data.error);

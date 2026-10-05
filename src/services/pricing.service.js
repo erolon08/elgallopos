@@ -3,8 +3,10 @@
 // aplicando el descuento de la familia, con redondeo hacia arriba a
 // múltiplos de $100 (mismo criterio que la rendición de cerrajeros).
 
+// Primero a centavos: sin eso, errores de punto flotante (25000 × 1,1 =
+// 27500,000000000004) subían $100 de más.
 function roundUpTo100(value) {
-  return Math.ceil(value / 100) * 100;
+  return Math.ceil(Math.round(value * 100) / 10000) * 100;
 }
 
 function calcularPrecios(precioFinal, familia) {

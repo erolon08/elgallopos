@@ -74,41 +74,48 @@ router.post('/', (req, res) => {
   }
 });
 
-function validarParametrosMasivo({ proveedor_id, familia_id, aumento_costo, margen }) {
+const esNumero = (v) => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v));
+
+function validarParametrosMasivo({ proveedor_id, familia_id, modo, aumento_costo, margen, aumento_final }) {
   if (!proveedor_id && !familia_id) return 'Elegí un proveedor y/o una familia';
-  if (aumento_costo === undefined || aumento_costo === '' || !Number.isFinite(Number(aumento_costo))) {
-    return 'Falta el % de aumento de costo';
+  if (modo === 'final') {
+    if (!esNumero(aumento_final)) return 'Falta el % de aumento del precio final';
+    if (Number(aumento_final) <= -100) return 'El % de aumento del precio final no puede bajar el precio a $0 o menos';
+    // El margen es opcional en este modo (sin margen, el costo no se toca).
+    if (margen !== undefined && margen !== null && margen !== '' && (!esNumero(margen) || Number(margen) <= -100)) {
+      return 'El margen tiene que ser un número mayor a -100';
+    }
+    return null;
   }
-  if (margen === undefined || margen === '' || !Number.isFinite(Number(margen))) {
-    return 'Falta el margen sobre el costo';
-  }
+  if (!esNumero(aumento_costo)) return 'Falta el % de aumento de costo';
+  if (!esNumero(margen)) return 'Falta el margen sobre el costo';
   return null;
 }
 
+function parametrosMasivo(fuente) {
+  const { proveedor_id, familia_id, modo, aumento_costo, margen, aumento_final } = fuente;
+  return {
+    proveedor_id: proveedor_id ? Number(proveedor_id) : undefined,
+    familia_id: familia_id ? Number(familia_id) : undefined,
+    modo: modo === 'final' ? 'final' : 'costo',
+    aumento_costo,
+    margen,
+    aumento_final,
+  };
+}
+
 router.get('/actualizar-precios/preview', (req, res) => {
-  const { proveedor_id, familia_id, aumento_costo, margen } = req.query;
-  const error = validarParametrosMasivo({ proveedor_id, familia_id, aumento_costo, margen });
+  const parametros = parametrosMasivo(req.query);
+  const error = validarParametrosMasivo(parametros);
   if (error) return res.status(400).json({ error });
-  res.json(
-    productosService.previsualizarActualizacionMasiva({
-      proveedor_id: proveedor_id ? Number(proveedor_id) : undefined,
-      familia_id: familia_id ? Number(familia_id) : undefined,
-      aumento_costo,
-      margen,
-    })
-  );
+  res.json(productosService.previsualizarActualizacionMasiva(parametros));
 });
 
 router.post('/actualizar-precios', (req, res) => {
-  const { proveedor_id, familia_id, aumento_costo, margen } = req.body;
-  const error = validarParametrosMasivo({ proveedor_id, familia_id, aumento_costo, margen });
+  const parametros = parametrosMasivo(req.body);
+  const error = validarParametrosMasivo(parametros);
   if (error) return res.status(400).json({ error });
-  const actualizados = productosService.aplicarActualizacionMasiva({
-    proveedor_id: proveedor_id ? Number(proveedor_id) : undefined,
-    familia_id: familia_id ? Number(familia_id) : undefined,
-    aumento_costo,
-    margen,
-  });
+  const actualizados = productosService.aplicarActualizacionMasiva(parametros);
   res.json({ actualizados });
 });
 

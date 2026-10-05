@@ -1222,19 +1222,34 @@
 </div>
 
 <div class="modal" id="actualizarPreciosModal">
-  <div class="modal-box" style="max-width:640px">
+  <div class="modal-box" style="max-width:760px">
     <div class="section-title"><h3>Actualizar precios masivo</h3><button class="btn light" onclick="closeActualizarPrecios()">✕</button></div>
     <div class="notice">Elegí proveedor y/o familia (al menos uno). Solo se tocan los productos que matcheen — el resto queda exactamente igual. Los servicios no entran (su precio sale de la mano de obra en la venta).</div>
     <div class="toolbar" style="margin-top:10px">
       <div class="field"><label>Proveedor</label><select id="masPrecProveedor"><option value="">Todos</option></select></div>
       <div class="field"><label>Familia</label><select id="masPrecFamilia"><option value="">Todas</option></select></div>
     </div>
-    <div class="toolbar" style="margin-top:10px">
-      <div class="field"><label>% de aumento del costo</label><input id="masPrecAumentoCosto" type="number" step="any" placeholder="Ej: 5 (lo que subió el proveedor)"></div>
-      <div class="field"><label>Margen sobre el costo nuevo</label><input id="masPrecMargen" type="number" step="any" placeholder="Ej: 115"></div>
+    <div class="botonera-tabs" id="masPrecModoTabs" style="margin-top:12px">
+      <button class="active" data-modo="costo" onclick="cambiarModoMasPrec('costo')">Subir el costo (y calcular el precio)</button>
+      <button data-modo="final" onclick="cambiarModoMasPrec('final')">Subir el precio final</button>
     </div>
-    <div class="notice" style="margin-top:8px">
-      Primero se sube el costo ese %, y sobre el costo nuevo se calcula el precio final con el margen indicado, redondeado hacia arriba a $100 (igual que en todo el sistema). Ej: costo $1.000, aumento 5% → costo $1.050. Margen 115% → precio final $1.050 × 2,15 = $2.257 → redondea a $2.300.
+    <div id="masPrecCamposCosto">
+      <div class="toolbar" style="margin-top:10px">
+        <div class="field"><label>% de aumento del costo</label><input id="masPrecAumentoCosto" type="number" step="any" placeholder="Ej: 5 (lo que subió el proveedor)"></div>
+        <div class="field"><label>Margen sobre el costo nuevo</label><input id="masPrecMargen" type="number" step="any" placeholder="Ej: 115"></div>
+      </div>
+      <div class="notice" style="margin-top:8px">
+        Primero se sube el costo ese %, y sobre el costo nuevo se calcula el precio final con el margen indicado, redondeado hacia arriba a $100 (igual que en todo el sistema). Ej: costo $1.000, aumento 5% → costo $1.050. Margen 115% → precio final $1.050 × 2,15 = $2.257 → redondea a $2.300.
+      </div>
+    </div>
+    <div id="masPrecCamposFinal" style="display:none">
+      <div class="toolbar" style="margin-top:10px">
+        <div class="field"><label>% de aumento del precio final</label><input id="masPrecAumentoFinal" type="number" step="any" placeholder="Ej: 10"></div>
+        <div class="field"><label>Margen para recalcular el costo (opcional)</label><input id="masPrecMargenFinal" type="number" step="any" placeholder="Ej: 115 (vacío = no tocar el costo)"></div>
+      </div>
+      <div class="notice" style="margin-top:8px">
+        Se sube el precio final que tiene hoy cada producto ese %, redondeado hacia arriba a $100 — sin mirar el costo. Si ponés un margen, el costo se recalcula a partir del precio nuevo (así se corrigen los costos mal cargados). Ej: precio final $2.000, aumento 10% → $2.200. Margen 115% → costo $2.200 ÷ 2,15 = $1.023.
+      </div>
     </div>
     <div class="toolbar" style="margin-top:12px">
       <button class="btn primary" onclick="previsualizarActualizarPrecios()">Vista previa</button>

@@ -276,12 +276,25 @@ function listarParaActualizacionMasiva({ proveedor_id, familia_id }) {
   return db.prepare(sql).all(params);
 }
 
-function calcularNuevoPrecioMasivo(p, aumentoCostoPct, margenPct) {
-  const costo = Math.round(p.costo * (1 + aumentoCostoPct / 100));
-  // El precio final (lo que ve el cliente) siempre se redondea hacia arriba
-  // a múltiplos de $100, mismo criterio que se usa en todo el sistema
-  // (débito/efectivo de un producto normal, precio final de un servicio).
-  const precio_final = roundUpTo100(costo * (1 + margenPct / 100));
+// Dos modos:
+//  - 'costo' (el de siempre): se sube el costo y el precio final sale del
+//    costo nuevo × el margen.
+//  - 'final': se sube directamente el precio final actual (sirve cuando los
+//    costos cargados no son confiables). Si viene margen, el costo se
+//    recalcula hacia atrás desde el precio nuevo (precio ÷ (1 + margen)),
+//    así quedan corregidos; sin margen, el costo no se toca.
+// El precio final (lo que ve el cliente) siempre se redondea hacia arriba a
+// múltiplos de $100, mismo criterio que en todo el sistema.
+function calcularNuevoPrecioMasivo(p, { modo, aumentoCostoPct, margenPct, aumentoFinalPct }) {
+  let costo;
+  let precio_final;
+  if (modo === 'final') {
+    precio_final = roundUpTo100(p.precio_final * (1 + aumentoFinalPct / 100));
+    costo = margenPct != null ? Math.round(precio_final / (1 + margenPct / 100)) : p.costo;
+  } else {
+    costo = Math.round(p.costo * (1 + aumentoCostoPct / 100));
+    precio_final = roundUpTo100(costo * (1 + margenPct / 100));
+  }
   let precio_debito;
   let precio_efectivo;
   if (p.usa_precio_rendicion) {
@@ -303,11 +316,19 @@ function calcularNuevoPrecioMasivo(p, aumentoCostoPct, margenPct) {
   return { costo, precio_final, precio_debito, precio_efectivo };
 }
 
-function previsualizarActualizacionMasiva({ proveedor_id, familia_id, aumento_costo, margen }) {
-  const aumentoCostoPct = Number(aumento_costo);
-  const margenPct = Number(margen);
+function opcionesMasivo({ modo, aumento_costo, margen, aumento_final }) {
+  return {
+    modo: modo === 'final' ? 'final' : 'costo',
+    aumentoCostoPct: Number(aumento_costo) || 0,
+    margenPct: margen === undefined || margen === null || margen === '' ? null : Number(margen),
+    aumentoFinalPct: Number(aumento_final) || 0,
+  };
+}
+
+function previsualizarActualizacionMasiva({ proveedor_id, familia_id, ...parametros }) {
+  const opciones = opcionesMasivo(parametros);
   return listarParaActualizacionMasiva({ proveedor_id, familia_id }).map((p) => {
-    const { costo, precio_final } = calcularNuevoPrecioMasivo(p, aumentoCostoPct, margenPct);
+    const { costo, precio_final } = calcularNuevoPrecioMasivo(p, opciones);
     return {
       id: p.id,
       codigo: p.codigo,
@@ -320,9 +341,8 @@ function previsualizarActualizacionMasiva({ proveedor_id, familia_id, aumento_co
   });
 }
 
-const aplicarActualizacionMasiva = db.transaction(({ proveedor_id, familia_id, aumento_costo, margen }) => {
-  const aumentoCostoPct = Number(aumento_costo);
-  const margenPct = Number(margen);
+const aplicarActualizacionMasiva = db.transaction(({ proveedor_id, familia_id, ...parametros }) => {
+  const opciones = opcionesMasivo(parametros);
   const productos = listarParaActualizacionMasiva({ proveedor_id, familia_id });
   const update = db.prepare(
     `UPDATE productos SET costo = @costo, precio_final = @precio_final, precio_debito = @precio_debito,
@@ -330,7 +350,7 @@ const aplicarActualizacionMasiva = db.transaction(({ proveedor_id, familia_id, a
      WHERE id = @id`
   );
   productos.forEach((p) => {
-    const { costo, precio_final, precio_debito, precio_efectivo } = calcularNuevoPrecioMasivo(p, aumentoCostoPct, margenPct);
+    const { costo, precio_final, precio_debito, precio_efectivo } = calcularNuevoPrecioMasivo(p, opciones);
     update.run({ id: p.id, costo, precio_final, precio_debito, precio_efectivo });
   });
   return productos.length;
