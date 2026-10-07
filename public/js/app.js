@@ -2595,7 +2595,6 @@ function renderControlCierre(r) {
   document.getElementById('ccPagoElectronicoResta').textContent = moneyDash(r.pagoElectronico);
   document.getElementById('ccChequeResta').textContent = moneyDash(r.cheque);
   document.getElementById('ccCambioFondo').textContent = moneyDash(r.cambioFondo);
-  document.getElementById('ccReversasVenta').textContent = moneyDash(r.reversasVentaAnulada);
   document.getElementById('ccCuentaCorriente').textContent = moneyDash(r.cuentaCorriente);
 }
 
