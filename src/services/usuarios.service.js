@@ -12,12 +12,23 @@ function cambiarPassword(id, password) {
   db.prepare('UPDATE usuarios SET password_hash = ? WHERE id = ?').run(hash, id);
 }
 
-// Cambio de clave "normal": hay que conocer la clave actual de ese puesto.
+// Cambio de clave: hay que conocer la clave actual de ese puesto, o la del
+// ADMIN — así, si CAJA/VENTA/STOCK se olvidan la suya, el ADMIN se la
+// resetea sin saberla (la API no tiene sesión, por eso se pide la clave de
+// ADMIN en vez de confiar en quién está logueado).
 function cambiarPasswordConVerificacion(id, passwordActual, passwordNueva) {
   const usuario = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id);
   if (!usuario) throw new Error('Usuario no encontrado');
-  if (!bcrypt.compareSync(String(passwordActual || ''), usuario.password_hash)) {
-    throw new Error('La clave actual no es correcta');
+  const clave = String(passwordActual || '');
+  const esLaDelPuesto = bcrypt.compareSync(clave, usuario.password_hash);
+  const esLaDeAdmin =
+    !esLaDelPuesto &&
+    db
+      .prepare("SELECT password_hash FROM usuarios WHERE rol = 'ADMIN' AND activo = 1")
+      .all()
+      .some((a) => bcrypt.compareSync(clave, a.password_hash));
+  if (!esLaDelPuesto && !esLaDeAdmin) {
+    throw new Error('La clave no es correcta: poné la clave actual de ese puesto, o la del ADMIN');
   }
   cambiarPassword(id, passwordNueva);
 }
@@ -27,8 +38,8 @@ function cambiarPasswordConVerificacion(id, passwordActual, passwordNueva) {
 // hay integración con la API de WhatsApp Business), así que acá solo se
 // genera y se guarda — el envío lo hace el frontend abriendo wa.me.
 // Solo existe para el puesto ADMIN: los demás puestos (CAJA/VENTA/STOCK), si
-// olvidan la clave, la pide un ADMIN y se la cambia directo desde
-// Configuración → Usuarios y claves (no necesitan el código por WhatsApp).
+// olvidan la clave, el ADMIN se la cambia desde Configuración → Usuarios y
+// claves poniendo su propia clave (ver cambiarPasswordConVerificacion).
 function solicitarRecuperacion(rol) {
   if (rol !== 'ADMIN') throw new Error('Solo se puede recuperar la clave del puesto ADMIN');
   const usuario = db.prepare("SELECT * FROM usuarios WHERE rol = ? AND activo = 1").get(rol);

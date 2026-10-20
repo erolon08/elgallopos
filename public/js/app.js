@@ -2953,7 +2953,7 @@ async function cargarUsuariosClaves() {
       <tr>
         <td><b>${u.rol}</b></td>
         <td>${u.usuario}</td>
-        <td><input type="password" id="claveActual-${u.id}" placeholder="Clave actual" style="width:140px"></td>
+        <td><input type="password" id="claveActual-${u.id}" placeholder="${u.rol === 'ADMIN' ? 'Clave actual' : 'Clave actual o de ADMIN'}" style="width:170px"></td>
         <td><input type="password" id="clave-${u.id}" placeholder="Nueva clave" style="width:140px"></td>
         <td><button class="btn light" onclick="guardarClaveUsuario(${u.id})">Guardar</button></td>
       </tr>`
@@ -2966,7 +2966,7 @@ async function guardarClaveUsuario(id) {
   const input = document.getElementById(`clave-${id}`);
   const password = input.value.trim();
   if (!passwordActual) {
-    alert('Ingresá la clave actual de ese puesto para poder cambiarla.');
+    alert('Ingresá la clave actual de ese puesto (o, si se la olvidaron, la clave del ADMIN) para poder cambiarla.');
     return;
   }
   if (!password) return;
