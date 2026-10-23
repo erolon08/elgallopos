@@ -163,7 +163,22 @@ function calcularCamposPrecio(datos, familia) {
   };
 }
 
+// La columna tiene UNIQUE, pero SQLite compara distinguiendo mayúsculas:
+// "ab123" y "AB123" pasaban como códigos distintos. Este chequeo los trata
+// como el mismo código y avisa cuál es el producto que ya lo usa.
+function validarCodigoUnico(codigo, idExcluir = null) {
+  const existente = db
+    .prepare('SELECT id, codigo, descripcion, activo FROM productos WHERE codigo = ? COLLATE NOCASE AND id IS NOT ?')
+    .get(codigo, idExcluir);
+  if (!existente) return;
+  const inactivo = existente.activo ? '' : ' (está desactivado)';
+  const err = new Error(`Ya existe un producto con el código ${existente.codigo}: ${existente.descripcion}${inactivo}`);
+  err.code = 'CODIGO_DUPLICADO';
+  throw err;
+}
+
 function crear(datos) {
+  validarCodigoUnico(String(datos.codigo).trim());
   const familia = db.prepare('SELECT * FROM familias WHERE id = ?').get(datos.familia_id);
   if (!familia) throw new Error('Familia inválida');
   const precioCalculado = calcularCamposPrecio(datos, familia);
@@ -194,6 +209,7 @@ function crear(datos) {
 function actualizar(id, datos) {
   const actual = db.prepare('SELECT * FROM productos WHERE id = ?').get(id);
   if (!actual) return null;
+  if (datos.codigo != null) validarCodigoUnico(String(datos.codigo).trim(), id);
 
   const familia_id = datos.familia_id || actual.familia_id;
   const familia = db.prepare('SELECT * FROM familias WHERE id = ?').get(familia_id);

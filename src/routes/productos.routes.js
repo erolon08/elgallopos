@@ -67,6 +67,7 @@ router.post('/', (req, res) => {
   try {
     res.status(201).json(productosService.crear(req.body));
   } catch (err) {
+    if (err.code === 'CODIGO_DUPLICADO') return res.status(409).json({ error: err.message });
     if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Ya existe un producto con ese código' });
     }
@@ -134,6 +135,7 @@ router.put('/:id', (req, res) => {
     if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json(producto);
   } catch (err) {
+    if (err.code === 'CODIGO_DUPLICADO') return res.status(409).json({ error: err.message });
     if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'Ya existe un producto con ese código' });
     }
