@@ -159,7 +159,14 @@ function actualizar(id, datos) {
   if (!actual) return null;
   const documento = datos.documento !== undefined ? datos.documento || null : actual.documento;
   const cuit = datos.cuit !== undefined ? datos.cuit || null : actual.cuit;
-  const dup = buscarDuplicado({ documento, cuit, excluir_id: id });
+  // Solo se valida lo que cambió: si la ficha ya compartía DNI/CUIT con otro
+  // cliente (ej. dependencias públicas con un mismo CUIT, o datos importados),
+  // igual tiene que poder editarse el resto sin que salte el duplicado.
+  const dup = buscarDuplicado({
+    documento: String(documento || '').trim() !== String(actual.documento || '').trim() ? documento : null,
+    cuit: String(cuit || '').trim() !== String(actual.cuit || '').trim() ? cuit : null,
+    excluir_id: id,
+  });
   if (dup.documento) throw new Error(`Ya existe un cliente con ese DNI: ${dup.documento.nombre} (N° ${dup.documento.codigo})`);
   if (dup.cuit) throw new Error(`Ya existe un cliente con ese CUIT: ${dup.cuit.nombre} (N° ${dup.cuit.codigo})`);
   db.prepare(
