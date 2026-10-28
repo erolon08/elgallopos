@@ -153,6 +153,17 @@ router.post('/:id/enviar-caja', (req, res) => {
   }
 });
 
+router.put('/:id/pagos', (req, res) => {
+  try {
+    const venta = ventasService.cambiarFormaPago(Number(req.params.id), req.body);
+    emitVentaEvent('venta:actualizada', venta);
+    emitVentaEvent('caja:actualizada', { venta_id: venta.id });
+    res.json(venta);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.put('/items/:itemId/cerrajero', (req, res) => {
   const ok = ventasService.actualizarCerrajeroLinea(Number(req.params.itemId), req.body.cerrajero_id || null);
   if (!ok) return res.status(404).json({ error: 'Línea de venta no encontrada' });

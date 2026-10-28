@@ -7239,6 +7239,9 @@ async function verDetalleVenta(id) {
   const notaCreditoHtml = venta.nc_cae
     ? `<p class="text-red"><b>Nota de crédito emitida:</b> ${venta.nc_numero_comprobante} &nbsp; <b>CAE:</b> ${venta.nc_cae} &nbsp; (${new Date(venta.nc_emitida_en).toLocaleDateString('es-AR')}) — esta factura quedó compensada ante ARCA.</p>`
     : '';
+  // La forma de pago solo se corrige en ventas Eventual: una factura ya
+  // informó a ARCA la condición de venta.
+  const puedeCambiarPago = !esSoloConsulta && venta.estado === 'cobrada' && venta.tipo_comprobante === 'Eventual' && !venta.cae;
   document.getElementById('detalleVentaContenido').innerHTML = `
     <p><b>Cliente:</b> ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'} &nbsp; <b>Estado:</b> ${venta.estado} &nbsp; <b>Comprobante:</b> ${venta.tipo_comprobante}</p>
     ${facturaHtml}
@@ -7246,8 +7249,13 @@ async function verDetalleVenta(id) {
     ${motivoAnulacionHtml}
     <div class="table-wrap"><table class="tabla-venta-detalle"><thead><tr><th>Código</th><th>Cant.</th><th>Descripción</th><th>Cerrajero</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>${filasItems}</tbody></table></div>
     <p style="margin-top:10px"><b>Pagos:</b> ${pagosTxt}</p>
+    ${puedeCambiarPago ? '<div id="detPagoEditor"></div>' : ''}
     <p><b>Total: $ ${money.format(venta.total)}</b></p>
   `;
+  if (puedeCambiarPago) {
+    detPagoFilas = venta.pagos.map((p) => ({ forma_pago: p.forma_pago, marca: p.marca || '', monto: p.monto }));
+    renderDetPagoEditor();
+  }
   document.getElementById('btnAnularVenta').style.display = venta.estado === 'anulada' || esSoloConsulta ? 'none' : 'inline-block';
   document.getElementById('btnDesanularVenta').style.display = venta.estado === 'anulada' && !venta.nc_cae && !esSoloConsulta ? 'inline-block' : 'none';
   document.getElementById('btnNotaCreditoVenta').style.display = venta.cae && !venta.nc_cae && !esSoloConsulta ? 'inline-block' : 'none';
@@ -7264,6 +7272,76 @@ async function cambiarCerrajeroItemDetalle(itemId, cerrajeroId) {
     body: JSON.stringify({ cerrajero_id: cerrajeroId || null }),
   });
 }
+// Editor de forma de pago dentro del detalle de venta (solo Eventual).
+// Variables propias (detPago*) para no pisar las del cobro en curso
+// (filasCombinado, ventaEnCobroTotal).
+const FORMAS_PAGO_DETALLE = ['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'QR', 'Cheque', 'Canje', 'Cuenta Corriente'];
+let detPagoFilas = [];
+function renderDetPagoEditor() {
+  const cont = document.getElementById('detPagoEditor');
+  if (!cont) return;
+  const filasHtml = detPagoFilas
+    .map(
+      (f, i) => `
+      <div class="combinado-row">
+        <div class="field"><label>Forma</label>
+          <select onchange="detPagoFilas[${i}].forma_pago=this.value">
+            ${FORMAS_PAGO_DETALLE.map((fp) => `<option value="${fp}" ${fp === f.forma_pago ? 'selected' : ''}>${fp}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Marca (opcional)</label><input value="${escapeHtml(f.marca || '')}" onchange="detPagoFilas[${i}].marca=this.value"></div>
+        <div class="field"><label>Monto</label><input type="number" step="any" value="${f.monto}" oninput="detPagoFilas[${i}].monto=Number(this.value)||0;renderDetPagoRestante()"></div>
+        ${detPagoFilas.length > 1 ? `<button class="btn light" onclick="quitarFilaDetPago(${i})">🗑</button>` : ''}
+      </div>`
+    )
+    .join('');
+  cont.innerHTML = `
+    <details style="margin:6px 0 10px">
+      <summary style="cursor:pointer"><b>Cambiar forma de pago</b></summary>
+      <div style="margin-top:8px">
+        ${filasHtml}
+        <button class="btn light" onclick="agregarFilaDetPago()">+ Agregar forma de pago</button>
+        <div class="notice" style="margin-top:8px">Restante a asignar: $ <b id="detPagoRestante">0</b></div>
+        <button class="btn primary" style="margin-top:8px" onclick="guardarFormaPagoDetalle()">Guardar forma de pago</button>
+      </div>
+    </details>`;
+  renderDetPagoRestante();
+}
+function renderDetPagoRestante() {
+  const el = document.getElementById('detPagoRestante');
+  if (!el || !ventaDetalleActual) return;
+  const asignado = detPagoFilas.reduce((a, f) => a + (Number(f.monto) || 0), 0);
+  el.textContent = money.format(ventaDetalleActual.total - asignado);
+}
+function agregarFilaDetPago() {
+  const asignado = detPagoFilas.reduce((a, f) => a + (Number(f.monto) || 0), 0);
+  detPagoFilas.push({ forma_pago: 'Efectivo', marca: '', monto: Math.max(0, ventaDetalleActual.total - asignado) });
+  renderDetPagoEditor();
+  document.querySelector('#detPagoEditor details').open = true;
+}
+function quitarFilaDetPago(i) {
+  detPagoFilas.splice(i, 1);
+  renderDetPagoEditor();
+  document.querySelector('#detPagoEditor details').open = true;
+}
+async function guardarFormaPagoDetalle() {
+  if (!ventaDetalleActual) return;
+  const resumen = detPagoFilas.map((f) => `${f.forma_pago}: $ ${money.format(f.monto)}`).join(', ');
+  if (!confirm(`¿Cambiar la forma de pago de la venta N° ${ventaDetalleActual.numero} a: ${resumen}?\n\nEn la caja se descuenta lo cobrado antes y se ingresa con la forma nueva.`)) return;
+  const res = await fetch(`/api/ventas/${ventaDetalleActual.id}/pagos`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pagos: detPagoFilas, usuario_id: session.id, terminal: session.rol }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert('Error: ' + data.error);
+    return;
+  }
+  alert('Listo, se cambió la forma de pago.');
+  verDetalleVenta(ventaDetalleActual.id);
+}
+
 async function anularVentaUI() {
   if (!ventaDetalleActual) return;
   const motivo = prompt('Motivo de la anulación (opcional):') || '';

@@ -809,6 +809,97 @@ const borrarDefinitivo = db.transaction((id) => {
   db.prepare('DELETE FROM ventas WHERE id = ?').run(id);
 });
 
+// Corrige la forma de pago de una venta ya cobrada (ej. se cargó
+// "Transferencia" y era "Efectivo"). Solo para comprobantes "Eventual": una
+// Factura A/B ya informó la condición de venta a ARCA. El total no cambia.
+// Siguiendo el patrón de anular, no se borra nada de la caja: se agrega un
+// egreso por cada pago viejo y un ingreso por cada pago nuevo (en el turno
+// abierto), y la Cuenta Corriente se ajusta con movimientos inversos.
+const cambiarFormaPago = db.transaction((id, { pagos, usuario_id, terminal } = {}) => {
+  const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
+  if (!venta) throw new Error('Venta no encontrada');
+  if (venta.estado !== 'cobrada') throw new Error('Solo se puede cambiar la forma de pago de una venta cobrada');
+  if (venta.tipo_comprobante !== 'Eventual' || venta.cae) {
+    throw new Error('Solo se puede cambiar la forma de pago de una venta Eventual (no de una factura)');
+  }
+  if (!pagos || !pagos.length) throw new Error('Falta el detalle de pago');
+  pagos = pagos.map((p) => ({ forma_pago: p.forma_pago, marca: p.marca || null, monto: Number(p.monto) || 0 }));
+  if (pagos.some((p) => !p.forma_pago || p.monto <= 0)) throw new Error('Cada pago tiene que tener forma y un monto mayor a cero');
+  const sumaPagos = pagos.reduce((acc, p) => acc + p.monto, 0);
+  if (Math.abs(sumaPagos - venta.total) > 1) {
+    throw new Error(`El total pagado ($${sumaPagos}) no coincide con el total de la venta ($${venta.total})`);
+  }
+
+  const pagosViejos = db.prepare('SELECT * FROM venta_pagos WHERE venta_id = ?').all(id);
+  const ctaCteVieja = pagosViejos
+    .filter((p) => p.forma_pago === 'Cuenta Corriente')
+    .reduce((acc, p) => acc + (Number(p.monto) || 0), 0);
+  const ctaCteNueva = pagos.filter((p) => p.forma_pago === 'Cuenta Corriente').reduce((acc, p) => acc + p.monto, 0);
+  if (ctaCteNueva > 0) {
+    const cliente = venta.cliente_id ? db.prepare('SELECT * FROM clientes WHERE id = ?').get(venta.cliente_id) : null;
+    if (!cliente) throw new Error('La Cuenta Corriente requiere un cliente: esta venta es a Consumidor Final');
+    if (!cliente.venta_a_credito) throw new Error(`${cliente.nombre} no tiene la Cuenta Corriente habilitada`);
+  }
+  // Si el cliente ya pagó parte de esa deuda, cambiarla descuadraría los
+  // cobros ya imputados: primero hay que deshacer esos cobros.
+  if (ctaCteVieja > 0 && Math.abs((venta.cta_cte_saldo_pendiente || 0) - ctaCteVieja) > 0.01) {
+    throw new Error('El cliente ya pagó parte de esta venta desde su Cuenta Corriente. Deshacé ese cobro antes de cambiar la forma de pago.');
+  }
+
+  const turno = cajaService.turnoAbiertoOCrear(terminal || venta.terminal_origen);
+  const insertCajaMov = db.prepare(`
+    INSERT INTO caja_movimientos (caja_turno_id, tipo, categoria, concepto, monto, forma_pago, referencia_tipo, referencia_id, usuario_id)
+    VALUES (?, ?, 'venta', ?, ?, ?, 'venta', ?, ?)
+  `);
+  const ajustarCtaCte = (monto, tipo) =>
+    venta.cliente_id &&
+    ccService.registrarMovimiento({
+      cliente_id: venta.cliente_id,
+      tipo,
+      monto,
+      motivo: `Venta N° ${venta.numero} (cambio de forma de pago)`,
+      referencia_tipo: 'venta',
+      referencia_id: id,
+      usuario_id,
+      terminal,
+    });
+
+  pagosViejos.forEach((p) => {
+    if (p.forma_pago === 'Canje') return;
+    insertCajaMov.run(
+      turno.id,
+      'egreso',
+      `Venta N° ${venta.numero} — cambio de forma de pago: sale ${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}`,
+      p.monto,
+      p.forma_pago,
+      id,
+      usuario_id || null
+    );
+    if (p.forma_pago === 'Cuenta Corriente') ajustarCtaCte(-Math.abs(Number(p.monto) || 0), 'nota_credito');
+  });
+  db.prepare('DELETE FROM venta_pagos WHERE venta_id = ?').run(id);
+
+  const insertPago = db.prepare('INSERT INTO venta_pagos (venta_id, forma_pago, marca, monto) VALUES (?, ?, ?, ?)');
+  pagos.forEach((p) => {
+    insertPago.run(id, p.forma_pago, p.marca, p.monto);
+    if (p.forma_pago === 'Canje') return;
+    insertCajaMov.run(
+      turno.id,
+      'ingreso',
+      `Venta N° ${venta.numero} — cambio de forma de pago: entra ${p.forma_pago}${p.marca ? ' (' + p.marca + ')' : ''}`,
+      p.monto,
+      p.forma_pago,
+      id,
+      usuario_id || null
+    );
+    if (p.forma_pago === 'Cuenta Corriente') ajustarCtaCte(Math.abs(p.monto), 'venta');
+  });
+
+  const formaPagoResumen = pagos.length > 1 ? 'Pago combinado' : pagos[0].forma_pago;
+  db.prepare('UPDATE ventas SET forma_pago = ?, cta_cte_saldo_pendiente = ? WHERE id = ?').run(formaPagoResumen, ctaCteNueva, id);
+  return obtener(id);
+});
+
 function actualizarCerrajeroLinea(venta_item_id, cerrajero_id) {
   const info = db.prepare('UPDATE venta_items SET cerrajero_id = ? WHERE id = ?').run(cerrajero_id || null, venta_item_id);
   return info.changes > 0;
@@ -829,5 +920,6 @@ module.exports = {
   borrarDefinitivo,
   actualizar,
   actualizarCerrajeroLinea,
+  cambiarFormaPago,
   generarNumero,
 };
