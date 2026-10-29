@@ -153,6 +153,14 @@ router.post('/:id/enviar-caja', (req, res) => {
   }
 });
 
+router.get('/:id/qr-arca', async (req, res) => {
+  try {
+    res.json(await ventasService.qrArca(Number(req.params.id)));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.put('/:id/pagos', (req, res) => {
   try {
     const venta = ventasService.cambiarFormaPago(Number(req.params.id), req.body);

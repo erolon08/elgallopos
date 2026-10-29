@@ -372,6 +372,10 @@ CREATE TABLE IF NOT EXISTS ventas (
   numero_comprobante TEXT,
   cae TEXT,
   cae_vencimiento TEXT,
+  -- Cuándo se pidió el CAE (fecha del comprobante ante ARCA). Casi siempre
+  -- coincide con cobrado_en, salvo que la venta se haya facturado después
+  -- con "Facturar". Lo usa el QR de ARCA del comprobante A4.
+  factura_emitida_en TEXT,
   -- Neto/IVA tal como se le reportaron a ARCA al pedir el CAE (para poder
   -- mostrarlos discriminados en el ticket de Factura A, que lo exige).
   iva_neto REAL,

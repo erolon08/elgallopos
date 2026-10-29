@@ -4,6 +4,7 @@ const cajaService = require('./caja.service');
 const ccService = require('./cc.service');
 const configuracionService = require('./configuracion.service');
 const arcaFacturacionService = require('./arca-facturacion.service');
+const QRCode = require('qrcode');
 
 // 1 = productos, 2 = servicios, 3 = productos y servicios (lo que pide ARCA
 // en cada comprobante). "items" ya trae usa_mano_obra por línea (servicio),
@@ -420,6 +421,9 @@ const cobrarTx = db.transaction((id, datos) => {
     totalCtaCte,
     id
   );
+  if (datos.cae) {
+    db.prepare("UPDATE ventas SET factura_emitida_en = datetime('now','localtime') WHERE id = ?").run(id);
+  }
 
   return obtener(id);
 });
@@ -547,7 +551,7 @@ async function facturarVentaExistente(id, { tipo_comprobante, cliente_id } = {})
 
   db.prepare(
     `UPDATE ventas SET tipo_comprobante = ?, numero_comprobante = ?, cae = ?, cae_vencimiento = ?,
-       iva_neto = ?, iva_monto = ?, cliente_id = ? WHERE id = ?`
+       iva_neto = ?, iva_monto = ?, cliente_id = ?, factura_emitida_en = datetime('now','localtime') WHERE id = ?`
   ).run(
     tipo_comprobante,
     resultado.numeroCompleto,
@@ -900,6 +904,27 @@ const cambiarFormaPago = db.transaction((id, { pagos, usuario_id, terminal } = {
   return obtener(id);
 });
 
+// QR de ARCA de la factura electrónica de esta venta, como imagen (data URL)
+// para el comprobante A4. null si la venta no tiene CAE (Eventual) o falta
+// el CUIT del negocio en Configuración.
+async function qrArca(id) {
+  const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
+  if (!venta) throw new Error('Venta no encontrada');
+  if (!venta.cae) return null;
+  const cliente = venta.cliente_id ? db.prepare('SELECT * FROM clientes WHERE id = ?').get(venta.cliente_id) : null;
+  const url = arcaFacturacionService.urlQrComprobante({
+    fecha: String(venta.factura_emitida_en || venta.cobrado_en || venta.creado_en).slice(0, 10),
+    cuitEmisor: configuracionService.obtener().cuit_negocio,
+    tipoComprobante: venta.tipo_comprobante,
+    numeroCompleto: venta.numero_comprobante,
+    total: venta.total,
+    cliente,
+    cae: venta.cae,
+  });
+  if (!url) return null;
+  return { url, imagen: await QRCode.toDataURL(url, { margin: 1, width: 300 }) };
+}
+
 function actualizarCerrajeroLinea(venta_item_id, cerrajero_id) {
   const info = db.prepare('UPDATE venta_items SET cerrajero_id = ? WHERE id = ?').run(cerrajero_id || null, venta_item_id);
   return info.changes > 0;
@@ -921,5 +946,6 @@ module.exports = {
   actualizar,
   actualizarCerrajeroLinea,
   cambiarFormaPago,
+  qrArca,
   generarNumero,
 };

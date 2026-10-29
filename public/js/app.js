@@ -1533,6 +1533,7 @@ function mostrarTicketCtaCte(data) {
   ultimoDocumentoParaTicket = { tipo: 'cta-cte', data };
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
   document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
+  document.getElementById('btnDescargarPdfA4').style.display = 'none';
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
@@ -2004,6 +2005,7 @@ async function mostrarTicketCierre(t) {
   ultimoDocumentoParaTicket = { tipo: 'cierre', data: t };
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
   document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
+  document.getElementById('btnDescargarPdfA4').style.display = '';
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = '';
@@ -4538,6 +4540,7 @@ async function mostrarTicketRendicion(id) {
   ultimoDocumentoParaTicket = { tipo: 'rendicion', data: r };
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
   document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
+  document.getElementById('btnDescargarPdfA4').style.display = '';
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = r.estado === 'generada' ? '' : 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
@@ -6219,6 +6222,7 @@ document.addEventListener('keydown', (e) => {
     const botonesTicket = {
       F10: 'window.print()',
       F9: 'btnImprimirA4',
+      F3: 'btnDescargarPdfA4',
       F8: 'btnEnviarImagenWhatsapp',
       F7: 'btnEnviarImagenA4Whatsapp',
       F6: 'copiarImagenTicket()',
@@ -6445,8 +6449,12 @@ function datosFiscalesNegocioHtmlTicket(esFiscal) {
 async function mostrarTicket(venta) {
   await cargarConfiguracionGlobal();
   ultimoDocumentoParaTicket = { tipo: 'venta', data: venta };
+  // Se pide ya, para que el A4 por WhatsApp (que no puede esperar: abre la
+  // ventana en el mismo clic) también salga con el QR de ARCA.
+  cargarQrArcaSiCorresponde('venta', venta);
   document.getElementById('btnEnviarImagenWhatsapp').style.display = '';
   document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
+  document.getElementById('btnDescargarPdfA4').style.display = '';
   document.getElementById('btnImprimirA4').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
@@ -6523,6 +6531,7 @@ async function mostrarTicketPresupuesto(presupuesto) {
   ultimoDocumentoParaTicket = { tipo: 'presupuesto', data: presupuesto };
   document.getElementById('btnEnviarImagenWhatsapp').style.display = '';
   document.getElementById('btnEnviarImagenA4Whatsapp').style.display = '';
+  document.getElementById('btnDescargarPdfA4').style.display = '';
   document.getElementById('btnImprimirA4').style.display = '';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
@@ -6693,6 +6702,11 @@ function construirDocumentoA4Html(tipo, doc) {
       <div style="display:flex;flex-direction:column;gap:6px">${totalBloqueHtml}</div>
     </div>
     ${transparenciaFiscalA4Html}
+    ${
+      !esPresupuesto && doc.qrArca
+        ? `<div class="a4-qr-arca"><img src="${doc.qrArca.imagen}" alt="QR ARCA"><div><b>Comprobante Autorizado</b><br>CAE: ${doc.cae} · Vto. CAE: ${formatFechaAfip(doc.cae_vencimiento)}<br><span class="a4-muted">Verificable en ARCA escaneando el código QR.</span></div></div>`
+        : ''
+    }
     ${esPresupuesto ? '<p class="a4-muted">Presupuesto sujeto a modificaciones.</p>' : ''}
     ${cfg.ticket_pie ? `<p class="a4-muted">${cfg.ticket_pie.replace(/\n/g, '<br>')}</p>` : ''}
     <p class="a4-muted a4-impreso">Impreso: ${new Date().toLocaleDateString('es-AR')}</p>
@@ -6700,10 +6714,24 @@ function construirDocumentoA4Html(tipo, doc) {
 }
 
 let volverAlModoTicketNormal = null;
-function imprimirEnA4() {
+// Una factura con CAE lleva el QR de ARCA (RG 4892); se pide al server una
+// sola vez por venta y queda guardado en el mismo objeto (doc.qrArca) para
+// las siguientes impresiones / PDF.
+async function cargarQrArcaSiCorresponde(tipo, doc) {
+  if (tipo !== 'venta' || !doc.cae || doc.qrArca !== undefined) return;
+  try {
+    const res = await fetch(`/api/ventas/${doc.id}/qr-arca`);
+    doc.qrArca = res.ok ? await res.json() : null;
+  } catch (err) {
+    doc.qrArca = null;
+  }
+}
+
+async function imprimirEnA4() {
   if (!ultimoDocumentoParaTicket) return;
   const { tipo, data } = ultimoDocumentoParaTicket;
   if (tipo !== 'venta' && tipo !== 'presupuesto') return;
+  await cargarQrArcaSiCorresponde(tipo, data);
   document.getElementById('ticketA4Contenido').innerHTML = construirDocumentoA4Html(tipo, data);
   document.body.classList.add('modo-impresion-a4');
   volverAlModoTicketNormal = () => {
@@ -6739,6 +6767,76 @@ function enviarImagenA4Whatsapp() {
     document.getElementById('ticketA4Contenido').innerHTML = construirDocumentoA4Html(tipo, data);
   }
   enviarImagenPorWhatsapp('ticketA4Contenido', PREFIJO_ARCHIVO_A4[tipo] || 'presupuesto-a4');
+}
+
+// Descarga el comprobante A4 como archivo PDF (para mandarlo por mail,
+// guardarlo o imprimirlo después). Se arma igual que la imagen A4: captura
+// del A4 con html2canvas, pegada en una hoja A4 de jsPDF con margen de 10mm.
+// Si el contenido es más largo que una hoja (muchas líneas), se corta en
+// varias páginas.
+async function descargarPdfA4() {
+  if (!ultimoDocumentoParaTicket) return;
+  const { tipo, data } = ultimoDocumentoParaTicket;
+  await descargarPdfDocumentoA4(tipo, data);
+}
+
+function nombreArchivoPdfA4(tipo, doc) {
+  if (tipo === 'venta') {
+    if (doc.cae && doc.numero_comprobante) return `${doc.tipo_comprobante.replace(' ', '-')}-${doc.numero_comprobante}.pdf`;
+    return `Venta-${doc.numero}.pdf`;
+  }
+  if (tipo === 'presupuesto') return `Presupuesto-${doc.numero}.pdf`;
+  return `${PREFIJO_ARCHIVO_A4[tipo] || tipo}-${new Date().toISOString().slice(0, 10)}.pdf`;
+}
+
+async function descargarPdfDocumentoA4(tipo, doc) {
+  if (!window.jspdf) {
+    alert('No se pudo cargar el generador de PDF. Recargá la página (Ctrl+F5) y probá de nuevo.');
+    return;
+  }
+  // Se arma en un contenedor aparte, fuera de la vista: #ticketA4Contenido
+  // está dentro de la pantalla del ticket, que puede estar oculta (ej. al
+  // bajarlo desde el detalle de venta) y html2canvas no captura nada oculto.
+  // Venta/presupuesto se arman en A4 recién ahora; rendición y cierre ya se
+  // muestran en A4, así que se copia lo que ya está.
+  const el = document.createElement('div');
+  el.id = 'pdfA4Temporal';
+  el.className = 'ticket-a4';
+  el.style.cssText = 'display:block;position:fixed;left:-9999px;top:0;width:800px;max-width:none';
+  if (tipo === 'venta' || tipo === 'presupuesto') {
+    await cargarConfiguracionGlobal();
+    await cargarQrArcaSiCorresponde(tipo, doc);
+    el.innerHTML = construirDocumentoA4Html(tipo, doc);
+  } else {
+    el.innerHTML = document.getElementById('ticketA4Contenido').innerHTML;
+  }
+  document.body.appendChild(el);
+  try {
+    await Promise.all(
+      [...el.querySelectorAll('img')].map((img) => (img.complete ? null : new Promise((r) => (img.onload = img.onerror = r))))
+    );
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
+    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const margen = 10;
+    const anchoUtil = 210 - margen * 2;
+    const altoUtil = 297 - margen * 2;
+    const pxPorMm = canvas.width / anchoUtil;
+    const altoPaginaPx = Math.floor(altoUtil * pxPorMm);
+    for (let y = 0, pagina = 0; y < canvas.height; y += altoPaginaPx, pagina++) {
+      const alto = Math.min(altoPaginaPx, canvas.height - y);
+      const trozo = document.createElement('canvas');
+      trozo.width = canvas.width;
+      trozo.height = alto;
+      trozo.getContext('2d').drawImage(canvas, 0, y, canvas.width, alto, 0, 0, canvas.width, alto);
+      if (pagina > 0) pdf.addPage();
+      pdf.addImage(trozo.toDataURL('image/jpeg', 0.92), 'JPEG', margen, margen, anchoUtil, alto / pxPorMm);
+    }
+    pdf.save(nombreArchivoPdfA4(tipo, doc));
+  } catch (err) {
+    alert('No se pudo generar el PDF: ' + err.message);
+  } finally {
+    el.remove();
+  }
 }
 
 function telefonoWhatsappCompleto(telefono) {
@@ -7428,6 +7526,9 @@ async function borrarVentaDefinitivo(id) {
 function imprimirVentaDesdeDetalle() {
   if (ventaDetalleActual) mostrarTicket(ventaDetalleActual);
 }
+function descargarPdfVentaDesdeDetalle() {
+  if (ventaDetalleActual) descargarPdfDocumentoA4('venta', ventaDetalleActual);
+}
 function whatsappVentaDesdeDetalle() {
   if (ventaDetalleActual) enviarPorWhatsapp('venta', ventaDetalleActual);
 }
@@ -7852,6 +7953,7 @@ async function verResumenVentasA4() {
   ultimoDocumentoParaTicket = { tipo: 'resumen', data: r };
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
   document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
+  document.getElementById('btnDescargarPdfA4').style.display = 'none';
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
@@ -7903,6 +8005,7 @@ async function verResumenRendicionesA4() {
   ultimoDocumentoParaTicket = { tipo: 'resumen', data: r };
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
   document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
+  document.getElementById('btnDescargarPdfA4').style.display = 'none';
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
@@ -7950,6 +8053,7 @@ async function verResumenGastosA4() {
   ultimoDocumentoParaTicket = { tipo: 'resumen', data: r };
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';
   document.getElementById('btnEnviarImagenA4Whatsapp').style.display = 'none';
+  document.getElementById('btnDescargarPdfA4').style.display = 'none';
   document.getElementById('btnImprimirA4').style.display = 'none';
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';

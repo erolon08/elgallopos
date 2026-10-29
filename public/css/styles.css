@@ -324,6 +324,8 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .ticket-a4 .a4-total{background:#e0e0e0;border:1px solid #999;padding:8px 16px;text-align:right;font-size:18px;font-weight:800;min-width:180px}
 .ticket-a4 .a4-total.a4-total-verde{background:#1f9d55;border-color:#1f9d55;color:#fff}
 .ticket-a4 .a4-total.a4-total-rojo{background:#c0392b;border-color:#c0392b;color:#fff}
+.ticket-a4 .a4-qr-arca{display:flex;align-items:center;gap:12px;border-top:1px solid #999;padding-top:8px;margin:8px 0;font-size:12px;line-height:1.6}
+.ticket-a4 .a4-qr-arca img{width:110px;height:110px}
 .ticket-a4 .a4-total-inline{display:inline-block;margin:-8px 0 14px}
 .ticket-a4 .a4-muted{color:#555;font-size:12px}
 .ticket-a4 .a4-impreso{text-align:right}

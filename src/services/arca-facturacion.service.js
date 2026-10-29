@@ -171,4 +171,33 @@ async function emitirNotaCredito({ tipoComprobanteOriginal, numeroComprobanteOri
   };
 }
 
-module.exports = { emitirFactura, emitirNotaCredito };
+// URL del código QR que ARCA exige en todo comprobante electrónico impreso
+// (RG 4892): un JSON con los datos del comprobante, en base64, colgado de
+// la URL de verificación. El receptor se arma igual que al pedir el CAE
+// (datosReceptor), así coincide con lo que quedó informado.
+// fecha: "AAAA-MM-DD"; numeroCompleto: "PPPPP-NNNNNNNN".
+function urlQrComprobante({ fecha, cuitEmisor, tipoComprobante, numeroCompleto, total, cliente, cae }) {
+  const tipoCmp = CBTE_TIPO[tipoComprobante];
+  const [ptoVta, nroCmp] = String(numeroCompleto || '').split('-').map(Number);
+  const cuit = Number(String(cuitEmisor || '').replace(/\D/g, ''));
+  if (!tipoCmp || !(ptoVta > 0) || !(nroCmp > 0) || !cuit || !cae) return null;
+  const { docTipo, docNro } = datosReceptor(cliente);
+  const datos = {
+    ver: 1,
+    fecha,
+    cuit,
+    ptoVta,
+    tipoCmp,
+    nroCmp,
+    importe: redondear2(total),
+    moneda: 'PES',
+    ctz: 1,
+    tipoDocRec: docTipo,
+    nroDocRec: Number(docNro),
+    tipoCodAut: 'E',
+    codAut: Number(cae),
+  };
+  return 'https://www.afip.gob.ar/fe/qr/?p=' + Buffer.from(JSON.stringify(datos)).toString('base64');
+}
+
+module.exports = { emitirFactura, emitirNotaCredito, urlQrComprobante };
