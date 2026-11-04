@@ -7337,9 +7337,10 @@ async function verDetalleVenta(id) {
   const notaCreditoHtml = venta.nc_cae
     ? `<p class="text-red"><b>Nota de crédito emitida:</b> ${venta.nc_numero_comprobante} &nbsp; <b>CAE:</b> ${venta.nc_cae} &nbsp; (${new Date(venta.nc_emitida_en).toLocaleDateString('es-AR')}) — esta factura quedó compensada ante ARCA.</p>`
     : '';
-  // La forma de pago solo se corrige en ventas Eventual: una factura ya
-  // informó a ARCA la condición de venta.
-  const puedeCambiarPago = !esSoloConsulta && venta.estado === 'cobrada' && venta.tipo_comprobante === 'Eventual' && !venta.cae;
+  // La forma de pago se corrige en Eventual y en Factura A/B. En las
+  // facturas el cambio es solo interno (caja): ARCA no recibe la forma de
+  // pago, así que no hay nada que informar.
+  const puedeCambiarPago = !esSoloConsulta && venta.estado === 'cobrada' && !venta.nc_cae;
   document.getElementById('detalleVentaContenido').innerHTML = `
     <p><b>Cliente:</b> ${venta.cliente ? venta.cliente.nombre : 'Consumidor Final'} &nbsp; <b>Estado:</b> ${venta.estado} &nbsp; <b>Comprobante:</b> ${venta.tipo_comprobante}</p>
     ${facturaHtml}
@@ -7398,6 +7399,7 @@ function renderDetPagoEditor() {
       <summary style="cursor:pointer"><b>Cambiar forma de pago</b></summary>
       <div style="margin-top:8px">
         ${filasHtml}
+        ${ventaDetalleActual && ventaDetalleActual.cae ? '<div class="notice" style="margin-bottom:8px">Es una factura: el cambio queda solo en el sistema (caja). En ARCA la factura no cambia.</div>' : ''}
         <button class="btn light" onclick="agregarFilaDetPago()">+ Agregar forma de pago</button>
         <div class="notice" style="margin-top:8px">Restante a asignar: $ <b id="detPagoRestante">0</b></div>
         <button class="btn primary" style="margin-top:8px" onclick="guardarFormaPagoDetalle()">Guardar forma de pago</button>
@@ -7425,7 +7427,7 @@ function quitarFilaDetPago(i) {
 async function guardarFormaPagoDetalle() {
   if (!ventaDetalleActual) return;
   const resumen = detPagoFilas.map((f) => `${f.forma_pago}: $ ${money.format(f.monto)}`).join(', ');
-  if (!confirm(`¿Cambiar la forma de pago de la venta N° ${ventaDetalleActual.numero} a: ${resumen}?\n\nEn la caja se descuenta lo cobrado antes y se ingresa con la forma nueva.`)) return;
+  if (!confirm(`¿Cambiar la forma de pago de la venta N° ${ventaDetalleActual.numero} a: ${resumen}?\n\nEn la caja se descuenta lo cobrado antes y se ingresa con la forma nueva.${ventaDetalleActual.cae ? '\n\nEs una factura: el cambio queda solo en el sistema, en ARCA no se modifica.' : ''}`)) return;
   const res = await fetch(`/api/ventas/${ventaDetalleActual.id}/pagos`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

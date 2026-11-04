@@ -814,8 +814,10 @@ const borrarDefinitivo = db.transaction((id) => {
 });
 
 // Corrige la forma de pago de una venta ya cobrada (ej. se cargó
-// "Transferencia" y era "Efectivo"). Solo para comprobantes "Eventual": una
-// Factura A/B ya informó la condición de venta a ARCA. El total no cambia.
+// "Transferencia" y era "Efectivo"). Vale para Eventual y para Factura A/B:
+// en las facturas solo se corrige en el sistema (para que cuadre la caja),
+// ante ARCA no cambia nada — el WSFE no informa la forma de pago. El total
+// no cambia.
 // Siguiendo el patrón de anular, no se borra nada de la caja: se agrega un
 // egreso por cada pago viejo y un ingreso por cada pago nuevo (en el turno
 // abierto), y la Cuenta Corriente se ajusta con movimientos inversos.
@@ -823,8 +825,8 @@ const cambiarFormaPago = db.transaction((id, { pagos, usuario_id, terminal } = {
   const venta = db.prepare('SELECT * FROM ventas WHERE id = ?').get(id);
   if (!venta) throw new Error('Venta no encontrada');
   if (venta.estado !== 'cobrada') throw new Error('Solo se puede cambiar la forma de pago de una venta cobrada');
-  if (venta.tipo_comprobante !== 'Eventual' || venta.cae) {
-    throw new Error('Solo se puede cambiar la forma de pago de una venta Eventual (no de una factura)');
+  if (venta.nc_cae) {
+    throw new Error('Esta factura ya tiene una nota de crédito emitida: no se puede cambiar la forma de pago');
   }
   if (!pagos || !pagos.length) throw new Error('Falta el detalle de pago');
   pagos = pagos.map((p) => ({ forma_pago: p.forma_pago, marca: p.marca || null, monto: Number(p.monto) || 0 }));
