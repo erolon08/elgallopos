@@ -4736,10 +4736,13 @@ function actualizarHorasAgenda() {
 }
 actualizarHorasAgenda();
 
+let agendaCache = [];
+
 async function cargarAgenda() {
   const estado = document.getElementById('agendaEstado').value;
   const url = estado ? `/api/agenda?estado=${estado}` : '/api/agenda';
   const filas = await (await fetch(url)).json();
+  agendaCache = filas;
   const tbody = document.getElementById('agendaBody');
   tbody.innerHTML = '';
   if (!filas.length) {
@@ -4748,10 +4751,11 @@ async function cargarAgenda() {
   }
   filas.forEach((a) => {
     const fecha = new Date(a.fecha + 'T00:00:00').toLocaleDateString('es-AR');
+    const copiar = `<button class="btn light" onclick="copiarAgendaTrabajo(${a.id})" title="Copiar como texto para mandarle al cerrajero por WhatsApp">📋 Copiar</button>`;
     const accion =
       a.estado === 'pendiente'
-        ? `<button class="btn primary" onclick="marcarAgendaHecho(${a.id})">✓ Hecho</button> <button class="btn light" onclick="borrarAgendaTrabajo(${a.id})">🗑</button>`
-        : `<span class="status s-ok">Hecho</span> <button class="btn light" onclick="borrarAgendaTrabajo(${a.id})">🗑</button>`;
+        ? `${copiar} <button class="btn primary" onclick="marcarAgendaHecho(${a.id})">✓ Hecho</button> <button class="btn light" onclick="borrarAgendaTrabajo(${a.id})">🗑</button>`
+        : `${copiar} <button class="btn light" onclick="borrarAgendaTrabajo(${a.id})">🗑</button>`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${fecha}</td>
@@ -4761,10 +4765,33 @@ async function cargarAgenda() {
       <td>${a.trabajo}</td>
       <td>${a.telefono || '—'}</td>
       <td>${a.estado === 'pendiente' ? '<span class="status s-warn">Pendiente</span>' : '<span class="status s-ok">Hecho</span>'}</td>
-      <td>${accion}</td>
+      <td style="white-space:nowrap">${accion}</td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+// Mismo formato que "Copiar" en Direcciones, con el día y el turno arriba
+// para que el cerrajero sepa cuándo tiene que ir.
+function textoAgendaParaCopiar(a) {
+  const fecha = new Date(a.fecha + 'T00:00:00').toLocaleDateString('es-AR');
+  const turno = a.turno === 'manana' ? 'Mañana' : a.turno === 'tarde' ? 'Tarde' : a.turno;
+  const hora = a.hora != null ? `, ${String(a.hora).padStart(2, '0')}:00 hs` : '';
+  const lineas = [`Fecha: ${fecha} — ${turno}${hora}`, `Dirección: ${a.direccion}`, `Trabajo: ${a.trabajo}`];
+  if (a.telefono) lineas.push(`Teléfono: ${a.telefono}`);
+  return lineas.join('\n');
+}
+
+async function copiarAgendaTrabajo(id) {
+  const a = agendaCache.find((x) => x.id === id);
+  if (!a) return;
+  const texto = textoAgendaParaCopiar(a);
+  const ok = await copiarTextoAlPortapapeles(texto);
+  if (ok) {
+    alert('Se copió al portapapeles. Pegalo (Ctrl+V) en el chat de WhatsApp del cerrajero.');
+  } else {
+    alert('No se pudo copiar automáticamente. Copiá este texto a mano:\n\n' + texto);
+  }
 }
 
 async function agregarAgendaTrabajo() {
