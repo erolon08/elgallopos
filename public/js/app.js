@@ -4721,8 +4721,8 @@ async function eliminarDireccion(id) {
 // AGENDA DE TRABAJO — direcciones agendadas para un día y turno puntual
 // (mañana 8 a 12:30hs, tarde 16 a 20:30hs), con cartel emergente cuando
 // llega el día y el turno para no pasarlas por alto. La hora puntual
-// (opcional) hace que el aviso salga 30 minutos antes de esa hora en vez
-// de recién al entrar toda la franja del turno.
+// (opcional) hace que el aviso salga 30 minutos antes de esa hora, y otra
+// vez 15 minutos antes, en vez de recién al entrar toda la franja del turno.
 // ============================================================
 const TURNO_LABEL_AGENDA = { manana: 'Mañana (8 a 12:30)', tarde: 'Tarde (16 a 20:30)' };
 const HORAS_POR_TURNO_AGENDA = { manana: [8, 9, 10, 11, 12], tarde: [16, 17, 18, 19, 20] };
@@ -4856,7 +4856,7 @@ function mostrarAvisoAgenda(texto, filas) {
     .map(
       (a) => `
       <div style="margin-bottom:8px;padding:8px 10px;background:var(--tint);border-radius:8px">
-        <b>${a.direccion}</b>${a.hora != null ? ` — ${String(a.hora).padStart(2, '0')}:00 hs` : ''}<br>${a.trabajo}${a.telefono ? ' — ' + a.telefono : ''}
+        <b>${a.direccion}</b>${a.hora != null ? ` — ${String(a.hora).padStart(2, '0')}:00 hs` : ''}${a.faltan != null ? ` <b style="color:var(--red)">(en ${a.faltan} min)</b>` : ''}<br>${a.trabajo}${a.telefono ? ' — ' + a.telefono : ''}
       </div>`
     )
     .join('');
@@ -4870,18 +4870,24 @@ async function chequearAgendaAviso() {
   const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
   const filas = await (await fetch(`/api/agenda?fecha=${hoy}&estado=pendiente`)).json();
 
-  // Con hora puntual: aviso individual 30 minutos antes de esa hora.
-  const paraAvisarPorHora = filas.filter((a) => {
-    if (a.hora == null || agendaAvisoYaMostrado.has('h' + a.id)) return false;
-    const minutosTrabajo = a.hora * 60;
-    return minutosAhora >= minutosTrabajo - 30 && minutosAhora < minutosTrabajo;
+  // Con hora puntual: dos avisos por trabajo, uno 30 minutos antes y otro 15
+  // minutos antes. Las ventanas no se pisan (30→15 y 15→0), así que si el
+  // sistema se abre cuando faltan menos de 15, sale directo el segundo.
+  const paraAvisarPorHora = [];
+  filas.forEach((a) => {
+    if (a.hora == null) return;
+    const faltan = a.hora * 60 - minutosAhora;
+    const aviso = faltan > 15 && faltan <= 30 ? 'h30' : faltan > 0 && faltan <= 15 ? 'h15' : null;
+    if (!aviso || agendaAvisoYaMostrado.has(aviso + a.id)) return;
+    agendaAvisoYaMostrado.add(aviso + a.id);
+    paraAvisarPorHora.push({ ...a, faltan });
   });
   if (paraAvisarPorHora.length) {
-    paraAvisarPorHora.forEach((a) => agendaAvisoYaMostrado.add('h' + a.id));
-    mostrarAvisoAgenda(
-      `Tiene ${paraAvisarPorHora.length > 1 ? 'trabajos agendados' : 'un trabajo agendado'} en media hora:`,
-      paraAvisarPorHora
-    );
+    const texto =
+      paraAvisarPorHora.length > 1
+        ? 'Tiene trabajos agendados en breve:'
+        : `Tiene un trabajo agendado en ${paraAvisarPorHora[0].faltan} minutos:`;
+    mostrarAvisoAgenda(texto, paraAvisarPorHora);
     return;
   }
 
