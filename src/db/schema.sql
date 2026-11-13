@@ -250,6 +250,7 @@ CREATE TABLE IF NOT EXISTS direcciones (
   trabajo TEXT NOT NULL,
   telefono TEXT,
   cerrajero_id INTEGER REFERENCES cerrajeros(id),
+  horario TEXT, -- 'HH:MM' opcional (cada 15 minutos), a qué hora hay que ir
   estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','convertida')),
   venta_id INTEGER REFERENCES ventas(id),
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
@@ -262,9 +263,9 @@ CREATE INDEX IF NOT EXISTS idx_direcciones_estado ON direcciones(estado);
 -- "direcciones" (esa es la cola de trabajos para pasar a venta ahora
 -- mismo); esto es para no olvidarse de un trabajo pactado para más
 -- adelante — dispara el cartel emergente cuando llega el día y el turno.
--- "hora" (8 a 12 en mañana, 16 a 20 en tarde) es opcional: si se carga,
--- el aviso sale 30 minutos antes de esa hora puntual en vez de recién al
--- entrar la franja completa del turno.
+-- "hora" + "minuto" (cada 15 minutos: 8:00 a 12:30 en mañana, 16:00 a
+-- 20:30 en tarde) es opcional: si se carga, el aviso sale 30 minutos antes
+-- de esa hora puntual en vez de recién al entrar la franja completa del turno.
 CREATE TABLE IF NOT EXISTS agenda_trabajos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   direccion TEXT NOT NULL,
@@ -273,6 +274,7 @@ CREATE TABLE IF NOT EXISTS agenda_trabajos (
   fecha TEXT NOT NULL,
   turno TEXT NOT NULL CHECK (turno IN ('manana','tarde')),
   hora INTEGER,
+  minuto INTEGER NOT NULL DEFAULT 0,
   estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','hecho')),
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

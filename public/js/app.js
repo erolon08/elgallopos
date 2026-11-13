@@ -4589,6 +4589,24 @@ async function borrarRendicionDefinitivo(id) {
 // ============================================================
 let direccionesCache = [];
 
+// Horarios elegibles cada 15 minutos (16:00, 16:15, 16:30, 16:45, 17:00...)
+// dentro de una franja [desde, hasta] en minutos desde las 00:00. Los usan
+// Direcciones y la Agenda de trabajo.
+function opcionesHorario15(desde, hasta) {
+  const ops = [];
+  for (let t = desde; t <= hasta; t += 15) {
+    const hhmm = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+    ops.push(`<option value="${hhmm}">${hhmm} hs</option>`);
+  }
+  return ops.join('');
+}
+
+// Direcciones: horario opcional, mañana 8:00 a 12:30 y tarde 16:00 a 20:30.
+document.getElementById('direccionInputHorario').innerHTML =
+  '<option value="">Sin horario</option>' +
+  `<optgroup label="Mañana">${opcionesHorario15(8 * 60, 12 * 60 + 30)}</optgroup>` +
+  `<optgroup label="Tarde">${opcionesHorario15(16 * 60, 20 * 60 + 30)}</optgroup>`;
+
 async function cargarDirecciones() {
   const buscar = document.getElementById('direccionesBuscar').value.trim();
   const estadoSelect = document.getElementById('direccionesEstado');
@@ -4608,7 +4626,7 @@ async function cargarDirecciones() {
   const tbody = document.getElementById('direccionesBody');
   tbody.innerHTML = '';
   if (!filas.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="small">No hay direcciones cargadas.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="small">No hay direcciones cargadas.</td></tr>';
     return;
   }
   filas.forEach((d) => {
@@ -4629,6 +4647,7 @@ async function cargarDirecciones() {
       <td>${d.trabajo}</td>
       <td>${d.telefono || '—'}</td>
       <td>${d.cerrajero_nombre || '—'}</td>
+      <td>${d.horario ? d.horario + ' hs' : '—'}</td>
       <td>${fechaHora}</td>
       <td><button class="btn light" onclick="copiarDireccion(${d.id})" title="Copiar como texto para pegar en WhatsApp">📋 Copiar</button> ${verVenta} ${accionesPendiente}</td>
     `;
@@ -4638,6 +4657,7 @@ async function cargarDirecciones() {
 
 function textoDireccionParaCopiar(d) {
   const lineas = [`Dirección: ${d.direccion}`, `Trabajo: ${d.trabajo}`];
+  if (d.horario) lineas.push(`Horario: ${d.horario} hs`);
   if (d.telefono) lineas.push(`Teléfono: ${d.telefono}`);
   if (d.cerrajero_nombre) lineas.push(`Cerrajero: ${d.cerrajero_nombre}`);
   return lineas.join('\n');
@@ -4690,6 +4710,7 @@ async function agregarDireccion() {
   const trabajo = document.getElementById('direccionInputTrabajo').value.trim();
   const telefono = document.getElementById('direccionInputTelefono').value.trim();
   const cerrajero_id = document.getElementById('direccionCerrajero').value || null;
+  const horario = document.getElementById('direccionInputHorario').value || null;
   if (!direccion || !trabajo) {
     alert('Completá dirección y trabajo a realizar.');
     return;
@@ -4697,7 +4718,7 @@ async function agregarDireccion() {
   const res = await fetch('/api/direcciones', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ direccion, trabajo, telefono, cerrajero_id }),
+    body: JSON.stringify({ direccion, trabajo, telefono, cerrajero_id, horario }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -4708,6 +4729,7 @@ async function agregarDireccion() {
   document.getElementById('direccionInputTrabajo').value = '';
   document.getElementById('direccionInputTelefono').value = '';
   document.getElementById('direccionCerrajero').value = '';
+  document.getElementById('direccionInputHorario').value = '';
   cargarDirecciones();
 }
 
@@ -4725,14 +4747,19 @@ async function eliminarDireccion(id) {
 // vez 15 minutos antes, en vez de recién al entrar toda la franja del turno.
 // ============================================================
 const TURNO_LABEL_AGENDA = { manana: 'Mañana (8 a 12:30)', tarde: 'Tarde (16 a 20:30)' };
-const HORAS_POR_TURNO_AGENDA = { manana: [8, 9, 10, 11, 12], tarde: [16, 17, 18, 19, 20] };
+// Franja de cada turno en minutos desde las 00:00; la hora se elige cada 15
+// minutos dentro de ella (8:00, 8:15, 8:30 ... 12:30).
+const FRANJA_POR_TURNO_AGENDA = { manana: [8 * 60, 12 * 60 + 30], tarde: [16 * 60, 20 * 60 + 30] };
 
 function actualizarHorasAgenda() {
   const turno = document.getElementById('agendaInputTurno').value;
   const sel = document.getElementById('agendaInputHora');
-  sel.innerHTML =
-    '<option value="">Sin hora puntual</option>' +
-    HORAS_POR_TURNO_AGENDA[turno].map((h) => `<option value="${h}">${String(h).padStart(2, '0')}:00 hs</option>`).join('');
+  sel.innerHTML = '<option value="">Sin hora puntual</option>' + opcionesHorario15(...FRANJA_POR_TURNO_AGENDA[turno]);
+}
+
+// "16:15" a partir de las columnas hora + minuto (minuto falta en filas viejas).
+function horaAgendaTexto(a) {
+  return `${String(a.hora).padStart(2, '0')}:${String(a.minuto || 0).padStart(2, '0')}`;
 }
 actualizarHorasAgenda();
 
@@ -4760,7 +4787,7 @@ async function cargarAgenda() {
     tr.innerHTML = `
       <td>${fecha}</td>
       <td>${TURNO_LABEL_AGENDA[a.turno] || a.turno}</td>
-      <td>${a.hora != null ? String(a.hora).padStart(2, '0') + ':00' : '—'}</td>
+      <td>${a.hora != null ? horaAgendaTexto(a) : '—'}</td>
       <td>${a.direccion}</td>
       <td>${a.trabajo}</td>
       <td>${a.telefono || '—'}</td>
@@ -4776,7 +4803,7 @@ async function cargarAgenda() {
 function textoAgendaParaCopiar(a) {
   const fecha = new Date(a.fecha + 'T00:00:00').toLocaleDateString('es-AR');
   const turno = a.turno === 'manana' ? 'Mañana' : a.turno === 'tarde' ? 'Tarde' : a.turno;
-  const hora = a.hora != null ? `, ${String(a.hora).padStart(2, '0')}:00 hs` : '';
+  const hora = a.hora != null ? `, ${horaAgendaTexto(a)} hs` : '';
   const lineas = [`Fecha: ${fecha} — ${turno}${hora}`, `Dirección: ${a.direccion}`, `Trabajo: ${a.trabajo}`];
   if (a.telefono) lineas.push(`Teléfono: ${a.telefono}`);
   return lineas.join('\n');
@@ -4856,7 +4883,7 @@ function mostrarAvisoAgenda(texto, filas) {
     .map(
       (a) => `
       <div style="margin-bottom:8px;padding:8px 10px;background:var(--tint);border-radius:8px">
-        <b>${a.direccion}</b>${a.hora != null ? ` — ${String(a.hora).padStart(2, '0')}:00 hs` : ''}${a.faltan != null ? ` <b style="color:var(--red)">(en ${a.faltan} min)</b>` : ''}<br>${a.trabajo}${a.telefono ? ' — ' + a.telefono : ''}
+        <b>${a.direccion}</b>${a.hora != null ? ` — ${horaAgendaTexto(a)} hs` : ''}${a.faltan != null ? ` <b style="color:var(--red)">(en ${a.faltan} min)</b>` : ''}<br>${a.trabajo}${a.telefono ? ' — ' + a.telefono : ''}
       </div>`
     )
     .join('');
@@ -4876,7 +4903,7 @@ async function chequearAgendaAviso() {
   const paraAvisarPorHora = [];
   filas.forEach((a) => {
     if (a.hora == null) return;
-    const faltan = a.hora * 60 - minutosAhora;
+    const faltan = a.hora * 60 + (a.minuto || 0) - minutosAhora;
     const aviso = faltan > 15 && faltan <= 30 ? 'h30' : faltan > 0 && faltan <= 15 ? 'h15' : null;
     if (!aviso || agendaAvisoYaMostrado.has(aviso + a.id)) return;
     agendaAvisoYaMostrado.add(aviso + a.id);

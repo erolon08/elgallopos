@@ -34,14 +34,25 @@ function obtener(id) {
   return db.prepare(`${SELECT_CON_CERRAJERO} WHERE d.id = ?`).get(id);
 }
 
+// Horario opcional "HH:MM", cada 15 minutos (ej. 16:00, 16:15, 16:30, 16:45).
+function normalizarHorario(horario) {
+  if (horario === undefined || horario === null || String(horario).trim() === '') return null;
+  const m = String(horario).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m || Number(m[1]) > 23 || Number(m[2]) % 15 !== 0 || Number(m[2]) > 45) {
+    throw new Error('El horario tiene que ser cada 15 minutos (ej. 16:00, 16:15, 16:30, 16:45)');
+  }
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+}
+
 function crear(datos) {
   const direccion = String(datos.direccion || '').trim();
   const trabajo = String(datos.trabajo || '').trim();
   if (!direccion) throw new Error('Falta la dirección');
   if (!trabajo) throw new Error('Falta el trabajo a realizar');
+  const horario = normalizarHorario(datos.horario);
   const info = db
-    .prepare('INSERT INTO direcciones (direccion, trabajo, telefono, cerrajero_id) VALUES (?, ?, ?, ?)')
-    .run(direccion, trabajo, datos.telefono || null, datos.cerrajero_id || null);
+    .prepare('INSERT INTO direcciones (direccion, trabajo, telefono, cerrajero_id, horario) VALUES (?, ?, ?, ?, ?)')
+    .run(direccion, trabajo, datos.telefono || null, datos.cerrajero_id || null, horario);
   return obtener(info.lastInsertRowid);
 }
 

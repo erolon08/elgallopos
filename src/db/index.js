@@ -91,6 +91,8 @@ ensureColumn('cerrajeros', 'cable_fijo', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('cerrajeros', 'cable_desde', 'TEXT');
 ensureColumn('cerrajeros', 'cable_dias', 'INTEGER NOT NULL DEFAULT 20');
 ensureColumn('agenda_trabajos', 'hora', 'INTEGER');
+ensureColumn('agenda_trabajos', 'minuto', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('direcciones', 'horario', 'TEXT');
 // Va acá (no en schema.sql) porque necesita que la columna de arriba ya
 // exista: en una base migrada, schema.sql corre ANTES que estos
 // ensureColumn, así que un CREATE INDEX sobre esa columna ahí arriba

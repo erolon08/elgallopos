@@ -787,6 +787,7 @@
             <div class="field" style="flex:2"><label>Trabajo a realizar</label><input id="direccionInputTrabajo" placeholder="Ej: Apertura de puerta (1001)"></div>
             <div class="field"><label>Teléfono</label><input id="direccionInputTelefono" placeholder="Ej: 3794 123456"></div>
             <div class="field"><label>Cerrajero</label><select id="direccionCerrajero"><option value="">Sin asignar</option></select></div>
+            <div class="field"><label>Horario (opcional)</label><select id="direccionInputHorario"></select></div>
             <button class="btn primary" onclick="agregarDireccion()">+ Agregar</button>
           </div>
         </div>
@@ -806,7 +807,7 @@
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Dirección</th><th>Trabajo</th><th>Teléfono</th><th>Cerrajero</th><th>Fecha</th><th></th></tr></thead>
+              <thead><tr><th>Dirección</th><th>Trabajo</th><th>Teléfono</th><th>Cerrajero</th><th>Horario</th><th>Fecha</th><th></th></tr></thead>
               <tbody id="direccionesBody"></tbody>
             </table>
           </div>
