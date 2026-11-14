@@ -3957,12 +3957,14 @@ function limpiarRendicionPreview() {
 function renderRendicionDescuentos() {
   const cont = document.getElementById('rendDescuentosBody');
   cont.innerHTML = '';
-  const aporte = rendicionPreviewActual.cerrajero.aporte_fijo;
-  if (aporte > 0) {
+  // El server decide si corresponde el aporte (los sábados no se descuenta).
+  const aporteFijo = rendicionPreviewActual.cerrajero.aporte_fijo;
+  const aporte = rendicionPreviewActual.aporte || 0;
+  if (aporteFijo > 0) {
     const div = document.createElement('div');
     div.className = 'small';
     div.style.marginBottom = '4px';
-    div.textContent = `Aporte fijo: $ ${money.format(aporte)}`;
+    div.textContent = aporte > 0 ? `Aporte fijo: $ ${money.format(aporte)}` : 'Aporte fijo: no se descuenta (sábado).';
     cont.appendChild(div);
   }
   const estacionamiento = rendicionPreviewActual.cerrajero.estacionamiento_fijo;
@@ -4034,7 +4036,7 @@ function guardarGastoExtraRendicion() {
 function actualizarTotalesRendicionPreview() {
   const total_bruto = rendicionPreviewActual.total_bruto;
   const pct = rendicionPreviewActual.cerrajero.porcentaje_rendicion;
-  const aporte = rendicionPreviewActual.cerrajero.aporte_fijo || 0;
+  const aporte = rendicionPreviewActual.aporte || 0;
   const estacionamiento = rendicionPreviewActual.cerrajero.estacionamiento_fijo || 0;
   const cable = rendicionPreviewActual.cable ? rendicionPreviewActual.cable.monto_dia * rendicionPreviewActual.cable.dias.length : 0;
   const adelantos = rendicionDescuentosExtra

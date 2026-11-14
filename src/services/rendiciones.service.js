@@ -166,6 +166,26 @@ function diasCable(cerrajero, filtros) {
   return { ...vacio, ya_cobrados: cobrados.size, dias };
 }
 
+// El aporte fijo no se descuenta los sábados: solo corresponde si en los
+// rangos de la rendición hay al menos un día de lunes a viernes. Una
+// rendición de un sábado solo (o sábado y domingo) va sin aporte. Los
+// feriados no se detectan solos: ese aporte se saca a mano desde la
+// rendición ya generada (✕ en el descuento).
+function correspondeAporte(filtros) {
+  for (const f of filtros) {
+    // En UTC para que el cambio de horario no corra los días.
+    for (let d = new Date(f.fecha_desde + 'T00:00:00Z'); isoDia(d) <= f.fecha_hasta; d.setUTCDate(d.getUTCDate() + 1)) {
+      const dow = d.getUTCDay();
+      if (dow >= 1 && dow <= 5) return true;
+    }
+  }
+  return false;
+}
+
+function aporteAplicable(cerrajero, filtros) {
+  return cerrajero.aporte_fijo > 0 && correspondeAporte(filtros) ? cerrajero.aporte_fijo : 0;
+}
+
 // filtros: [{ fecha_desde, fecha_hasta, tipo }, ...] — uno o más rangos/tipos
 // combinados en un mismo cálculo (ver elegiblesMultiple).
 function previsualizar({ cerrajero_id, filtros }) {
@@ -176,7 +196,8 @@ function previsualizar({ cerrajero_id, filtros }) {
   const detalle = calcularDetalle(rows, cerrajero);
   const total_bruto = detalle.reduce((s, d) => s + d.monto_rendido, 0);
   const cable = diasCable(cerrajero, filtros);
-  return { cerrajero, detalle, total_bruto, cable };
+  const aporte = aporteAplicable(cerrajero, filtros);
+  return { cerrajero, detalle, total_bruto, cable, aporte };
 }
 
 const TIPOS_DESCUENTO_EXTRA = ['repuesto', 'otro', 'adelanto'];
@@ -216,8 +237,9 @@ function generar({ cerrajero_id, filtros, descuentos_extra = [] }) {
   const fecha_hasta = filtros.reduce((max, f) => (f.fecha_hasta > max ? f.fecha_hasta : max), filtros[0].fecha_hasta);
 
   const descuentos = [];
-  if (cerrajero.aporte_fijo > 0) {
-    descuentos.push({ tipo: 'aporte', descripcion: 'Aporte fijo', monto: cerrajero.aporte_fijo, fecha: null });
+  const aporte = aporteAplicable(cerrajero, filtros);
+  if (aporte > 0) {
+    descuentos.push({ tipo: 'aporte', descripcion: 'Aporte fijo', monto: aporte, fecha: null });
   }
   if (cerrajero.estacionamiento_fijo > 0) {
     descuentos.push({ tipo: 'estacionamiento', descripcion: 'Estacionamiento fijo', monto: cerrajero.estacionamiento_fijo, fecha: null });
