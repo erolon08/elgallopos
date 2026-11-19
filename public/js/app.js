@@ -518,6 +518,7 @@ function toggleCamposPorFamilia() {
   document.getElementById('prodCamposNormales').style.display = esServicio ? 'none' : 'block';
   document.getElementById('prodCamposServicio').style.display = esServicio ? 'block' : 'none';
   document.getElementById('prodCostoField').style.display = esServicio ? 'none' : 'flex';
+  document.getElementById('prodMargenField').style.display = esServicio ? 'none' : 'flex';
   // Familias de precio único (ej. DUPLICADOS): un solo precio, sin la regla
   // de descuento débito/efectivo ni el checkbox que la activa/desactiva.
   document.getElementById('prodReglaAutomaticaRow').style.display = precioUnico ? 'none' : 'block';
@@ -554,9 +555,30 @@ function recalcularPreview() {
   document.getElementById('prodPrecioEfectivo').value = roundUpTo100(precioFinal * (1 - familia.descuento_efectivo / 100));
 }
 
+// El margen sale de la familia; se puede cambiar en la ficha para este cálculo
+// puntual (no se guarda en el producto).
+function cargarMargenDeFamilia() {
+  const familia = familiasCache.find((f) => String(f.id) === String(document.getElementById('prodFamiliaSel').value));
+  document.getElementById('prodMargen').value = familia && familia.margen != null ? familia.margen : 115;
+}
+
+// Al escribir el costo (o cambiar el margen): precio final = costo × (1 +
+// margen), redondeado hacia arriba a $100, y de ahí débito y efectivo con los
+// descuentos de la familia (recalcularPreview, si la regla automática está
+// prendida). Solo corre cuando se escribe: abrir un producto no le cambia
+// los precios que ya tiene.
+function calcularPreciosDesdeCosto() {
+  const costo = Number(document.getElementById('prodCosto').value) || 0;
+  const margen = Number(document.getElementById('prodMargen').value);
+  if (!(costo > 0) || !Number.isFinite(margen)) return;
+  document.getElementById('prodPrecioFinal').value = roundUpTo100(costo * (1 + margen / 100));
+  recalcularPreview();
+}
+
 document.getElementById('prodFamiliaSel').addEventListener('change', () => {
   updateRendicionFieldVisibility();
   toggleCamposPorFamilia();
+  cargarMargenDeFamilia();
   recalcularPreview();
 });
 
@@ -605,6 +627,7 @@ async function openProducto(id) {
     document.getElementById('prodPrecioFinalPrueba').value = '';
     document.getElementById('prodFavorito').checked = !!p.favorito;
     document.getElementById('prodEsPila').checked = !!p.es_pila;
+    cargarMargenDeFamilia();
     updateRendicionFieldVisibility();
     toggleCamposPorFamilia();
     toggleReglaAutomatica();
@@ -628,6 +651,7 @@ async function openProducto(id) {
     document.getElementById('prodPrecioFinalPrueba').value = '';
     document.getElementById('prodFavorito').checked = false;
     document.getElementById('prodEsPila').checked = false;
+    cargarMargenDeFamilia();
     updateRendicionFieldVisibility();
     toggleCamposPorFamilia();
     toggleReglaAutomatica();
@@ -833,6 +857,7 @@ function filaFamilia(f) {
     : '<span class="status s-bad">Inactiva</span>';
   tr.innerHTML = `
     <td>${f.nombre}</td>
+    <td>${f.margen ?? 115}%</td>
     <td>${f.descuento_debito}%</td>
     <td>${f.descuento_efectivo}%</td>
     <td>${f.usa_precio_rendicion ? 'Sí' : '—'}</td>
@@ -858,6 +883,7 @@ async function openFamilia(id) {
     document.getElementById('famNombre').value = f.nombre;
     document.getElementById('famDebito').value = f.descuento_debito;
     document.getElementById('famEfectivo').value = f.descuento_efectivo;
+    document.getElementById('famMargen').value = f.margen ?? 115;
     document.getElementById('famUsaRendicion').checked = !!f.usa_precio_rendicion;
     document.getElementById('famUsaManoObra').checked = !!f.usa_mano_obra;
     document.getElementById('famPreguntaPila').checked = !!f.pregunta_pila;
@@ -866,6 +892,7 @@ async function openFamilia(id) {
     document.getElementById('famNombre').value = '';
     document.getElementById('famDebito').value = 20;
     document.getElementById('famEfectivo').value = 30;
+    document.getElementById('famMargen').value = 115;
     document.getElementById('famUsaRendicion').checked = false;
     document.getElementById('famUsaManoObra').checked = false;
     document.getElementById('famPreguntaPila').checked = false;
@@ -884,6 +911,7 @@ async function guardarFamilia() {
     nombre: document.getElementById('famNombre').value.trim(),
     descuento_debito: Number(document.getElementById('famDebito').value) || 0,
     descuento_efectivo: Number(document.getElementById('famEfectivo').value) || 0,
+    margen: document.getElementById('famMargen').value,
     usa_precio_rendicion: document.getElementById('famUsaRendicion').checked,
     usa_mano_obra: document.getElementById('famUsaManoObra').checked,
     pregunta_pila: document.getElementById('famPreguntaPila').checked,

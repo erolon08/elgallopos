@@ -326,7 +326,7 @@
           <div class="section-title"><h3>Familias</h3><button class="btn primary" onclick="openFamilia()">+ Nueva familia</button></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Nombre</th><th>Desc. Débito</th><th>Desc. Efectivo</th><th>Precio rendición</th><th>Mano de obra</th><th>Estado</th><th></th></tr></thead>
+              <thead><tr><th>Nombre</th><th>Margen</th><th>Desc. Débito</th><th>Desc. Efectivo</th><th>Precio rendición</th><th>Mano de obra</th><th>Estado</th><th></th></tr></thead>
               <tbody id="familiasBody"></tbody>
             </table>
           </div>
@@ -1394,7 +1394,8 @@
       <div class="field"><label>Proveedor</label>
         <select id="prodProveedorSel"><option value="">Sin proveedor</option><option value="__nuevo__">+ Nuevo proveedor...</option></select>
       </div>
-      <div class="field" id="prodCostoField"><label>Costo</label><input id="prodCosto" type="number" step="any"></div>
+      <div class="field" id="prodCostoField"><label>Costo</label><input id="prodCosto" type="number" step="any" oninput="calcularPreciosDesdeCosto()"></div>
+      <div class="field" id="prodMargenField"><label>Margen sobre el costo (%)</label><input id="prodMargen" type="number" step="any" oninput="calcularPreciosDesdeCosto()" title="Viene de la familia. Al escribir el costo, el precio final se calcula con este margen, redondeado hacia arriba a $100"></div>
       <div class="field"><label>Stock mínimo</label><input id="prodStockMinimo" type="number" step="any"></div>
       <div class="field"><label>IVA (%)</label><input id="prodIva" type="number" step="any" value="21"></div>
       <div class="field" id="prodRendicionField" style="display:none"><label>Precio de rendición (duplicados)</label><input id="prodPrecioRendicion" type="number" step="any"></div>
@@ -1449,6 +1450,7 @@
       <div class="field"><label>Nombre</label><input id="famNombre"></div>
       <div class="field"><label>Descuento Débito (%)</label><input id="famDebito" type="number" step="any" value="20"></div>
       <div class="field"><label>Descuento Efectivo (%)</label><input id="famEfectivo" type="number" step="any" value="30"></div>
+      <div class="field"><label>Margen sobre el costo (%)</label><input id="famMargen" type="number" step="any" value="115" title="Al cargar el costo de un producto de esta familia, el precio final se calcula con este margen (ej. 115% → costo × 2,15)"></div>
     </div>
     <label style="display:block;margin:12px 0 4px"><input type="checkbox" id="famUsaRendicion"> Usa precio de rendición por producto (ej. duplicados de llaves)</label>
     <label style="display:block;margin:4px 0"><input type="checkbox" id="famUsaManoObra"> Genera mano de obra para rendición de cerrajeros (ej. servicios)</label>

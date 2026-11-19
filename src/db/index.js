@@ -61,6 +61,7 @@ ensureColumn('configuracion', 'mp_pos_external_id', 'TEXT');
 ensureColumn('configuracion', 'mp_qr_fijo_image_url', 'TEXT');
 ensureColumn('configuracion', 'mp_qr_fijo_template_url', 'TEXT');
 ensureColumn('familias', 'pregunta_pila', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('familias', 'margen', 'REAL NOT NULL DEFAULT 115');
 ensureColumn('productos', 'es_pila', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('venta_items', 'pila_producto_id', 'INTEGER REFERENCES productos(id)');
 ensureColumn('presupuesto_items', 'pila_producto_id', 'INTEGER REFERENCES productos(id)');

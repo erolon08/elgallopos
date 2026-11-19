@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS familias (
   nombre TEXT NOT NULL UNIQUE,
   descuento_debito REAL NOT NULL DEFAULT 20,   -- % que se resta del precio final
   descuento_efectivo REAL NOT NULL DEFAULT 30, -- % que se resta del precio final
+  margen REAL NOT NULL DEFAULT 115,            -- % sobre el costo: al cargar el costo de un producto se calcula el precio final
   usa_precio_rendicion INTEGER NOT NULL DEFAULT 0, -- ej: DUPLICADOS
   usa_mano_obra INTEGER NOT NULL DEFAULT 0,        -- ej: SERVICIOS
   pregunta_pila INTEGER NOT NULL DEFAULT 0,        -- ej: CODIFICADOS (pregunta qué pila se usó al vender)
