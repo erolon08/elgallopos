@@ -4564,7 +4564,6 @@ function construirRendicionA4Html(r) {
         <div class="a4-total">TOTAL A PAGAR<br>$${money.format(r.total_pagar)}</div>
       </div>
     </div>
-    ${cfg.ticket_pie ? `<p class="a4-muted">${cfg.ticket_pie.replace(/\n/g, '<br>')}</p>` : ''}
     <p class="a4-muted a4-impreso">Impreso: ${new Date().toLocaleDateString('es-AR')}</p>
   `;
 }
@@ -4676,7 +4675,6 @@ function construirTicketRendicionHtml(r) {
     ${fila('Descuentos', `${r.total_descuentos ? '-' : ''}$${money.format(r.total_descuentos)}`)}
     <div class="tk-total"><span>A PAGAR</span><span>$${money.format(r.total_pagar)}</span></div>
     <div class="tk-firma">______________________________<br>Recibí conforme la suma acordada<br>Firma y aclaración</div>
-    ${ticketPieHtml()}
   `;
 }
 
