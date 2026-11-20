@@ -1566,6 +1566,7 @@ function mostrarTicketCtaCte(data) {
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   document.getElementById('btnTicketCajaFuerte').style.display = 'none';
+  document.getElementById('btnTicketRendicion').style.display = 'none';
   mostrarTicketComoTermico(construirTicketCtaCteHtml(data));
   showScreen('ticket-screen');
 }
@@ -2011,12 +2012,15 @@ function construirCierreA4Html(t) {
 // El ticket térmico y el A4 comparten la misma pantalla (#ticket-screen);
 // según el tipo de documento se muestra uno u otro, ocultando y vaciando el
 // que no corresponde para no dejar contenido viejo pisado atrás.
-function mostrarTicketComoTermico(html) {
+// fuerte: letra más grande y gruesa, todo negro (ver .ticket-fuerte en
+// styles.css), para tickets que en la térmica salían muy claros.
+function mostrarTicketComoTermico(html, { fuerte = false } = {}) {
   const elA4 = document.getElementById('ticketA4Contenido');
   elA4.style.display = 'none';
   elA4.innerHTML = '';
   const el = document.getElementById('ticketContenido');
   el.style.display = '';
+  el.classList.toggle('ticket-fuerte', fuerte);
   el.innerHTML = html;
 }
 function mostrarTicketComoA4(html) {
@@ -2041,6 +2045,7 @@ async function mostrarTicketCierre(t) {
   // mandó algo a caja fuerte en este cierre (si todo quedó de fondo para el
   // próximo turno, no hay nada que abrochar).
   document.getElementById('btnTicketCajaFuerte').style.display = montoCajaFuerteDe(t) > 0 ? '' : 'none';
+  document.getElementById('btnTicketRendicion').style.display = 'none';
   mostrarTicketComoA4(construirCierreA4Html(t));
   showScreen('ticket-screen');
 }
@@ -4575,8 +4580,104 @@ async function mostrarTicketRendicion(id) {
   document.getElementById('btnEditarTicketRendicion').style.display = r.estado === 'generada' ? '' : 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   document.getElementById('btnTicketCajaFuerte').style.display = 'none';
-  mostrarTicketComoA4(construirRendicionA4Html(r));
+  document.getElementById('btnTicketRendicion').style.display = '';
+  aplicarVistaRendicion();
   showScreen('ticket-screen');
+}
+
+// La rendición se puede ver en hoja A4 o en tamaño ticket (térmica). Se
+// recuerda la última elección en esta PC, así quien siempre la imprime en la
+// térmica no tiene que cambiarla cada vez.
+let vistaRendicion = (() => {
+  try {
+    return localStorage.getItem('gallo.vistaRendicion') === 'ticket' ? 'ticket' : 'a4';
+  } catch {
+    return 'a4';
+  }
+})();
+
+function aplicarVistaRendicion() {
+  if (!ultimoDocumentoParaTicket || ultimoDocumentoParaTicket.tipo !== 'rendicion') return;
+  const r = ultimoDocumentoParaTicket.data;
+  const enTicket = vistaRendicion === 'ticket';
+  if (enTicket) {
+    mostrarTicketComoTermico(construirTicketRendicionHtml(r), { fuerte: true });
+  } else {
+    mostrarTicketComoA4(construirRendicionA4Html(r));
+  }
+  document.getElementById('btnTicketRendicion').innerHTML = enTicket
+    ? '📄 Ver en hoja A4 <span class="key key-dark">F4</span>'
+    : '🧾 Ver en tamaño ticket <span class="key key-dark">F4</span>';
+  // PDF e imagen A4 toman la hoja A4 que está en pantalla.
+  document.getElementById('btnDescargarPdfA4').style.display = enTicket ? 'none' : '';
+  document.getElementById('btnEnviarImagenA4Whatsapp').style.display = enTicket ? 'none' : '';
+}
+
+function alternarVistaRendicion() {
+  vistaRendicion = vistaRendicion === 'ticket' ? 'a4' : 'ticket';
+  try {
+    localStorage.setItem('gallo.vistaRendicion', vistaRendicion);
+  } catch {
+    // Sin localStorage se cambia igual, solo que no se recuerda al recargar.
+  }
+  aplicarVistaRendicion();
+}
+
+const fechaCortaAR = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '');
+
+function construirTicketRendicionHtml(r) {
+  const fila = (izq, der, extra = '') => `<div class="tk-fila"${extra}><span>${izq}</span><b>${der}</b></div>`;
+  const seccion = (titulo, contenido) => (contenido ? `<div class="tk-seccion">${titulo}</div>${contenido}` : '');
+
+  // Igual que en la hoja A4: líneas iguales se agrupan con la cantidad sumada.
+  const agrupar = (lineas) => {
+    const grupos = {};
+    lineas.forEach((d) => {
+      if (!grupos[d.descripcion]) grupos[d.descripcion] = { descripcion: d.descripcion, cantidad: 0, monto_rendido: 0 };
+      grupos[d.descripcion].cantidad += Number(d.cantidad) || 0;
+      grupos[d.descripcion].monto_rendido += d.monto_rendido;
+    });
+    return Object.values(grupos)
+      .map((g) => fila(`${g.cantidad} x ${escapeHtml(g.descripcion)}`, `$${money.format(g.monto_rendido)}`))
+      .join('');
+  };
+  const duplicados = agrupar(r.detalle.filter((d) => d.tipo === 'duplicado'));
+  const codificados = agrupar(r.detalle.filter((d) => d.tipo === 'codificado'));
+  const servicios = r.detalle
+    .filter((d) => d.tipo === 'servicio')
+    .map(
+      (d) =>
+        `<div class="tk-item">${d.cantidad > 1 ? d.cantidad + ' x ' : ''}${escapeHtml(d.descripcion)}</div>` +
+        fila(`&nbsp;&nbsp;$${money.format(d.monto_base)} × ${d.porcentaje}%`, `$${money.format(d.monto_rendido)}`)
+    )
+    .join('');
+  const descuentos = r.descuentos
+    .map((d) => {
+      const tipo = TIPO_DESCUENTO_LABEL[d.tipo] || d.tipo;
+      // El aporte/estacionamiento fijo traen como descripción el mismo nombre del tipo.
+      const desc = d.descripcion && d.descripcion.toLowerCase() !== tipo.toLowerCase() ? ' ' + escapeHtml(d.descripcion) : '';
+      return fila(tipo + desc, `-$${money.format(d.monto)}`);
+    })
+    .join('');
+
+  return `
+    ${ticketEncabezadoHtml()}
+    <div class="tk-titulo">RENDICIÓN N° ${r.id}</div>
+    <div class="center">${r.estado === 'pagada' ? 'PAGADA' : 'GENERADA'} · ${new Date(r.creado_en).toLocaleString('es-AR')}</div>
+    <hr>
+    <div class="tk-grande">${escapeHtml(r.cerrajero_nombre || '')}</div>
+    <div>Período: ${fechaCortaAR(r.fecha_desde)} al ${fechaCortaAR(r.fecha_hasta)}</div>
+    ${seccion('DUPLICADOS', duplicados)}
+    ${seccion('CODIFICADOS', codificados)}
+    ${seccion('SERVICIOS', servicios)}
+    ${seccion('DESCUENTOS', descuentos)}
+    <hr>
+    ${fila('Total bruto', `$${money.format(r.total_bruto)}`)}
+    ${fila('Descuentos', `-$${money.format(r.total_descuentos)}`)}
+    <div class="tk-total"><span>A PAGAR</span><span>$${money.format(r.total_pagar)}</span></div>
+    <div class="tk-firma">Firma: ______________________</div>
+    ${ticketPieHtml()}
+  `;
 }
 
 async function marcarRendicionPagada(id) {
@@ -6317,7 +6418,7 @@ document.addEventListener('keydown', (e) => {
       F7: 'btnEnviarImagenA4Whatsapp',
       F6: 'copiarImagenTicket()',
       F5: document.getElementById('btnEditarTicketRendicion').style.display !== 'none' ? 'btnEditarTicketRendicion' : 'btnEditarTicketCierre',
-      F4: 'btnTicketCajaFuerte',
+      F4: document.getElementById('btnTicketRendicion').style.display !== 'none' ? 'btnTicketRendicion' : 'btnTicketCajaFuerte',
     };
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -6549,6 +6650,7 @@ async function mostrarTicket(venta) {
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   document.getElementById('btnTicketCajaFuerte').style.display = 'none';
+  document.getElementById('btnTicketRendicion').style.display = 'none';
   const esFiscal = esFacturaFiscal('venta', venta);
   const fecha = new Date(venta.cobrado_en || venta.creado_en).toLocaleString('es-AR');
   const lineasHtml = venta.items
@@ -6626,6 +6728,7 @@ async function mostrarTicketPresupuesto(presupuesto) {
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   document.getElementById('btnTicketCajaFuerte').style.display = 'none';
+  document.getElementById('btnTicketRendicion').style.display = 'none';
   const fecha = new Date(presupuesto.creado_en).toLocaleString('es-AR');
   const desglose = calcularDesglosePresupuesto(presupuesto);
   const lineasHtml = desglose.lineas
@@ -8050,6 +8153,7 @@ async function verResumenVentasA4() {
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   document.getElementById('btnTicketCajaFuerte').style.display = 'none';
+  document.getElementById('btnTicketRendicion').style.display = 'none';
   mostrarTicketComoA4(html);
   showScreen('ticket-screen');
 }
@@ -8102,6 +8206,7 @@ async function verResumenRendicionesA4() {
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   document.getElementById('btnTicketCajaFuerte').style.display = 'none';
+  document.getElementById('btnTicketRendicion').style.display = 'none';
   mostrarTicketComoA4(html);
   showScreen('ticket-screen');
 }
@@ -8150,6 +8255,7 @@ async function verResumenGastosA4() {
   document.getElementById('btnEditarTicketRendicion').style.display = 'none';
   document.getElementById('btnEditarTicketCierre').style.display = 'none';
   document.getElementById('btnTicketCajaFuerte').style.display = 'none';
+  document.getElementById('btnTicketRendicion').style.display = 'none';
   mostrarTicketComoA4(html);
   showScreen('ticket-screen');
 }
