@@ -305,7 +305,7 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .ticket-fuerte .tk-fila b{white-space:nowrap;font-weight:900}
 .ticket-fuerte .tk-item{margin-top:3px}
 .ticket-fuerte .tk-total{display:flex;justify-content:space-between;border:3px solid #000;font-size:20px;font-weight:900;padding:6px 8px;margin-top:8px}
-.ticket-fuerte .tk-firma{margin-top:26px}
+.ticket-fuerte .tk-firma{margin-top:34px;text-align:center}
 .ticket-logo{display:block;width:70px;height:70px;object-fit:contain;margin:0 auto 4px}
 .ticket-total{border:2px solid #000;border-radius:4px;padding:6px 10px;margin:8px 0;font-size:16px;font-weight:900;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .ticket-total-sub{font-weight:800;font-size:14px}
