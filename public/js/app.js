@@ -4557,7 +4557,7 @@ function construirRendicionA4Html(r) {
         : ''
     }
     <div class="a4-abajo">
-      <div class="a4-observaciones">Observaciones / Recibí conforme (firma y aclaración)</div>
+      <div class="a4-observaciones">Observaciones / Recibí conforme la suma acordada (firma y aclaración)</div>
       <div style="display:flex;flex-direction:column;gap:6px">
         <div class="a4-total">TOTAL BRUTO<br>$${money.format(r.total_bruto)}</div>
         <div class="a4-total">TOTAL DESCUENTOS<br>$${money.format(r.total_descuentos)}</div>
@@ -4675,7 +4675,7 @@ function construirTicketRendicionHtml(r) {
     ${fila('Total bruto', `$${money.format(r.total_bruto)}`)}
     ${fila('Descuentos', `${r.total_descuentos ? '-' : ''}$${money.format(r.total_descuentos)}`)}
     <div class="tk-total"><span>A PAGAR</span><span>$${money.format(r.total_pagar)}</span></div>
-    <div class="tk-firma">______________________________<br>Recibí conforme<br>Firma y aclaración</div>
+    <div class="tk-firma">______________________________<br>Recibí conforme la suma acordada<br>Firma y aclaración</div>
     ${ticketPieHtml()}
   `;
 }
