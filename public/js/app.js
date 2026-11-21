@@ -2012,15 +2012,12 @@ function construirCierreA4Html(t) {
 // El ticket térmico y el A4 comparten la misma pantalla (#ticket-screen);
 // según el tipo de documento se muestra uno u otro, ocultando y vaciando el
 // que no corresponde para no dejar contenido viejo pisado atrás.
-// fuerte: letra más grande y gruesa, todo negro (ver .ticket-fuerte en
-// styles.css), para tickets que en la térmica salían muy claros.
-function mostrarTicketComoTermico(html, { fuerte = false } = {}) {
+function mostrarTicketComoTermico(html) {
   const elA4 = document.getElementById('ticketA4Contenido');
   elA4.style.display = 'none';
   elA4.innerHTML = '';
   const el = document.getElementById('ticketContenido');
   el.style.display = '';
-  el.classList.toggle('ticket-fuerte', fuerte);
   el.innerHTML = html;
 }
 function mostrarTicketComoA4(html) {
@@ -4600,7 +4597,7 @@ function aplicarVistaRendicion() {
   const r = ultimoDocumentoParaTicket.data;
   const enTicket = vistaRendicion === 'ticket';
   if (enTicket) {
-    mostrarTicketComoTermico(construirTicketRendicionHtml(r), { fuerte: true });
+    mostrarTicketComoTermico(construirTicketRendicionHtml(r));
   } else {
     mostrarTicketComoA4(construirRendicionA4Html(r));
   }
@@ -4625,7 +4622,7 @@ function alternarVistaRendicion() {
 const fechaCortaAR = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '');
 
 function construirTicketRendicionHtml(r) {
-  const fila = (izq, der, extra = '') => `<div class="tk-fila"${extra}><span>${izq}</span><b>${der}</b></div>`;
+  const fila = (izq, der) => `<div class="tk-fila"><span>${izq}</span><span>${der}</span></div>`;
   const seccion = (titulo, contenido) => (contenido ? `<div class="tk-seccion">${titulo}</div>${contenido}` : '');
 
   // Igual que en la hoja A4: líneas iguales se agrupan con la cantidad sumada.
@@ -4646,7 +4643,7 @@ function construirTicketRendicionHtml(r) {
     .filter((d) => d.tipo === 'servicio')
     .map(
       (d) =>
-        `<div class="tk-item">${d.cantidad > 1 ? d.cantidad + ' x ' : ''}${escapeHtml(d.descripcion)}</div>` +
+        `<div>${d.cantidad > 1 ? d.cantidad + ' x ' : ''}${escapeHtml(d.descripcion)}</div>` +
         fila(`&nbsp;&nbsp;$${money.format(d.monto_base)} × ${d.porcentaje}%`, `$${money.format(d.monto_rendido)}`)
     )
     .join('');
@@ -4661,10 +4658,10 @@ function construirTicketRendicionHtml(r) {
 
   return `
     ${ticketEncabezadoHtml()}
-    <div class="tk-titulo">RENDICIÓN N° ${r.id}</div>
-    <div class="center">${r.estado === 'pagada' ? 'PAGADA' : 'GENERADA'} · ${new Date(r.creado_en).toLocaleString('es-AR')}</div>
-    <hr>
-    <div class="tk-grande">${escapeHtml(r.cerrajero_nombre || '')}</div>
+    <hr><div class="center">RENDICIÓN DE CERRAJERO</div><hr>
+    Fecha: ${new Date(r.creado_en).toLocaleString('es-AR')}<br>
+    N°: ${r.id} · ${r.estado === 'pagada' ? 'Pagada' : 'Generada'}<br>
+    <div>Cerrajero: ${escapeHtml(r.cerrajero_nombre || '')}</div>
     <div>Período: ${fechaCortaAR(r.fecha_desde)} al ${fechaCortaAR(r.fecha_hasta)}</div>
     ${seccion('DUPLICADOS', duplicados)}
     ${seccion('CODIFICADOS', codificados)}
@@ -4673,8 +4670,12 @@ function construirTicketRendicionHtml(r) {
     <hr>
     ${fila('Total bruto', `$${money.format(r.total_bruto)}`)}
     ${fila('Descuentos', `${r.total_descuentos ? '-' : ''}$${money.format(r.total_descuentos)}`)}
-    <div class="tk-total"><span>A PAGAR</span><span>$${money.format(r.total_pagar)}</span></div>
-    <div class="tk-firma">______________________________<br>Recibí conforme la suma acordada<br>Firma y aclaración</div>
+    <div class="ticket-total"><span>A PAGAR:</span><span>$${money.format(r.total_pagar)}</span></div>
+    <div class="tk-firma">
+      Recibí conforme la suma acordada
+      <div class="tk-linea-firma">Firma</div>
+      <div class="tk-linea-firma">Aclaración</div>
+    </div>
   `;
 }
 
