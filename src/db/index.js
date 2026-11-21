@@ -88,6 +88,7 @@ ensureColumn('caja_movimientos', 'cc_movimiento_id', 'INTEGER');
 ensureColumn('configuracion', 'mostrar_anuladas_ventas', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('cerrajeros', 'estacionamiento_fijo', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('cerrajeros', 'pago_manual', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('cerrajeros', 'valor_hora', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('cerrajeros', 'cable_fijo', 'REAL NOT NULL DEFAULT 0');
 ensureColumn('cerrajeros', 'cable_desde', 'TEXT');
 ensureColumn('cerrajeros', 'cable_dias', 'INTEGER NOT NULL DEFAULT 20');
@@ -128,18 +129,19 @@ if (usuariosDef && !usuariosDef.sql.includes('STOCK')) {
 
 // El CHECK de rendicion_detalle.tipo no incluía 'codificado' (trabajos de
 // la lista rápida de trabajos_codificados, que no son ni un "servicio" ni
-// un "duplicado" real) — mismo problema y misma solución que arriba con
+// un "duplicado" real), y después tampoco 'horas' (pago por hora, ej.
+// limpieza) — mismo problema y misma solución que arriba con
 // usuarios.rol: un CHECK no se puede tocar con ALTER TABLE, hay que
 // recrear la tabla.
 const rendicionDetalleDef = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='rendicion_detalle'").get();
-if (rendicionDetalleDef && !rendicionDetalleDef.sql.includes('codificado')) {
+if (rendicionDetalleDef && (!rendicionDetalleDef.sql.includes('codificado') || !rendicionDetalleDef.sql.includes("'horas'"))) {
   db.pragma('foreign_keys = OFF');
   db.exec(`
     CREATE TABLE rendicion_detalle_nuevo (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
       venta_item_id INTEGER REFERENCES venta_items(id),
-      tipo TEXT NOT NULL CHECK (tipo IN ('servicio','duplicado','codificado')),
+      tipo TEXT NOT NULL CHECK (tipo IN ('servicio','duplicado','codificado','horas')),
       codigo TEXT,
       descripcion TEXT NOT NULL,
       venta_numero TEXT,

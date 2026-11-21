@@ -76,6 +76,18 @@ router.post('/manual', (req, res) => {
   }
 });
 
+// Para quien cobra por hora (cerrajeros.valor_hora > 0): horas × valor.
+router.post('/horas', (req, res) => {
+  const { cerrajero_id, horas, valor_hora, descripcion } = req.body;
+  if (!cerrajero_id) return res.status(400).json({ error: 'Falta cerrajero_id' });
+  try {
+    const rendicion = rendicionesService.generarPorHoras({ cerrajero_id, horas, valor_hora, descripcion });
+    res.status(201).json(rendicion);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.put('/:id/pagar', (req, res) => {
   try {
     res.json(rendicionesService.marcarPagada(Number(req.params.id), req.body));

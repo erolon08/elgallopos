@@ -237,6 +237,9 @@ CREATE TABLE IF NOT EXISTS cerrajeros (
   -- rendición" les muestra un simple campo de monto para cargar
   -- directamente cuánto se les paga, sin calcular nada.
   pago_manual INTEGER NOT NULL DEFAULT 0,
+  -- Quien cobra por hora (ej. limpieza): "Generar rendición" pide solo la
+  -- cantidad de horas y paga horas × valor_hora. 0 = no cobra por hora.
+  valor_hora REAL NOT NULL DEFAULT 0,
   activo INTEGER NOT NULL DEFAULT 1,
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
@@ -490,7 +493,7 @@ CREATE TABLE IF NOT EXISTS rendicion_detalle (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   rendicion_id INTEGER NOT NULL REFERENCES rendiciones(id),
   venta_item_id INTEGER REFERENCES venta_items(id),
-  tipo TEXT NOT NULL CHECK (tipo IN ('servicio','duplicado','codificado')),
+  tipo TEXT NOT NULL CHECK (tipo IN ('servicio','duplicado','codificado','horas')),
   codigo TEXT,
   descripcion TEXT NOT NULL,
   venta_numero TEXT,

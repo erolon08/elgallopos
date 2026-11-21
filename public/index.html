@@ -391,6 +391,19 @@
             <div class="notice" id="rendPreviewVacio" style="display:none">No hay trabajos pendientes de rendir para este cerrajero en el período elegido.</div>
           </div>
 
+          <div id="rendHorasWrap" style="display:none">
+            <div class="notice" style="margin-bottom:12px">Cobra por hora: cargá cuántas horas trabajó y se calcula lo que hay que pagarle.</div>
+            <div class="toolbar">
+              <div class="field"><label>Cantidad de horas</label><input id="rendHoras" type="number" step="any" min="0" placeholder="Ej: 8" oninput="actualizarTotalHoras()"></div>
+              <div class="field"><label>Valor de la hora ($)</label><input id="rendValorHora" type="number" step="any" oninput="actualizarTotalHoras()"></div>
+              <div class="field" style="flex:2"><label>Descripción (opcional)</label><input id="rendHorasDescripcion" placeholder="Ej: Limpieza del local"></div>
+            </div>
+            <div class="toolbar" style="margin-top:8px;align-items:center">
+              <div style="font-size:16px">Total a pagar: <b id="rendHorasTotal">$ 0</b></div>
+              <button class="btn primary" onclick="generarRendicionPorHoras()">Generar rendición</button>
+            </div>
+          </div>
+
           <div id="rendManualWrap" style="display:none">
             <div class="notice" style="margin-bottom:12px">Este cerrajero tiene pago manual: no se calcula nada por ventas, cargá directo cuánto le pagás.</div>
             <div class="toolbar">
@@ -1543,6 +1556,8 @@
     </div>
     <p class="small" style="margin:6px 0 0;color:var(--muted)">Se descuenta solo en cada rendición, un cargo por cada día de lunes a viernes desde la fecha de arranque, hasta completar la cantidad de días. Después deja de descontarse. Para la próxima tanda, cambiá la fecha de arranque.</p>
     <label style="display:block;margin:12px 0 4px"><input type="checkbox" id="cerPagoManual"> Pago manual (no se calcula por ventas: en "Generar rendición" se carga directo el monto a pagar)</label>
+    <div class="field" style="margin-top:8px;max-width:320px"><label>Cobra por hora: valor de la hora ($)</label><input id="cerValorHora" type="number" step="any" value="0" title="Para quien cobra por hora (ej. limpieza). En Generar rendición se carga solo la cantidad de horas. 0 = no cobra por hora."></div>
+    <p class="small" style="margin:4px 0 0;color:var(--muted)">Para quien cobra por hora (ej. limpieza): en "Generar rendición" se carga solo la cantidad de horas. Dejalo en 0 si no corresponde.</p>
     <label style="display:block;margin:12px 0 4px" id="cerActivoWrap"><input type="checkbox" id="cerActivo" checked> Activo</label>
     <div class="toolbar" style="margin-top:14px">
       <button class="btn primary" onclick="guardarCerrajero()">Guardar</button>

@@ -321,6 +321,38 @@ function generarManual({ cerrajero_id, monto, descripcion }) {
   return obtener(tx());
 }
 
+// Para quien cobra por hora (ej. limpieza): horas × valor de la hora, sin
+// calcular nada por ventas. Queda un renglón tipo 'horas' (cantidad =
+// horas, monto_base = valor de la hora) para que el ticket muestre la cuenta.
+function generarPorHoras({ cerrajero_id, horas, valor_hora, descripcion }) {
+  const cerrajero = db.prepare('SELECT * FROM cerrajeros WHERE id = ?').get(cerrajero_id);
+  if (!cerrajero) throw new Error('Cerrajero no encontrado');
+  const horasNum = Number(horas);
+  const valorNum = Number(valor_hora);
+  if (!(horasNum > 0)) throw new Error('La cantidad de horas tiene que ser mayor a 0');
+  if (!(valorNum > 0)) throw new Error('El valor de la hora tiene que ser mayor a 0');
+  const monto = Math.round(horasNum * valorNum);
+  const hoy = db.prepare("SELECT date('now','localtime') AS hoy").get().hoy;
+  const desc = descripcion && descripcion.trim() ? descripcion.trim() : 'Horas trabajadas';
+
+  const tx = db.transaction(() => {
+    const info = db
+      .prepare(
+        `INSERT INTO rendiciones (cerrajero_id, fecha_desde, fecha_hasta, total_bruto, total_descuentos, total_pagar)
+         VALUES (@cerrajero_id, @hoy, @hoy, @monto, 0, @monto)`
+      )
+      .run({ cerrajero_id, hoy, monto });
+    const rendicion_id = info.lastInsertRowid;
+    db.prepare(
+      `INSERT INTO rendicion_detalle (rendicion_id, venta_item_id, tipo, codigo, descripcion, venta_numero, cantidad, monto_base, porcentaje, monto_rendido)
+       VALUES (@rendicion_id, NULL, 'horas', NULL, @descripcion, NULL, @horas, @valor, 100, @monto)`
+    ).run({ rendicion_id, descripcion: desc, horas: horasNum, valor: valorNum, monto });
+    return rendicion_id;
+  });
+
+  return obtener(tx());
+}
+
 function listar({ cerrajero_id, estado } = {}) {
   let sql = `SELECT r.*, c.nombre AS cerrajero_nombre FROM rendiciones r JOIN cerrajeros c ON c.id = r.cerrajero_id WHERE 1=1`;
   const params = {};
@@ -558,6 +590,7 @@ module.exports = {
   previsualizar,
   generar,
   generarManual,
+  generarPorHoras,
   listar,
   obtener,
   marcarPagada,

@@ -3739,7 +3739,7 @@ function filaCerrajero(c) {
   const tr = document.createElement('tr');
   const estado = c.activo ? '<span class="status s-ok">Activo</span>' : '<span class="status s-bad">Inactivo</span>';
   tr.innerHTML = `
-    <td>${c.nombre}${c.pago_manual ? ' <span class="status s-warn">Pago manual</span>' : ''}</td>
+    <td>${c.nombre}${c.valor_hora > 0 ? ` <span class="status s-blue">Por hora $ ${money.format(c.valor_hora)}</span>` : c.pago_manual ? ' <span class="status s-warn">Pago manual</span>' : ''}</td>
     <td>${c.porcentaje_rendicion}%</td>
     <td>${c.porcentaje_urgencia > 0 ? c.porcentaje_urgencia + '%' : '—'}</td>
     <td>$ ${money.format(c.aporte_fijo)}</td>
@@ -3772,6 +3772,7 @@ async function openCerrajero(id) {
     document.getElementById('cerCableDias').value = c.cable_dias || 20;
     document.getElementById('cerDescuentoTarjeta').value = c.descuento_tarjeta_credito;
     document.getElementById('cerPagoManual').checked = !!c.pago_manual;
+    document.getElementById('cerValorHora').value = c.valor_hora || 0;
     document.getElementById('cerActivo').checked = !!c.activo;
   } else {
     document.getElementById('cerNombre').value = '';
@@ -3784,6 +3785,7 @@ async function openCerrajero(id) {
     document.getElementById('cerCableDias').value = 20;
     document.getElementById('cerDescuentoTarjeta').value = 0;
     document.getElementById('cerPagoManual').checked = false;
+    document.getElementById('cerValorHora').value = 0;
     document.getElementById('cerActivo').checked = true;
   }
   document.getElementById('cerrajeroModal').classList.add('open');
@@ -3806,6 +3808,7 @@ async function guardarCerrajero() {
     cable_dias: Number(document.getElementById('cerCableDias').value) || 0,
     descuento_tarjeta_credito: Number(document.getElementById('cerDescuentoTarjeta').value) || 0,
     pago_manual: document.getElementById('cerPagoManual').checked,
+    valor_hora: Number(document.getElementById('cerValorHora').value) || 0,
     activo: document.getElementById('cerActivo').checked,
   };
   if (!payload.nombre) {
@@ -3846,19 +3849,56 @@ let rendicionPreviewActual = null; // { cerrajero_id, detalle, total_bruto, cerr
 let rendicionDescuentosExtra = [];
 let rendicionFiltrosAcumulados = []; // [{ fecha_desde, fecha_hasta, tipo }, ...] — se van sumando con "+ Sumar al cálculo"
 
-const TIPO_MOVIMIENTO_LABEL = { servicio: 'Servicio', duplicado: 'Duplicado', codificado: 'Codificado' };
+const TIPO_MOVIMIENTO_LABEL = { servicio: 'Servicio', duplicado: 'Duplicado', codificado: 'Codificado', horas: 'Horas' };
 const TIPO_DESCUENTO_LABEL = { aporte: 'Aporte fijo', estacionamiento: 'Estacionamiento fijo', cable: 'Cable', repuesto: 'Repuesto', otro: 'Otro', adelanto: 'Adelanto' };
 
 // Para cerrajeros con pago_manual (ej. uno que cobra un fijo por mes, no un
 // % de lo que vende): en vez del cálculo automático por ventas, muestra un
-// simple campo de monto para cargar directo cuánto se le paga.
+// simple campo de monto para cargar directo cuánto se le paga. Y para quien
+// cobra por hora (valor_hora > 0, ej. limpieza), la cantidad de horas.
 function cambiarModoRendicion() {
   const cerrajero_id = Number(document.getElementById('rendCerrajero').value);
   const c = cerrajerosCache.find((x) => x.id === cerrajero_id);
-  const manual = !!(c && c.pago_manual);
-  document.getElementById('rendAutoWrap').style.display = manual ? 'none' : '';
+  const porHora = !!(c && c.valor_hora > 0);
+  const manual = !porHora && !!(c && c.pago_manual);
+  document.getElementById('rendAutoWrap').style.display = manual || porHora ? 'none' : '';
   document.getElementById('rendManualWrap').style.display = manual ? 'block' : 'none';
-  if (manual) limpiarRendicionPreview();
+  document.getElementById('rendHorasWrap').style.display = porHora ? 'block' : 'none';
+  if (porHora) {
+    document.getElementById('rendHoras').value = '';
+    document.getElementById('rendValorHora').value = c.valor_hora;
+    document.getElementById('rendHorasDescripcion').value = '';
+    actualizarTotalHoras();
+  }
+  if (manual || porHora) limpiarRendicionPreview();
+}
+
+function actualizarTotalHoras() {
+  const horas = Number(document.getElementById('rendHoras').value) || 0;
+  const valor = Number(document.getElementById('rendValorHora').value) || 0;
+  document.getElementById('rendHorasTotal').textContent = '$ ' + money.format(Math.round(horas * valor));
+}
+
+async function generarRendicionPorHoras() {
+  const cerrajero_id = document.getElementById('rendCerrajero').value;
+  const horas = Number(document.getElementById('rendHoras').value) || 0;
+  const valor_hora = Number(document.getElementById('rendValorHora').value) || 0;
+  if (!cerrajero_id) return alert('Elegí a quién le rendís.');
+  if (horas <= 0) return alert('Cargá la cantidad de horas.');
+  if (valor_hora <= 0) return alert('Cargá el valor de la hora.');
+  const res = await fetch('/api/rendiciones/horas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cerrajero_id, horas, valor_hora, descripcion: document.getElementById('rendHorasDescripcion').value.trim() }),
+  });
+  const data = await res.json();
+  if (!res.ok) return alert('Error: ' + data.error);
+  document.getElementById('rendHoras').value = '';
+  document.getElementById('rendHorasDescripcion').value = '';
+  actualizarTotalHoras();
+  cargarRendiciones();
+  // Directo al ticket, para imprimirlo y que firme.
+  mostrarTicketRendicion(data.id);
 }
 
 async function generarRendicionManual() {
@@ -4491,6 +4531,14 @@ function construirRendicionA4Html(r) {
     )
     .join('');
 
+  const filasHoras = r.detalle
+    .filter((d) => d.tipo === 'horas')
+    .map(
+      (d) =>
+        `<tr><td>${escapeHtml(d.descripcion)}</td><td class="a4-num">${money.format(d.cantidad)}</td><td class="a4-num">$${money.format(d.monto_base)}</td><td class="a4-num">$${money.format(d.monto_rendido)}</td></tr>`
+    )
+    .join('');
+
   const filasDescuentos = r.descuentos
     .map(
       (d) =>
@@ -4541,6 +4589,15 @@ function construirRendicionA4Html(r) {
     <table class="a4-tabla">
       <thead><tr><th>Código</th><th>Descripción</th><th>Cant.</th><th>Base</th><th>%</th><th>Rinde</th></tr></thead>
       <tbody>${filasServicios}</tbody>
+    </table>`
+        : ''
+    }
+    ${
+      filasHoras
+        ? `<h3 style="margin:14px 0 6px;font-size:13px">Horas trabajadas</h3>
+    <table class="a4-tabla">
+      <thead><tr><th>Descripción</th><th>Horas</th><th>Valor hora</th><th>Total</th></tr></thead>
+      <tbody>${filasHoras}</tbody>
     </table>`
         : ''
     }
@@ -4652,6 +4709,12 @@ function construirTicketRendicionHtml(r) {
         )
     )
     .join('');
+  const horasTrabajadas = r.detalle
+    .filter((d) => d.tipo === 'horas')
+    .map((d) =>
+      item(`<div>${escapeHtml(d.descripcion)}</div>` + fila(`&nbsp;&nbsp;${money.format(d.cantidad)} h × $${money.format(d.monto_base)}`, `$${money.format(d.monto_rendido)}`))
+    )
+    .join('');
   const descuentos = r.descuentos
     .map((d) => {
       const tipo = TIPO_DESCUENTO_LABEL[d.tipo] || d.tipo;
@@ -4663,14 +4726,15 @@ function construirTicketRendicionHtml(r) {
 
   return `
     ${ticketEncabezadoHtml()}
-    <hr><div class="center">RENDICIÓN DE CERRAJERO</div><hr>
+    <hr><div class="center">${horasTrabajadas ? 'RENDICIÓN DE HORAS' : 'RENDICIÓN DE CERRAJERO'}</div><hr>
     Fecha: ${new Date(r.creado_en).toLocaleString('es-AR')}<br>
     N°: ${r.id} · ${r.estado === 'pagada' ? 'Pagada' : 'Generada'}<br>
-    <div>Cerrajero: ${escapeHtml(r.cerrajero_nombre || '')}</div>
+    <div>${horasTrabajadas ? 'Nombre' : 'Cerrajero'}: ${escapeHtml(r.cerrajero_nombre || '')}</div>
     <div>Período: ${fechaCortaAR(r.fecha_desde)} al ${fechaCortaAR(r.fecha_hasta)}</div>
     ${seccion('DUPLICADOS', duplicados)}
     ${seccion('CODIFICADOS', codificados)}
     ${seccion('SERVICIOS', servicios)}
+    ${seccion('HORAS TRABAJADAS', horasTrabajadas)}
     ${seccion('DESCUENTOS', descuentos)}
     <hr>
     ${fila('Total bruto', `$${money.format(r.total_bruto)}`)}
