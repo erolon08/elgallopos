@@ -4623,7 +4623,10 @@ const fechaCortaAR = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join(
 
 function construirTicketRendicionHtml(r) {
   const fila = (izq, der) => `<div class="tk-fila"><span>${izq}</span><span>${der}</span></div>`;
-  const seccion = (titulo, contenido) => (contenido ? `<div class="tk-seccion">${titulo}</div>${contenido}` : '');
+  // Cada sección arranca con la línea punteada del ticket, y cada ítem va
+  // separado del siguiente con una línea de puntitos.
+  const item = (html) => `<div class="tk-item">${html}</div>`;
+  const seccion = (titulo, items) => (items ? `<hr><div class="tk-seccion">${titulo}</div><div class="tk-items">${items}</div>` : '');
 
   // Igual que en la hoja A4: líneas iguales se agrupan con la cantidad sumada.
   const agrupar = (lineas) => {
@@ -4634,7 +4637,7 @@ function construirTicketRendicionHtml(r) {
       grupos[d.descripcion].monto_rendido += d.monto_rendido;
     });
     return Object.values(grupos)
-      .map((g) => fila(`${g.cantidad} x ${escapeHtml(g.descripcion)}`, `$${money.format(g.monto_rendido)}`))
+      .map((g) => item(fila(`${g.cantidad} x ${escapeHtml(g.descripcion)}`, `$${money.format(g.monto_rendido)}`)))
       .join('');
   };
   const duplicados = agrupar(r.detalle.filter((d) => d.tipo === 'duplicado'));
@@ -4643,8 +4646,10 @@ function construirTicketRendicionHtml(r) {
     .filter((d) => d.tipo === 'servicio')
     .map(
       (d) =>
-        `<div>${d.cantidad > 1 ? d.cantidad + ' x ' : ''}${escapeHtml(d.descripcion)}</div>` +
-        fila(`&nbsp;&nbsp;$${money.format(d.monto_base)} × ${d.porcentaje}%`, `$${money.format(d.monto_rendido)}`)
+        item(
+          `<div>${d.cantidad > 1 ? d.cantidad + ' x ' : ''}${escapeHtml(d.descripcion)}</div>` +
+            fila(`&nbsp;&nbsp;$${money.format(d.monto_base)} × ${d.porcentaje}%`, `$${money.format(d.monto_rendido)}`)
+        )
     )
     .join('');
   const descuentos = r.descuentos
@@ -4652,7 +4657,7 @@ function construirTicketRendicionHtml(r) {
       const tipo = TIPO_DESCUENTO_LABEL[d.tipo] || d.tipo;
       // El aporte/estacionamiento fijo traen como descripción el mismo nombre del tipo.
       const desc = d.descripcion && d.descripcion.toLowerCase() !== tipo.toLowerCase() ? ' ' + escapeHtml(d.descripcion) : '';
-      return fila(tipo + desc, `-$${money.format(d.monto)}`);
+      return item(fila(tipo + desc, `-$${money.format(d.monto)}`));
     })
     .join('');
 

@@ -294,7 +294,9 @@ tr.row-selectable{cursor:pointer} tr.row-selectable:hover{background:var(--tint)
 .ticket h4{text-align:center;margin:2px} .ticket .center{text-align:center} .ticket hr{border:0;border-top:1px dashed #777;margin:8px 0}
 /* Ticket de rendición de cerrajeros: misma letra que el de venta; solo
    "A PAGAR" va resaltado (.ticket-total) y al final hay lugar para firmar. */
-.tk-seccion{margin:8px 0 2px;text-decoration:underline}
+.tk-seccion{margin:0 0 2px;text-decoration:underline}
+.tk-item{padding:3px 0;border-bottom:1px dotted #000}
+.tk-item:last-child{border-bottom:0}
 .tk-fila{display:flex;justify-content:space-between;gap:8px}
 .tk-fila span:last-child{white-space:nowrap}
 .tk-firma{margin-top:14px;text-align:center}
