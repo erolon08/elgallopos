@@ -1,7 +1,7 @@
 const titles = {
   dashboard: 'Dashboard', productos: 'Productos', familias: 'Familias', stock: 'Stock', compras: 'Sugerencia de compra', clientes: 'Clientes',
   cuentacorriente: 'Cuenta Corriente',
-  venta: 'Venta', direcciones: 'Direcciones', agenda: 'Agenda de trabajo', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
+  venta: 'Venta', direcciones: 'Agenda de direcciones', pendientes: 'Pendientes', ventas: 'Ventas', presupuestos: 'Presupuestos', 'ticket-screen': 'Ticket',
   rendicion: 'Rendición cerrajeros',
   caja: 'Caja y turnos', ranking: 'Ranking', resumen: 'Resumen', configuracion: 'Configuración',
   recuperarCierre: 'Recuperar cierre',
@@ -43,7 +43,6 @@ function showScreen(id) {
   if (id === 'familias') cargarFamiliasTabla();
   if (id === 'clientes') cargarClientes();
   if (id === 'direcciones') cargarDirecciones();
-  if (id === 'agenda') cargarAgenda();
   if (id === 'pendientes') cargarPendientes();
   if (id === 'ventas') cargarVentasHistorial();
   if (id === 'presupuestos') cargarPresupuestos();
@@ -3478,9 +3477,9 @@ socket.on('mensaje:nuevo', (mensaje) => {
 let session = null;
 const PANTALLAS_POR_ROL = {
   // Stock queda reservado exclusivamente al puesto STOCK, ni ADMIN lo ve.
-  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'cuentacorriente', 'direcciones', 'agenda', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
-  CAJA: ['venta', 'direcciones', 'agenda', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'rendicion', 'caja'],
-  VENTA: ['venta', 'direcciones', 'agenda', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente'],
+  ADMIN: ['dashboard', 'ranking', 'resumen', 'configuracion', 'productos', 'familias', 'clientes', 'cuentacorriente', 'direcciones', 'pendientes', 'venta', 'ventas', 'presupuestos', 'rendicion', 'caja', 'compras'],
+  CAJA: ['venta', 'direcciones', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente', 'rendicion', 'caja'],
+  VENTA: ['venta', 'direcciones', 'pendientes', 'ventas', 'presupuestos', 'clientes', 'cuentacorriente'],
   STOCK: ['stock', 'productos', 'compras'],
 };
 
@@ -4784,13 +4783,18 @@ async function borrarRendicionDefinitivo(id) {
 }
 
 // ============================================================
-// DIRECCIONES — anotador de "adónde va cada cerrajero" antes de vender
+// AGENDA DE DIRECCIONES — adónde va cada cerrajero, qué día y en qué turno
+// (mañana 8 a 12:30hs, tarde 16 a 20:30hs), con hora puntual opcional.
+// Avisa con un cartel 30 y 15 minutos antes de la hora, o al empezar el
+// turno si no tiene hora. De acá se pasa a venta o se marca hecha.
 // ============================================================
 let direccionesCache = [];
 
-// Horarios elegibles cada 15 minutos (16:00, 16:15, 16:30, 16:45, 17:00...)
-// dentro de una franja [desde, hasta] en minutos desde las 00:00. Los usan
-// Direcciones y la Agenda de trabajo.
+const TURNO_LABEL_DIRECCION = { manana: 'Mañana (8 a 12:30)', tarde: 'Tarde (16 a 20:30)' };
+// Franja de cada turno en minutos desde las 00:00; la hora se elige cada 15
+// minutos dentro de ella (8:00, 8:15, 8:30 ... 12:30).
+const FRANJA_POR_TURNO_DIRECCION = { manana: [8 * 60, 12 * 60 + 30], tarde: [16 * 60, 20 * 60 + 30] };
+
 function opcionesHorario15(desde, hasta) {
   const ops = [];
   for (let t = desde; t <= hasta; t += 15) {
@@ -4800,11 +4804,22 @@ function opcionesHorario15(desde, hasta) {
   return ops.join('');
 }
 
-// Direcciones: horario opcional, mañana 8:00 a 12:30 y tarde 16:00 a 20:30.
-document.getElementById('direccionInputHorario').innerHTML =
-  '<option value="">Sin horario</option>' +
-  `<optgroup label="Mañana">${opcionesHorario15(8 * 60, 12 * 60 + 30)}</optgroup>` +
-  `<optgroup label="Tarde">${opcionesHorario15(16 * 60, 20 * 60 + 30)}</optgroup>`;
+function actualizarHorariosDireccion() {
+  const turno = document.getElementById('direccionInputTurno').value;
+  document.getElementById('direccionInputHorario').innerHTML =
+    '<option value="">Sin hora puntual</option>' + opcionesHorario15(...FRANJA_POR_TURNO_DIRECCION[turno]);
+}
+
+// El formulario arranca en hoy y en el turno de ahora (a la tarde, tarde).
+function prepararFormularioDireccion() {
+  document.getElementById('direccionInputFecha').value = fechaLocalHoy();
+  document.getElementById('direccionInputTurno').value = new Date().getHours() < 14 ? 'manana' : 'tarde';
+  actualizarHorariosDireccion();
+}
+prepararFormularioDireccion();
+
+const minutosDeHorario = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+const fechaDireccionTexto = (d) => (d.fecha ? d.fecha.split('-').reverse().join('/') : '—');
 
 async function cargarDirecciones() {
   const buscar = document.getElementById('direccionesBuscar').value.trim();
@@ -4825,38 +4840,46 @@ async function cargarDirecciones() {
   const tbody = document.getElementById('direccionesBody');
   tbody.innerHTML = '';
   if (!filas.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="small">No hay direcciones cargadas.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="small">No hay direcciones cargadas.</td></tr>';
     return;
   }
+  const hoy = fechaLocalHoy();
   filas.forEach((d) => {
-    const fechaHora = new Date(d.creado_en).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    let accionesPendiente;
-    if (d.estado !== 'pendiente' && d.venta_estado === 'cobrada') {
-      accionesPendiente = `<button class="btn green" disabled>✓ Facturado</button>`;
-    } else if (d.estado !== 'pendiente') {
-      accionesPendiente = '<span class="status s-blue">Convertida</span>';
-    } else {
-      accionesPendiente = `<button class="btn primary" onclick="pasarDireccionAVenta(${d.id})">Pasar a venta</button>
+    let acciones;
+    if (d.estado === 'pendiente') {
+      acciones = `<button class="btn primary" onclick="pasarDireccionAVenta(${d.id})">Pasar a venta</button>
+           <button class="btn light" onclick="marcarDireccionHecha(${d.id})" title="Trabajo hecho sin pasarlo a venta">✓ Hecho</button>
            <button class="btn light" onclick="eliminarDireccion(${d.id})">🗑</button>`;
+    } else if (d.estado === 'hecha') {
+      acciones = '<span class="status s-ok">Hecha</span>';
+    } else if (d.venta_estado === 'cobrada') {
+      acciones = `<button class="btn green" disabled>✓ Facturado</button>`;
+    } else {
+      acciones = '<span class="status s-blue">Convertida</span>';
     }
     const verVenta = d.venta_id ? `<button class="btn light" onclick="verDetalleVenta(${d.venta_id})">Ver venta</button>` : '';
+    const esHoy = d.fecha === hoy;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${d.direccion}</td>
-      <td>${d.trabajo}</td>
-      <td>${d.telefono || '—'}</td>
-      <td>${d.cerrajero_nombre || '—'}</td>
-      <td>${d.horario ? d.horario + ' hs' : '—'}</td>
-      <td>${fechaHora}</td>
-      <td><button class="btn light" onclick="copiarDireccion(${d.id})" title="Copiar como texto para pegar en WhatsApp">📋 Copiar</button> ${verVenta} ${accionesPendiente}</td>
+      <td style="white-space:nowrap">${fechaDireccionTexto(d)}${esHoy ? ' <span class="status s-warn">Hoy</span>' : ''}</td>
+      <td>${TURNO_LABEL_DIRECCION[d.turno] || '—'}</td>
+      <td>${d.horario ? d.horario : '—'}</td>
+      <td>${escapeHtml(d.direccion)}</td>
+      <td>${escapeHtml(d.trabajo)}</td>
+      <td>${escapeHtml(d.telefono || '—')}</td>
+      <td>${escapeHtml(d.cerrajero_nombre || '—')}</td>
+      <td style="white-space:nowrap"><button class="btn light" onclick="copiarDireccion(${d.id})" title="Copiar como texto para mandarle al cerrajero por WhatsApp">📋 Copiar</button> ${verVenta} ${acciones}</td>
     `;
     tbody.appendChild(tr);
   });
 }
 
+// Texto para mandarle al cerrajero: el día, el turno y la hora arriba, para
+// que sepa cuándo tiene que ir.
 function textoDireccionParaCopiar(d) {
-  const lineas = [`Dirección: ${d.direccion}`, `Trabajo: ${d.trabajo}`];
-  if (d.horario) lineas.push(`Horario: ${d.horario} hs`);
+  const turno = d.turno === 'manana' ? 'Mañana' : d.turno === 'tarde' ? 'Tarde' : '';
+  const cuando = [fechaDireccionTexto(d), turno ? `— ${turno}` : '', d.horario ? `, ${d.horario} hs` : ''].join(' ').replace(' ,', ',');
+  const lineas = [`Fecha: ${cuando.trim()}`, `Dirección: ${d.direccion}`, `Trabajo: ${d.trabajo}`];
   if (d.telefono) lineas.push(`Teléfono: ${d.telefono}`);
   if (d.cerrajero_nombre) lineas.push(`Cerrajero: ${d.cerrajero_nombre}`);
   return lineas.join('\n');
@@ -4868,7 +4891,7 @@ async function copiarDireccion(id) {
   const texto = textoDireccionParaCopiar(d);
   const ok = await copiarTextoAlPortapapeles(texto);
   if (ok) {
-    alert('Se copió al portapapeles. Pegalo (Ctrl+V) en el chat de WhatsApp donde lo quieras mandar.');
+    alert('Se copió al portapapeles. Pegalo (Ctrl+V) en el chat de WhatsApp del cerrajero.');
   } else {
     alert('No se pudo copiar automáticamente. Copiá este texto a mano:\n\n' + texto);
   }
@@ -4909,15 +4932,17 @@ async function agregarDireccion() {
   const trabajo = document.getElementById('direccionInputTrabajo').value.trim();
   const telefono = document.getElementById('direccionInputTelefono').value.trim();
   const cerrajero_id = document.getElementById('direccionCerrajero').value || null;
+  const fecha = document.getElementById('direccionInputFecha').value;
+  const turno = document.getElementById('direccionInputTurno').value;
   const horario = document.getElementById('direccionInputHorario').value || null;
-  if (!direccion || !trabajo) {
-    alert('Completá dirección y trabajo a realizar.');
+  if (!direccion || !trabajo || !fecha) {
+    alert('Completá dirección, trabajo y fecha.');
     return;
   }
   const res = await fetch('/api/direcciones', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ direccion, trabajo, telefono, cerrajero_id, horario }),
+    body: JSON.stringify({ direccion, trabajo, telefono, cerrajero_id, fecha, turno, horario }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -4928,7 +4953,16 @@ async function agregarDireccion() {
   document.getElementById('direccionInputTrabajo').value = '';
   document.getElementById('direccionInputTelefono').value = '';
   document.getElementById('direccionCerrajero').value = '';
-  document.getElementById('direccionInputHorario').value = '';
+  prepararFormularioDireccion();
+  cargarDirecciones();
+}
+
+async function marcarDireccionHecha(id) {
+  const res = await fetch(`/api/direcciones/${id}/hecha`, { method: 'POST' });
+  if (!res.ok) {
+    const data = await res.json();
+    alert('Error: ' + data.error);
+  }
   cargarDirecciones();
 }
 
@@ -4938,130 +4972,9 @@ async function eliminarDireccion(id) {
   cargarDirecciones();
 }
 
-// ============================================================
-// AGENDA DE TRABAJO — direcciones agendadas para un día y turno puntual
-// (mañana 8 a 12:30hs, tarde 16 a 20:30hs), con cartel emergente cuando
-// llega el día y el turno para no pasarlas por alto. La hora puntual
-// (opcional) hace que el aviso salga 30 minutos antes de esa hora, y otra
-// vez 15 minutos antes, en vez de recién al entrar toda la franja del turno.
-// ============================================================
-const TURNO_LABEL_AGENDA = { manana: 'Mañana (8 a 12:30)', tarde: 'Tarde (16 a 20:30)' };
-// Franja de cada turno en minutos desde las 00:00; la hora se elige cada 15
-// minutos dentro de ella (8:00, 8:15, 8:30 ... 12:30).
-const FRANJA_POR_TURNO_AGENDA = { manana: [8 * 60, 12 * 60 + 30], tarde: [16 * 60, 20 * 60 + 30] };
-
-function actualizarHorasAgenda() {
-  const turno = document.getElementById('agendaInputTurno').value;
-  const sel = document.getElementById('agendaInputHora');
-  sel.innerHTML = '<option value="">Sin hora puntual</option>' + opcionesHorario15(...FRANJA_POR_TURNO_AGENDA[turno]);
-}
-
-// "16:15" a partir de las columnas hora + minuto (minuto falta en filas viejas).
-function horaAgendaTexto(a) {
-  return `${String(a.hora).padStart(2, '0')}:${String(a.minuto || 0).padStart(2, '0')}`;
-}
-actualizarHorasAgenda();
-
-let agendaCache = [];
-
-async function cargarAgenda() {
-  const estado = document.getElementById('agendaEstado').value;
-  const url = estado ? `/api/agenda?estado=${estado}` : '/api/agenda';
-  const filas = await (await fetch(url)).json();
-  agendaCache = filas;
-  const tbody = document.getElementById('agendaBody');
-  tbody.innerHTML = '';
-  if (!filas.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="small">No hay direcciones agendadas.</td></tr>';
-    return;
-  }
-  filas.forEach((a) => {
-    const fecha = new Date(a.fecha + 'T00:00:00').toLocaleDateString('es-AR');
-    const copiar = `<button class="btn light" onclick="copiarAgendaTrabajo(${a.id})" title="Copiar como texto para mandarle al cerrajero por WhatsApp">📋 Copiar</button>`;
-    const accion =
-      a.estado === 'pendiente'
-        ? `${copiar} <button class="btn primary" onclick="marcarAgendaHecho(${a.id})">✓ Hecho</button> <button class="btn light" onclick="borrarAgendaTrabajo(${a.id})">🗑</button>`
-        : `${copiar} <button class="btn light" onclick="borrarAgendaTrabajo(${a.id})">🗑</button>`;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${fecha}</td>
-      <td>${TURNO_LABEL_AGENDA[a.turno] || a.turno}</td>
-      <td>${a.hora != null ? horaAgendaTexto(a) : '—'}</td>
-      <td>${a.direccion}</td>
-      <td>${a.trabajo}</td>
-      <td>${a.telefono || '—'}</td>
-      <td>${a.estado === 'pendiente' ? '<span class="status s-warn">Pendiente</span>' : '<span class="status s-ok">Hecho</span>'}</td>
-      <td style="white-space:nowrap">${accion}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-// Mismo formato que "Copiar" en Direcciones, con el día y el turno arriba
-// para que el cerrajero sepa cuándo tiene que ir.
-function textoAgendaParaCopiar(a) {
-  const fecha = new Date(a.fecha + 'T00:00:00').toLocaleDateString('es-AR');
-  const turno = a.turno === 'manana' ? 'Mañana' : a.turno === 'tarde' ? 'Tarde' : a.turno;
-  const hora = a.hora != null ? `, ${horaAgendaTexto(a)} hs` : '';
-  const lineas = [`Fecha: ${fecha} — ${turno}${hora}`, `Dirección: ${a.direccion}`, `Trabajo: ${a.trabajo}`];
-  if (a.telefono) lineas.push(`Teléfono: ${a.telefono}`);
-  return lineas.join('\n');
-}
-
-async function copiarAgendaTrabajo(id) {
-  const a = agendaCache.find((x) => x.id === id);
-  if (!a) return;
-  const texto = textoAgendaParaCopiar(a);
-  const ok = await copiarTextoAlPortapapeles(texto);
-  if (ok) {
-    alert('Se copió al portapapeles. Pegalo (Ctrl+V) en el chat de WhatsApp del cerrajero.');
-  } else {
-    alert('No se pudo copiar automáticamente. Copiá este texto a mano:\n\n' + texto);
-  }
-}
-
-async function agregarAgendaTrabajo() {
-  const direccion = document.getElementById('agendaInputDireccion').value.trim();
-  const trabajo = document.getElementById('agendaInputTrabajo').value.trim();
-  const telefono = document.getElementById('agendaInputTelefono').value.trim();
-  const fecha = document.getElementById('agendaInputFecha').value;
-  const turno = document.getElementById('agendaInputTurno').value;
-  const hora = document.getElementById('agendaInputHora').value;
-  if (!direccion || !trabajo || !fecha) {
-    alert('Completá dirección, trabajo y fecha.');
-    return;
-  }
-  const res = await fetch('/api/agenda', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ direccion, trabajo, telefono, fecha, turno, hora: hora || null }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    alert('Error: ' + data.error);
-    return;
-  }
-  document.getElementById('agendaInputDireccion').value = '';
-  document.getElementById('agendaInputTrabajo').value = '';
-  document.getElementById('agendaInputTelefono').value = '';
-  document.getElementById('agendaInputFecha').value = '';
-  document.getElementById('agendaInputHora').value = '';
-  cargarAgenda();
-}
-
-async function marcarAgendaHecho(id) {
-  await fetch(`/api/agenda/${id}/hecho`, { method: 'POST' });
-  cargarAgenda();
-}
-
-async function borrarAgendaTrabajo(id) {
-  if (!confirm('¿Borrar esta dirección agendada?')) return;
-  await fetch(`/api/agenda/${id}`, { method: 'DELETE' });
-  cargarAgenda();
-}
-
+// ---- Avisos ----
 // Mañana: 8:00 a 12:30. Tarde: 16:00 a 20:30. Fuera de esas franjas no hay
-// aviso por turno (aunque haya algo agendado para más tarde ese mismo día).
+// aviso por turno.
 function turnoAgendaActual() {
   const ahora = new Date();
   const minutos = ahora.getHours() * 60 + ahora.getMinutes();
@@ -5070,19 +4983,19 @@ function turnoAgendaActual() {
   return null;
 }
 
-// Un cartel por trabajo (si tiene hora puesta) o por día+turno (si no la
-// tiene) alcanza — no hace falta insistir cada minuto; si se recarga la
-// página estando todavía dentro de esa ventana, vuelve a avisar, justo el
-// caso de "se me pasó, recién entro al sistema".
+// Un cartel por dirección (si tiene hora) o por día+turno (si no la tiene)
+// alcanza — no hace falta insistir cada minuto; si se recarga la página
+// estando todavía dentro de esa ventana, vuelve a avisar, justo el caso de
+// "se me pasó, recién entro al sistema".
 const agendaAvisoYaMostrado = new Set();
 
 function mostrarAvisoAgenda(texto, filas) {
   document.getElementById('agendaAvisoTexto').textContent = texto;
   document.getElementById('agendaAvisoLista').innerHTML = filas
     .map(
-      (a) => `
+      (d) => `
       <div style="margin-bottom:8px;padding:8px 10px;background:var(--tint);border-radius:8px">
-        <b>${a.direccion}</b>${a.hora != null ? ` — ${horaAgendaTexto(a)} hs` : ''}${a.faltan != null ? ` <b style="color:var(--red)">(en ${a.faltan} min)</b>` : ''}<br>${a.trabajo}${a.telefono ? ' — ' + a.telefono : ''}
+        <b>${escapeHtml(d.direccion)}</b>${d.horario ? ` — ${d.horario} hs` : ''}${d.faltan != null ? ` <b style="color:var(--red)">(en ${d.faltan} min)</b>` : ''}<br>${escapeHtml(d.trabajo)}${d.telefono ? ' — ' + escapeHtml(d.telefono) : ''}${d.cerrajero_nombre ? `<br><span class="small">Cerrajero: ${escapeHtml(d.cerrajero_nombre)}</span>` : ''}
       </div>`
     )
     .join('');
@@ -5094,35 +5007,39 @@ async function chequearAgendaAviso() {
   const hoy = fechaLocalHoy();
   const ahora = new Date();
   const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
-  const filas = await (await fetch(`/api/agenda?fecha=${hoy}&estado=pendiente`)).json();
+  const filas = await (await fetch(`/api/direcciones?fecha=${hoy}&estado=pendiente`)).json();
 
-  // Con hora puntual: dos avisos por trabajo, uno 30 minutos antes y otro 15
-  // minutos antes. Las ventanas no se pisan (30→15 y 15→0), así que si el
+  // Con hora puntual: dos avisos por dirección, uno 30 minutos antes y otro
+  // 15 minutos antes. Las ventanas no se pisan (30→15 y 15→0), así que si el
   // sistema se abre cuando faltan menos de 15, sale directo el segundo.
   const paraAvisarPorHora = [];
-  filas.forEach((a) => {
-    if (a.hora == null) return;
-    const faltan = a.hora * 60 + (a.minuto || 0) - minutosAhora;
+  filas.forEach((d) => {
+    if (!d.horario) return;
+    const faltan = minutosDeHorario(d.horario) - minutosAhora;
     const aviso = faltan > 15 && faltan <= 30 ? 'h30' : faltan > 0 && faltan <= 15 ? 'h15' : null;
-    if (!aviso || agendaAvisoYaMostrado.has(aviso + a.id)) return;
-    agendaAvisoYaMostrado.add(aviso + a.id);
-    paraAvisarPorHora.push({ ...a, faltan });
+    if (!aviso || agendaAvisoYaMostrado.has(aviso + d.id)) return;
+    agendaAvisoYaMostrado.add(aviso + d.id);
+    paraAvisarPorHora.push({ ...d, faltan });
   });
   if (paraAvisarPorHora.length) {
     const texto =
       paraAvisarPorHora.length > 1
-        ? 'Tiene trabajos agendados en breve:'
-        : `Tiene un trabajo agendado en ${paraAvisarPorHora[0].faltan} minutos:`;
+        ? 'Tiene direcciones agendadas en breve:'
+        : `Tiene una dirección agendada en ${paraAvisarPorHora[0].faltan} minutos:`;
     mostrarAvisoAgenda(texto, paraAvisarPorHora);
     return;
   }
 
-  // Sin hora puntual: como antes, un aviso por día+turno al entrar la franja.
+  // Sin hora puntual: un aviso por día+turno al entrar la franja. No avisa
+  // las que se cargaron una vez empezado ese mismo turno: esas se acaban
+  // de anotar, no hay nada que recordar.
   const turno = turnoAgendaActual();
   if (!turno) return;
   const clave = `${hoy}|${turno}`;
   if (agendaAvisoYaMostrado.has(clave)) return;
-  const sinHoraDelTurno = filas.filter((a) => a.hora == null && a.turno === turno);
+  const inicioTurno = FRANJA_POR_TURNO_DIRECCION[turno][0];
+  const inicioTurnoTexto = `${hoy} ${String(Math.floor(inicioTurno / 60)).padStart(2, '0')}:${String(inicioTurno % 60).padStart(2, '0')}:00`;
+  const sinHoraDelTurno = filas.filter((d) => !d.horario && d.turno === turno && d.creado_en < inicioTurnoTexto);
   if (!sinHoraDelTurno.length) return;
   agendaAvisoYaMostrado.add(clave);
   mostrarAvisoAgenda(

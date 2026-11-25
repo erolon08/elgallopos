@@ -28,7 +28,6 @@ const direccionesRoutes = require('./routes/direcciones.routes');
 const mensajesRoutes = require('./routes/mensajes.routes');
 const { router: whatsappRoutes, webhookRouter: whatsappWebhookRouter } = require('./routes/whatsapp.routes');
 const trabajosCodificadosRoutes = require('./routes/trabajos-codificados.routes');
-const agendaRoutes = require('./routes/agenda.routes');
 
 const app = express();
 app.use(express.json());
@@ -65,7 +64,6 @@ app.use('/api/direcciones', direccionesRoutes);
 app.use('/api/mensajes', mensajesRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/trabajos-codificados', trabajosCodificadosRoutes);
-app.use('/api/agenda', agendaRoutes);
 
 const server = http.createServer(app);
 sockets.init(server);

@@ -95,6 +95,73 @@ ensureColumn('cerrajeros', 'cable_dias', 'INTEGER NOT NULL DEFAULT 20');
 ensureColumn('agenda_trabajos', 'hora', 'INTEGER');
 ensureColumn('agenda_trabajos', 'minuto', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('direcciones', 'horario', 'TEXT');
+
+// Agenda de direcciones (unifica Direcciones con la vieja Agenda de
+// trabajo): direcciones suma fecha, turno y el estado 'hecha'. El CHECK de
+// estado no se puede cambiar con ALTER, así que se recrea la tabla con el
+// patrón de siempre (nunca renombrar la original primero: rompe las FK que
+// apuntan a ella).
+const direccionesDef = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='direcciones'").get();
+if (direccionesDef && !direccionesDef.sql.includes("'hecha'")) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE direcciones_nuevo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      direccion TEXT NOT NULL,
+      trabajo TEXT NOT NULL,
+      telefono TEXT,
+      cerrajero_id INTEGER REFERENCES cerrajeros(id),
+      fecha TEXT,
+      turno TEXT,
+      horario TEXT,
+      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','convertida','hecha')),
+      venta_id INTEGER REFERENCES ventas(id),
+      creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      convertido_en TEXT,
+      hecha_en TEXT
+    );
+    INSERT INTO direcciones_nuevo (id, direccion, trabajo, telefono, cerrajero_id, horario, estado, venta_id, creado_en, convertido_en)
+      SELECT id, direccion, trabajo, telefono, cerrajero_id, horario, estado, venta_id, creado_en, convertido_en FROM direcciones;
+    DROP TABLE direcciones;
+    ALTER TABLE direcciones_nuevo RENAME TO direcciones;
+    CREATE INDEX IF NOT EXISTS idx_direcciones_estado ON direcciones(estado);
+  `);
+  db.pragma('foreign_keys = ON');
+}
+// Las direcciones de antes no tenían día ni turno: se toman de cuándo se
+// cargaron (o del horario, si lo tenían).
+db.exec(`
+  UPDATE direcciones SET fecha = date(creado_en) WHERE fecha IS NULL;
+  UPDATE direcciones SET turno = CASE
+      WHEN COALESCE(horario, time(creado_en)) < '14:00' THEN 'manana' ELSE 'tarde' END
+    WHERE turno IS NULL;
+`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_direcciones_fecha ON direcciones(fecha)');
+// Cada trabajo de la vieja Agenda pasa una sola vez a direcciones.
+ensureColumn('agenda_trabajos', 'direccion_id', 'INTEGER');
+db.transaction(() => {
+  const pendientesDeMigrar = db.prepare('SELECT * FROM agenda_trabajos WHERE direccion_id IS NULL').all();
+  const insertar = db.prepare(
+    `INSERT INTO direcciones (direccion, trabajo, telefono, fecha, turno, horario, estado, creado_en, hecha_en)
+     VALUES (@direccion, @trabajo, @telefono, @fecha, @turno, @horario, @estado, @creado_en, @hecha_en)`
+  );
+  const marcar = db.prepare('UPDATE agenda_trabajos SET direccion_id = ? WHERE id = ?');
+  for (const a of pendientesDeMigrar) {
+    const hecha = a.estado === 'hecho';
+    const info = insertar.run({
+      direccion: a.direccion,
+      trabajo: a.trabajo,
+      telefono: a.telefono,
+      fecha: a.fecha,
+      turno: a.turno,
+      horario: a.hora != null ? `${String(a.hora).padStart(2, '0')}:${String(a.minuto || 0).padStart(2, '0')}` : null,
+      estado: hecha ? 'hecha' : 'pendiente',
+      creado_en: a.creado_en,
+      hecha_en: hecha ? a.creado_en : null,
+    });
+    marcar.run(info.lastInsertRowid, a.id);
+  }
+})();
 // Va acá (no en schema.sql) porque necesita que la columna de arriba ya
 // exista: en una base migrada, schema.sql corre ANTES que estos
 // ensureColumn, así que un CREATE INDEX sobre esa columna ahí arriba

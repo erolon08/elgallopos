@@ -6,12 +6,20 @@ const router = express.Router();
 router.get('/', (req, res) => {
   const q = String(req.query.q || '').trim();
   if (q) return res.json(direccionesService.buscar(q));
-  res.json(direccionesService.listar(req.query.estado));
+  res.json(direccionesService.listar({ estado: req.query.estado, fecha: req.query.fecha }));
 });
 
 router.post('/', (req, res) => {
   try {
     res.status(201).json(direccionesService.crear(req.body));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/:id/hecha', (req, res) => {
+  try {
+    res.json(direccionesService.marcarHecha(Number(req.params.id)));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

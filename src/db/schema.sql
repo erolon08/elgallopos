@@ -248,28 +248,31 @@ CREATE TABLE IF NOT EXISTS cerrajeros (
 -- exista una venta (todavía no hay precio ni productos definidos). Desde
 -- ahí se "pasa a venta" para armar el carrito y facturar; en ese momento
 -- queda marcada como convertida y sale de la lista activa.
+-- Agenda de direcciones: adónde va cada cerrajero, para qué día y turno
+-- (mañana 8 a 12:30hs, tarde 16 a 20:30hs), con hora puntual opcional
+-- (cada 15 minutos). La pantalla avisa con un cartel 30 y 15 minutos antes
+-- de la hora, o al empezar el turno si no tiene hora. De acá se pasa a
+-- venta (estado 'convertida') o se marca hecha sin facturar ('hecha').
 CREATE TABLE IF NOT EXISTS direcciones (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   direccion TEXT NOT NULL,
   trabajo TEXT NOT NULL,
   telefono TEXT,
   cerrajero_id INTEGER REFERENCES cerrajeros(id),
+  fecha TEXT,   -- 'AAAA-MM-DD', día del trabajo
+  turno TEXT,   -- 'manana' | 'tarde'
   horario TEXT, -- 'HH:MM' opcional (cada 15 minutos), a qué hora hay que ir
-  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','convertida')),
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','convertida','hecha')),
   venta_id INTEGER REFERENCES ventas(id),
   creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  convertido_en TEXT
+  convertido_en TEXT,
+  hecha_en TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_direcciones_estado ON direcciones(estado);
 
--- Agenda de trabajo: direcciones agendadas para un día y turno puntual
--- (mañana 8 a 12:30hs, tarde 16 a 20:30hs). Es independiente de
--- "direcciones" (esa es la cola de trabajos para pasar a venta ahora
--- mismo); esto es para no olvidarse de un trabajo pactado para más
--- adelante — dispara el cartel emergente cuando llega el día y el turno.
--- "hora" + "minuto" (cada 15 minutos: 8:00 a 12:30 en mañana, 16:00 a
--- 20:30 en tarde) es opcional: si se carga, el aviso sale 30 minutos antes
--- de esa hora puntual en vez de recién al entrar la franja completa del turno.
+-- Legado: la vieja "Agenda de trabajo", que ahora es parte de direcciones.
+-- Al arrancar, src/db/index.js pasa cada fila a direcciones y anota el id
+-- en direccion_id (no se borra nada).
 CREATE TABLE IF NOT EXISTS agenda_trabajos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   direccion TEXT NOT NULL,
