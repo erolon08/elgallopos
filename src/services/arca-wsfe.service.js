@@ -113,7 +113,17 @@ async function solicitarCAE(ptoVta, cbteTipo, detalle) {
     </FeCAEReq>
   </FECAESolicitar>`;
 
-  const { status, body } = await wsaa.llamarSoap(WSFE_URL, soapBody, `"${NS}FECAESolicitar"`);
+  let respuesta;
+  try {
+    respuesta = await wsaa.llamarSoap(WSFE_URL, soapBody, `"${NS}FECAESolicitar"`, { idempotente: false });
+  } catch (err) {
+    // Se cortó con el pedido ya enviado: ARCA pudo haber emitido el
+    // comprobante igual. Antes de dar error (y que se vuelva a facturar con
+    // el número siguiente, quedando dos facturas), se le pregunta a ARCA.
+    if (err.posiblementeEntregado) return recuperarCAETrasCorte(ptoVta, cbteTipo, detalle, err);
+    throw err;
+  }
+  const { status, body } = respuesta;
   if (status !== 200) throw new Error(`ARCA (WSFE) respondió con error HTTP ${status}: ${body.slice(0, 800)}`);
 
   const resultado = parsear(body)?.FECAESolicitarResponse?.FECAESolicitarResult;
@@ -150,4 +160,57 @@ async function solicitarCAE(ptoVta, cbteTipo, detalle) {
   };
 }
 
-module.exports = { dummy, ultimoAutorizado, solicitarCAE };
+// Datos de un comprobante ya emitido (solo lectura).
+async function consultarComprobante(ptoVta, cbteTipo, cbteNro) {
+  const { token, sign } = await wsaa.obtenerTicket('wsfe');
+  const cuit = wsaa.obtenerCuit();
+  const soapBody = `<FECompConsultar xmlns="${NS}"><Auth><Token>${token}</Token><Sign>${sign}</Sign><Cuit>${cuit}</Cuit></Auth><FeCompConsReq><CbteTipo>${cbteTipo}</CbteTipo><CbteNro>${cbteNro}</CbteNro><PtoVta>${ptoVta}</PtoVta></FeCompConsReq></FECompConsultar>`;
+  const { status, body } = await wsaa.llamarSoap(WSFE_URL, soapBody, `"${NS}FECompConsultar"`);
+  if (status !== 200) throw new Error(`ARCA (WSFE) respondió con error HTTP ${status}: ${body.slice(0, 500)}`);
+  const resultado = parsear(body)?.FECompConsultarResponse?.FECompConsultarResult;
+  const errores = resultado?.Errors?.Err;
+  if (errores) {
+    const lista = Array.isArray(errores) ? errores : [errores];
+    throw new Error(`ARCA (WSFE) devolvió error: ${lista.map((e) => `[${e.Code}] ${e.Msg}`).join(' | ')}`);
+  }
+  return resultado?.ResultGet || null;
+}
+
+// Después de un corte con el FECAESolicitar ya enviado: si el último número
+// autorizado es justo el que se pidió y el comprobante coincide (mismo
+// total y mismo documento), es el nuestro → se toma su CAE como si la
+// respuesta hubiera llegado. Si no se llegó a emitir, error normal (se
+// puede volver a intentar tranquilo). Si ni siquiera se puede verificar,
+// se avisa que hay que revisar en ARCA antes de reintentar.
+async function recuperarCAETrasCorte(ptoVta, cbteTipo, detalle, errOriginal) {
+  const nro = `${String(ptoVta).padStart(5, '0')}-${String(detalle.cbteNro).padStart(8, '0')}`;
+  let ultimo;
+  try {
+    ultimo = Number((await ultimoAutorizado(ptoVta, cbteTipo)).CbteNro);
+  } catch {
+    throw new Error(
+      `Se cortó la conexión con ARCA justo al pedir el CAE y no se pudo verificar si el comprobante ${nro} quedó emitido. ` +
+        'Antes de volver a facturar esta venta, esperá unos minutos y revisá en ARCA (Comprobantes en línea / Mis comprobantes) si ese número aparece.'
+    );
+  }
+  if (ultimo < Number(detalle.cbteNro)) throw errOriginal; // no llegó a emitirse
+  const cbte = await consultarComprobante(ptoVta, cbteTipo, detalle.cbteNro);
+  const coincide =
+    cbte &&
+    cbte.CodAutorizacion &&
+    Math.abs(Number(cbte.ImpTotal) - Number(detalle.impTotal)) < 0.01 &&
+    String(cbte.DocNro) === String(detalle.docNro);
+  if (!coincide) {
+    throw new Error(
+      `Se cortó la conexión con ARCA al pedir el CAE y el comprobante ${nro} figura emitido pero no coincide con esta venta. Revisalo en ARCA antes de volver a facturar.`
+    );
+  }
+  return {
+    cae: String(cbte.CodAutorizacion),
+    caeVencimiento: String(cbte.FchVto),
+    cbteNro: String(cbte.CbteDesde || detalle.cbteNro),
+    observaciones: 'CAE recuperado de ARCA después de un corte de conexión.',
+  };
+}
+
+module.exports = { dummy, ultimoAutorizado, solicitarCAE, consultarComprobante };

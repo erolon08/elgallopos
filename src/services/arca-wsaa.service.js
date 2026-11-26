@@ -15,6 +15,33 @@ const WSAA_URL = 'https://wsaa.afip.gov.ar/ws/services/LoginCms';
 
 const cacheTickets = new Map(); // servicio -> { token, sign, expira }
 
+// El ticket también se guarda en disco (junto a la base, en data/, que no
+// va a GitHub): ARCA no da un ticket nuevo mientras el anterior siga vigente
+// (hasta 12 h), así que si solo viviera en memoria, reiniciar el sistema
+// —o un corte justo cuando ARCA ya lo había entregado— dejaba sin poder
+// facturar hasta que venciera.
+const DATA_DIR = path.dirname(process.env.GALLO_DB_PATH || path.join(__dirname, '..', '..', 'data', 'gallopos.db'));
+const rutaTicketGuardado = (servicio) => path.join(DATA_DIR, `arca-ticket-${servicio}.json`);
+
+function leerTicketGuardado(servicio) {
+  try {
+    const t = JSON.parse(fs.readFileSync(rutaTicketGuardado(servicio), 'utf8'));
+    if (t && t.token && t.sign && t.expira && t.cuit === obtenerCuit()) return t;
+  } catch {
+    // no hay ticket guardado (o está roto): se pide uno nuevo
+  }
+  return null;
+}
+
+function guardarTicket(servicio, ticket) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(rutaTicketGuardado(servicio), JSON.stringify({ ...ticket, cuit: obtenerCuit() }));
+  } catch (err) {
+    console.error('No se pudo guardar el ticket de ARCA en disco (sigue en memoria):', err.message);
+  }
+}
+
 function archivoUnico(extensiones, descripcion) {
   if (!fs.existsSync(ARCA_DIR)) {
     throw new Error('No existe la carpeta arca/ — corré primero "npm run generar-csr-arca" y completá el trámite en ARCA.');
@@ -92,17 +119,25 @@ function firmarCms(xml, certPem, privateKeyPem) {
   return forge.util.encode64(der);
 }
 
-// El servidor de WSFE (a diferencia de WSAA) exige que el header SOAPAction
-// coincida exactamente con la operación que se está llamando (ej.
-// "http://ar.gov.afip.dif.FEV1/FEDummy") — si va vacío, lo rechaza antes de
-// siquiera mirar el cuerpo del pedido.
-function llamarSoap(url, soapBody, soapAction = '') {
-  const envelope = `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"><soapenv:Body>${soapBody}</soapenv:Body></soapenv:Envelope>`;
+// Una conexión nueva por pedido: desde Node 19 el agente por defecto reusa
+// conexiones (keep-alive), y los servidores de ARCA cierran las que quedan
+// quietas — reusar una ya cerrada da "read ECONNRESET".
+const agenteArca = new https.Agent({ keepAlive: false });
+const TIMEOUT_MS = 30000;
+const ESPERAS_REINTENTO_MS = [1000, 3000];
+const CODIGOS_TRANSITORIOS = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'EPIPE', 'EAI_AGAIN', 'ENOTFOUND', 'ENETUNREACH', 'EHOSTUNREACH']);
+
+// Un intento. Si falla, el error lleva `transitorio` (corte de red, vale la
+// pena reintentar) y `posiblementeEntregado` (el pedido ya había salido
+// entero: ARCA pudo haberlo procesado aunque no llegó la respuesta).
+function llamarSoapUnaVez(url, envelope, soapAction) {
   return new Promise((resolve, reject) => {
+    let enviado = false;
     const req = https.request(
       url,
       {
         method: 'POST',
+        agent: agenteArca,
         headers: {
           'Content-Type': 'text/xml; charset=utf-8',
           SOAPAction: soapAction,
@@ -113,20 +148,72 @@ function llamarSoap(url, soapBody, soapAction = '') {
         let data = '';
         res.on('data', (chunk) => (data += chunk));
         res.on('end', () => resolve({ status: res.statusCode, body: data }));
+        res.on('error', (err) => {
+          err.posiblementeEntregado = true;
+          err.transitorio = true;
+          reject(err);
+        });
       }
     );
-    req.on('error', reject);
+    req.on('finish', () => (enviado = true));
+    req.setTimeout(TIMEOUT_MS, () => {
+      const err = new Error('ARCA no respondió a tiempo');
+      err.code = 'ETIMEDOUT';
+      req.destroy(err);
+    });
+    req.on('error', (err) => {
+      err.transitorio = CODIGOS_TRANSITORIOS.has(err.code) || /socket hang up/i.test(err.message);
+      err.posiblementeEntregado = enviado;
+      reject(err);
+    });
     req.write(envelope);
     req.end();
   });
 }
 
+// El servidor de WSFE (a diferencia de WSAA) exige que el header SOAPAction
+// coincida exactamente con la operación que se está llamando (ej.
+// "http://ar.gov.afip.dif.FEV1/FEDummy") — si va vacío, lo rechaza antes de
+// siquiera mirar el cuerpo del pedido.
+// Ante un corte de red reintenta hasta 3 veces. Un pedido que NO es
+// idempotente (FECAESolicitar: emite un comprobante) solo se reintenta si
+// el corte fue antes de terminar de mandarlo; si ya había salido, el error
+// sube con `posiblementeEntregado` para que quien llamó verifique en ARCA
+// antes de volver a pedirlo.
+async function llamarSoap(url, soapBody, soapAction = '', { idempotente = true } = {}) {
+  const envelope = `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"><soapenv:Body>${soapBody}</soapenv:Body></soapenv:Envelope>`;
+  for (let intento = 0; ; intento++) {
+    try {
+      return await llamarSoapUnaVez(url, envelope, soapAction);
+    } catch (err) {
+      const puedeReintentar = err.transitorio && (idempotente || !err.posiblementeEntregado) && intento < ESPERAS_REINTENTO_MS.length;
+      if (!puedeReintentar) {
+        if (err.transitorio) {
+          const amigable = new Error(
+            `Se cortó la conexión con ARCA (${err.code || err.message}). Suele ser un corte momentáneo de los servidores de ARCA: probá de nuevo en unos minutos.`
+          );
+          amigable.code = err.code;
+          amigable.transitorio = true;
+          amigable.posiblementeEntregado = err.posiblementeEntregado;
+          throw amigable;
+        }
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, ESPERAS_REINTENTO_MS[intento]));
+    }
+  }
+}
+
 // Pide (o devuelve del caché) el token+sign para un servicio de ARCA. "wsfe"
 // es el único que usa Gallo POS por ahora.
 async function obtenerTicket(servicio = 'wsfe') {
+  const vigente = (t) => t && t.expira > Date.now() + 5 * 60 * 1000;
   const cacheado = cacheTickets.get(servicio);
-  if (cacheado && cacheado.expira > Date.now() + 5 * 60 * 1000) {
-    return cacheado;
+  if (vigente(cacheado)) return cacheado;
+  const guardado = leerTicketGuardado(servicio);
+  if (vigente(guardado)) {
+    cacheTickets.set(servicio, guardado);
+    return guardado;
   }
 
   const { certPem, privateKeyPem } = cargarCredenciales();
@@ -143,7 +230,15 @@ async function obtenerTicket(servicio = 'wsfe') {
   const parsed = parser.parse(body);
   const fault = parsed?.Envelope?.Body?.Fault;
   if (fault) {
-    throw new Error(`ARCA (WSAA) rechazó el login: ${fault.faultstring || JSON.stringify(fault)}`);
+    const texto = String(fault.faultstring || JSON.stringify(fault));
+    if (/alreadyAuthenticated|ya posee un TA valido/i.test(`${fault.faultcode || ''} ${texto}`)) {
+      throw new Error(
+        'ARCA dice que ya entregó un permiso de facturación que sigue vigente, pero el sistema no lo tiene guardado ' +
+          '(pasa si se cortó la conexión justo cuando ARCA lo mandaba). Ese permiso vence solo en unas horas (máximo 12): ' +
+          'hasta entonces no se puede facturar electrónicamente. Detalle de ARCA: ' + texto
+      );
+    }
+    throw new Error(`ARCA (WSAA) rechazó el login: ${texto}`);
   }
 
   const loginCmsReturn = parsed?.Envelope?.Body?.loginCmsResponse?.loginCmsReturn;
@@ -163,6 +258,7 @@ async function obtenerTicket(servicio = 'wsfe') {
     expira: expirationTime ? new Date(expirationTime).getTime() : Date.now() + 11 * 60 * 60 * 1000,
   };
   cacheTickets.set(servicio, resultado);
+  guardarTicket(servicio, resultado);
   return resultado;
 }
 
