@@ -8154,11 +8154,11 @@ async function cargarResumenRendiciones() {
   const r = await (await fetch('/api/rendiciones/resumen?' + params.toString())).json();
   ultimoResumenRendiciones = r;
   const filas = r.porCerrajero
-    .map((c) => `<tr><td>${c.cerrajero_nombre}</td><td class="a4-num">${c.cantidad}</td><td class="a4-num">$ ${money.format(c.total_pagar)}</td></tr>`)
+    .map((c) => `<tr><td>${escapeHtml(c.cerrajero_nombre)}</td><td class="a4-num">${c.cantidad}</td><td class="a4-num">$ ${money.format(c.total_pagar)}</td><td class="a4-num">$ ${money.format(c.mano_obra || 0)}</td></tr>`)
     .join('');
   document.getElementById('resRendResultado').innerHTML = `
-    <p>Total pagado a cerrajeros: <b>$ ${money.format(r.totalGeneral)}</b></p>
-    <div class="table-wrap"><table><thead><tr><th>Cerrajero</th><th>Rendiciones</th><th>Total pagado</th></tr></thead><tbody>${filas || '<tr><td colspan="3">Sin rendiciones en el período.</td></tr>'}</tbody></table></div>
+    <p>Total pagado a cerrajeros: <b>$ ${money.format(r.totalGeneral)}</b> — Mano de obra facturada: <b>$ ${money.format(r.totalManoObra || 0)}</b></p>
+    <div class="table-wrap"><table><thead><tr><th>Cerrajero</th><th>Rendiciones</th><th>Total pagado</th><th>Mano de obra facturada</th></tr></thead><tbody>${filas || '<tr><td colspan="4">Sin rendiciones en el período.</td></tr>'}</tbody></table></div>
   `;
 }
 function descargarExcelResumenRendiciones() {
@@ -8173,15 +8173,16 @@ async function verResumenRendicionesA4() {
   if (!ultimoResumenRendiciones) await cargarResumenRendiciones();
   const r = ultimoResumenRendiciones;
   const filas = r.porCerrajero
-    .map((c) => `<tr><td>${c.cerrajero_nombre}</td><td class="a4-num">${c.cantidad}</td><td class="a4-num">$ ${money.format(c.total_pagar)}</td></tr>`)
+    .map((c) => `<tr><td>${escapeHtml(c.cerrajero_nombre)}</td><td class="a4-num">${c.cantidad}</td><td class="a4-num">$ ${money.format(c.total_pagar)}</td><td class="a4-num">$ ${money.format(c.mano_obra || 0)}</td></tr>`)
     .join('');
   const html = `
     ${resumenA4Header('Resumen de Rendiciones de cerrajeros', r.desde, r.hasta)}
     <table class="a4-tabla">
-      <thead><tr><th>Cerrajero</th><th>Rendiciones</th><th>Total pagado</th></tr></thead>
+      <thead><tr><th>Cerrajero</th><th>Rendiciones</th><th>Total pagado</th><th>Mano de obra facturada</th></tr></thead>
       <tbody>${filas}</tbody>
     </table>
-    <div class="a4-total">TOTAL PAGADO: $ ${money.format(r.totalGeneral)}</div>
+    <p class="a4-muted">Mano de obra facturada: la de los servicios de cada cerrajero en ventas cobradas dentro del período.</p>
+    <div class="a4-total">TOTAL PAGADO: $ ${money.format(r.totalGeneral)} — MANO DE OBRA FACTURADA: $ ${money.format(r.totalManoObra || 0)}</div>
   `;
   ultimoDocumentoParaTicket = { tipo: 'resumen', data: r };
   document.getElementById('btnEnviarImagenWhatsapp').style.display = 'none';

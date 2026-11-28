@@ -566,19 +566,45 @@ function resumen({ desde, hasta }) {
     .all(params);
 
   const porCerrajero = {};
-  filas.forEach((f) => {
-    if (!porCerrajero[f.cerrajero_nombre]) {
-      porCerrajero[f.cerrajero_nombre] = { cerrajero_nombre: f.cerrajero_nombre, cantidad: 0, total_bruto: 0, total_descuentos: 0, total_pagar: 0 };
+  const grupo = (nombre) => {
+    if (!porCerrajero[nombre]) {
+      porCerrajero[nombre] = { cerrajero_nombre: nombre, cantidad: 0, total_bruto: 0, total_descuentos: 0, total_pagar: 0, mano_obra: 0 };
     }
-    const g = porCerrajero[f.cerrajero_nombre];
+    return porCerrajero[nombre];
+  };
+  filas.forEach((f) => {
+    const g = grupo(f.cerrajero_nombre);
     g.cantidad += 1;
     g.total_bruto += f.total_bruto;
     g.total_descuentos += f.total_descuentos;
     g.total_pagar += f.total_pagar;
   });
 
+  // Mano de obra facturada por cada cerrajero en el período: la de los
+  // servicios que hizo en ventas cobradas (por fecha de cobro, no de la
+  // rendición) — la misma base sobre la que se le calcula la rendición.
+  // Un cerrajero que facturó pero todavía no se le rindió aparece igual,
+  // con 0 rendiciones.
+  const condVentas = cond.replace(/r\.creado_en/g, 'v.cobrado_en');
+  db.prepare(
+    `SELECT c.nombre AS cerrajero_nombre, SUM(COALESCE(vi.monto_mano_obra, 0) * vi.cantidad) AS mano_obra
+     FROM venta_items vi
+     JOIN ventas v ON v.id = vi.venta_id
+     JOIN cerrajeros c ON c.id = vi.cerrajero_id
+     JOIN productos p ON p.id = vi.producto_id
+     JOIN familias f ON f.id = p.familia_id
+     WHERE v.estado = 'cobrada' AND f.usa_mano_obra = 1 ${condVentas}
+     GROUP BY c.id`
+  )
+    .all(params)
+    .forEach((m) => {
+      if (m.mano_obra) grupo(m.cerrajero_nombre).mano_obra += m.mano_obra;
+    });
+
   const totalGeneral = filas.reduce((s, f) => s + f.total_pagar, 0);
-  return { desde, hasta, filas, porCerrajero: Object.values(porCerrajero), totalGeneral };
+  const lista = Object.values(porCerrajero);
+  const totalManoObra = lista.reduce((s, g) => s + g.mano_obra, 0);
+  return { desde, hasta, filas, porCerrajero: lista, totalGeneral, totalManoObra };
 }
 
 // Un renglón por rendición (no por línea de detalle), para exportar a Excel.

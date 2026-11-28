@@ -11,10 +11,17 @@ router.get('/resumen', (req, res) => {
 
 router.get('/exportar', (req, res) => {
   const { desde, hasta } = req.query;
-  const filas = rendicionesService.exportarFilas({ desde, hasta });
-  const hoja = XLSX.utils.json_to_sheet(filas);
+  const r = rendicionesService.resumen({ desde, hasta });
   const libro = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(libro, hoja, 'Rendiciones');
+  const porCerrajero = r.porCerrajero.map((c) => ({
+    Cerrajero: c.cerrajero_nombre,
+    Rendiciones: c.cantidad,
+    'Total pagado': c.total_pagar,
+    'Mano de obra facturada': c.mano_obra,
+  }));
+  porCerrajero.push({ Cerrajero: 'TOTAL', Rendiciones: r.filas.length, 'Total pagado': r.totalGeneral, 'Mano de obra facturada': r.totalManoObra });
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(porCerrajero), 'Por cerrajero');
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(r.filas), 'Rendiciones');
   const buffer = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
   const nombre = `rendiciones_${desde || 'inicio'}_a_${hasta || 'hoy'}.xlsx`;
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
