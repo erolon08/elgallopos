@@ -8181,7 +8181,7 @@ async function verResumenRendicionesA4() {
       <thead><tr><th>Cerrajero</th><th>Rendiciones</th><th>Total pagado</th><th>Mano de obra facturada</th></tr></thead>
       <tbody>${filas}</tbody>
     </table>
-    <p class="a4-muted">Mano de obra facturada: la de los servicios de cada cerrajero en ventas cobradas dentro del período.</p>
+    <p class="a4-muted">Mano de obra facturada: la de los servicios de cada cerrajero más el monto de rendición de los duplicados de llaves, en ventas cobradas dentro del período.</p>
     <div class="a4-total">TOTAL PAGADO: $ ${money.format(r.totalGeneral)} — MANO DE OBRA FACTURADA: $ ${money.format(r.totalManoObra || 0)}</div>
   `;
   ultimoDocumentoParaTicket = { tipo: 'resumen', data: r };

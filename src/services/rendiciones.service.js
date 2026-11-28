@@ -582,18 +582,21 @@ function resumen({ desde, hasta }) {
 
   // Mano de obra facturada por cada cerrajero en el período: la de los
   // servicios que hizo en ventas cobradas (por fecha de cobro, no de la
-  // rendición) — la misma base sobre la que se le calcula la rendición.
+  // rendición) más el precio de rendición de los duplicados de llaves — la
+  // misma base sobre la que se le calcula la rendición.
   // Un cerrajero que facturó pero todavía no se le rindió aparece igual,
   // con 0 rendiciones.
   const condVentas = cond.replace(/r\.creado_en/g, 'v.cobrado_en');
   db.prepare(
-    `SELECT c.nombre AS cerrajero_nombre, SUM(COALESCE(vi.monto_mano_obra, 0) * vi.cantidad) AS mano_obra
+    `SELECT c.nombre AS cerrajero_nombre,
+            SUM(CASE WHEN f.usa_mano_obra = 1 THEN COALESCE(vi.monto_mano_obra, 0)
+                     ELSE COALESCE(p.precio_rendicion, 0) END * vi.cantidad) AS mano_obra
      FROM venta_items vi
      JOIN ventas v ON v.id = vi.venta_id
      JOIN cerrajeros c ON c.id = vi.cerrajero_id
      JOIN productos p ON p.id = vi.producto_id
      JOIN familias f ON f.id = p.familia_id
-     WHERE v.estado = 'cobrada' AND f.usa_mano_obra = 1 ${condVentas}
+     WHERE v.estado = 'cobrada' AND (f.usa_mano_obra = 1 OR f.usa_precio_rendicion = 1) ${condVentas}
      GROUP BY c.id`
   )
     .all(params)
